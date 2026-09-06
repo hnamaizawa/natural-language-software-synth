@@ -9,7 +9,7 @@ REQUIRED = [
     "AGENTS.md", "HARNESS.md", "README.md", "server.py", "pyproject.toml",
     "setup_windows.cmd", "start_synth.cmd", "check_harness.cmd",
     "harness/app_blueprint.yaml", "src/ai_synth/patch.py", "src/ai_synth/prompt_engine.py",
-    "web/index.html", "web/app.js", "web/style.css",
+    "web/index.html", "web/app.js", "web/patch_editor_runtime.js", "web/style.css",
 ]
 
 
@@ -33,6 +33,7 @@ def main():
         "generated_text_must_never_be_executed_as_code",
         "generated_patch_must_be_schema_validated_and_clamped",
         "graphical_parameter_edits_must_be_validated_and_clamped",
+        "graphical_slider_input_must_not_rebuild_control_during_drag",
         "all_engines_must_share_single_audio_context",
         "master_gain_must_be_hard_limited",
         "polyphony_must_be_bounded",
@@ -61,9 +62,13 @@ def main():
             fail(f"multi-engine patch schema missing: {token}")
     ok("hard audio, sampler, drum, and FM parameter bounds")
 
+    runtime_js = (ROOT / "web/patch_editor_runtime.js").read_text(encoding="utf-8")
     all_code = "\n".join(
         p.read_text(encoding="utf-8", errors="ignore")
-        for p in [ROOT / "server.py", ROOT / "src/ai_synth/prompt_engine.py", ROOT / "web/app.js"]
+        for p in [
+            ROOT / "server.py", ROOT / "src/ai_synth/prompt_engine.py",
+            ROOT / "web/app.js", ROOT / "web/patch_editor_runtime.js",
+        ]
     )
     for token in ["eval(", "new Function(", "exec("]:
         if token in all_code:
@@ -83,6 +88,8 @@ def main():
     for control in ["sampleSelect", "samplePlayBtn", "sampleStopBtn", "params", "resetParamsBtn"]:
         if f'id="{control}"' not in html:
             fail(f"required UI control missing: {control}")
+    if 'src="/patch_editor_runtime.js"' not in html:
+        fail("continuous patch editor runtime is not loaded")
     if "async function playSample()" not in js or "function stopSample(" not in js:
         fail("sample performance functions missing")
     sample_start = js.index("async function playSample()")
@@ -114,12 +121,19 @@ def main():
     ok("FM electric piano engine")
 
     css = (ROOT / "web/style.css").read_text(encoding="utf-8")
-    for token in ["const PARAM_DEFS", 'input.type="range"', "function applyParam(", "engine.setPatch({...currentPatch,[key]:value})"]:
+    for token in ["const PARAM_DEFS", 'input.type="range"', "function applyParam("]:
         if token not in js:
             fail(f"graphical patch editor capability missing: {token}")
+    for token in [
+        "engine.setPatchWithRender({...currentPatch,[key]:value},false)",
+        "this.patch=validatePatch(raw)",
+        "if(render)renderPatch()",
+    ]:
+        if token not in runtime_js:
+            fail(f"continuous graphical edit guard missing: {token}")
     if ".param-dial" not in css or "conic-gradient" not in css:
         fail("graphical parameter visualization missing")
-    ok("graphical parameter editor")
+    ok("continuous graphical parameter editor")
 
     prompt_py = (ROOT / "src/ai_synth/prompt_engine.py").read_text(encoding="utf-8")
     for token in ["フレットレス", "ジャコ", 'engine_type="sampler"', "ロザーナー", "ポーカロ", 'engine_type="drum"', "dx-7", 'engine_type="fm"']:
