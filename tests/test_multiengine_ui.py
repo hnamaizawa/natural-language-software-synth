@@ -3,18 +3,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_graphical_parameter_editor_is_exposed():
+def test_graphical_parameter_editor_is_exposed_and_continuous():
     html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
     js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+    runtime = (ROOT / "web" / "patch_editor_runtime.js").read_text(encoding="utf-8")
     css = (ROOT / "web" / "style.css").read_text(encoding="utf-8")
 
     assert 'id="params"' in html
     assert 'id="resetParamsBtn"' in html
+    assert 'src="/patch_editor_runtime.js"' in html
     assert "音色をグラフィカルに調整" in html
     assert "const PARAM_DEFS" in js
     assert 'input.type="range"' in js
     assert "function applyParam(" in js
-    assert "engine.setPatch({...currentPatch,[key]:value})" in js
+    assert "engine.setPatchWithRender({...currentPatch,[key]:value},false)" in runtime
+    assert "this.patch=validatePatch(raw)" in runtime
+    assert "if(render)renderPatch()" in runtime
     assert ".param-dial" in css
     assert "conic-gradient" in css
 
