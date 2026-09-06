@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "natural-language-software-synth"
-version = "0.2.0"
-description = "Local-first software synthesizer that generates playable synth and drum patches from natural-language descriptions."
+version = "0.3.0"
+description = "Local-first multi-engine software synthesizer with PCM sampler, PCM drums, FM EP, and graphical patch editing."
 requires-python = ">=3.11"
 dependencies = []
 

@@ -26,22 +26,72 @@ def _is_drum_prompt(text: str) -> bool:
     )
 
 
+def _is_fretless_prompt(text: str) -> bool:
+    return _has(
+        text,
+        "fretless", "fretless bass", "pastorius", "jaco",
+        "フレットレス", "フレットレスベース", "ジャコ", "パストリアス",
+    )
+
+
+def _is_dx_ep_prompt(text: str) -> bool:
+    return _has(
+        text,
+        "dx-7", "dx7", "dx 7", "fm electric piano", "fm piano", "dx ep",
+        "dxエレピ", "dx-7のエレピ", "dx7のエレピ",
+    ) or (_has(text, "エレピ", "electric piano") and _has(text, "80s", "80年代", "fm", "デジタル"))
+
+
 def generate_patch(prompt: str) -> SynthPatch:
     """Generate a deterministic, inspectable patch from natural language.
 
-    Generated text never becomes executable code. Drum and melodic patches both
-    pass through the same validated SynthPatch data contract.
+    Generated text never becomes executable code. Every engine selection still
+    returns data that passes the same validated SynthPatch contract.
     """
     text = (prompt or "").strip().lower()
     p = SynthPatch(prompt=prompt or "")
     archetype = "synth"
 
-    # Drum prompts select a dedicated synthesized drum engine mode.
+    # 1) Fretless bass: PCM sampler first because articulation/noise matters.
+    if _is_fretless_prompt(text):
+        archetype = "pcm fretless bass"
+        p = replace(
+            p,
+            engine_type="sampler",
+            instrument_model="fretless_bass",
+            sample_tone=0.70,
+            sample_attack_mix=0.35,
+            finger_noise_mix=0.42,
+            release_noise_mix=0.28,
+            slide_amount=0.38,
+            slide_time_s=0.18,
+            mwah_amount=0.68,
+            sample_velocity_curve=1.05,
+            lfo_rate_hz=4.8,
+            lfo_depth_cents=5.0,
+            master_gain=0.24,
+            max_polyphony=10,
+        )
+        if _has(text, "finger", "fingerstyle", "指", "指弾", "フィンガー"):
+            p = replace(p, finger_noise_mix=max(p.finger_noise_mix, 0.50), sample_attack_mix=0.42)
+        if _has(text, "slide", "gliss", "スライド", "グリス"):
+            p = replace(p, slide_amount=max(p.slide_amount, 0.68), slide_time_s=0.28)
+        if _has(text, "mwah", "歌う", "うねり", "粘る"):
+            p = replace(p, mwah_amount=max(p.mwah_amount, 0.82))
+        if _has(text, "soft", "mellow", "柔らか", "丸い"):
+            p = replace(p, sample_tone=min(p.sample_tone, 0.52))
+        if _has(text, "bright", "抜け", "明る"):
+            p = replace(p, sample_tone=max(p.sample_tone, 0.82))
+        p = replace(p, name=_slug_name(prompt, archetype))
+        return validate_patch(p)
+
+    # 2) PCM studio drums.
     if _is_drum_prompt(text):
-        archetype = "drum"
+        archetype = "pcm studio drums"
         p = replace(
             p,
             engine_type="drum",
+            instrument_model="studio_drums",
             drum_style="standard",
             kick_tune_hz=56,
             kick_decay_s=0.30,
@@ -60,7 +110,7 @@ def generate_patch(prompt: str) -> SynthPatch:
             "シャッフル", "ハーフタイム",
             "rosanna", "ロザーナ", "ロザーナー", "porcaro", "ポーカロ",
         ):
-            archetype = "half-time shuffle drum"
+            archetype = "pcm half-time shuffle drums"
             p = replace(
                 p,
                 drum_style="half_time_shuffle",
@@ -90,12 +140,36 @@ def generate_patch(prompt: str) -> SynthPatch:
             )
         if _has(text, "bright", "crisp", "明る", "抜け", "クリスプ"):
             p = replace(p, drum_brightness=max(p.drum_brightness, 0.82))
-        if _has(text, "dark", "warm", "暗い", "暖か"):
-            p = replace(p, drum_brightness=min(p.drum_brightness, 0.50))
         p = replace(p, name=_slug_name(prompt, archetype))
         return validate_patch(p)
 
-    # Melodic instrument archetypes.
+    # 3) DX-style electric piano: dedicated FM engine.
+    if _is_dx_ep_prompt(text):
+        archetype = "fm electric piano"
+        p = replace(
+            p,
+            engine_type="fm",
+            instrument_model="dx_ep",
+            fm_mod_index=5.6,
+            fm_brightness=0.78,
+            fm_ratio_1=14.0,
+            fm_ratio_2=1.0,
+            fm_decay_s=2.8,
+            fm_release_s=1.65,
+            fm_chorus_mix=0.20,
+            master_gain=0.20,
+            max_polyphony=12,
+        )
+        if _has(text, "soft", "mellow", "柔らか", "丸い"):
+            p = replace(p, fm_brightness=0.55, fm_mod_index=4.1)
+        if _has(text, "bright", "bell", "きらびやか", "ベル"):
+            p = replace(p, fm_brightness=0.92, fm_mod_index=7.2)
+        if _has(text, "long", "余韻", "長い"):
+            p = replace(p, fm_release_s=2.4)
+        p = replace(p, name=_slug_name(prompt, archetype))
+        return validate_patch(p)
+
+    # Existing subtractive synth archetypes.
     if _has(text, "pad", "ambient", "atmosphere", "dreamy", "パッド", "アンビエント"):
         archetype = "pad"
         p = replace(p, osc1_wave="sawtooth", osc2_wave="triangle", osc_mix=0.42,
@@ -136,7 +210,6 @@ def generate_patch(prompt: str) -> SynthPatch:
                     attack_s=0.008, decay_s=0.03, sustain=0.92, release_s=0.12,
                     lfo_rate_hz=5.5, lfo_depth_cents=4, master_gain=0.18)
 
-    # Mood and timbre modifiers.
     if _has(text, "warm", "soft", "mellow", "gentle", "暖か", "柔らか", "まろやか"):
         p = replace(p, filter_cutoff_hz=p.filter_cutoff_hz * 0.62,
                     filter_q=max(0.5, p.filter_q * 0.82), master_gain=min(p.master_gain, 0.22))
@@ -152,24 +225,17 @@ def generate_patch(prompt: str) -> SynthPatch:
     if _has(text, "wide", "fat", "thick", "lush", "太い", "広がり"):
         p = replace(p, osc2_detune_cents=max(12, abs(p.osc2_detune_cents) * 1.6),
                     osc_mix=max(0.38, p.osc_mix))
-    if _has(text, "thin", "narrow", "細い"):
-        p = replace(p, osc_mix=0.15, osc2_detune_cents=2)
     if _has(text, "slow attack", "fade in", "ゆっくり立ち上が", "遅いアタック"):
         p = replace(p, attack_s=max(1.0, p.attack_s * 2.2))
     if _has(text, "fast attack", "punchy", "snappy", "速いアタック", "パンチ"):
         p = replace(p, attack_s=min(0.01, p.attack_s), decay_s=min(0.25, p.decay_s))
     if _has(text, "long release", "lingering", "tail", "余韻", "長いリリース"):
         p = replace(p, release_s=max(2.0, p.release_s * 1.8))
-    if _has(text, "short", "tight", "staccato", "短い", "タイト"):
-        p = replace(p, decay_s=min(0.18, p.decay_s), release_s=min(0.22, p.release_s))
     if _has(text, "vibrato", "wobble", "揺れ", "ビブラート"):
         p = replace(p, lfo_rate_hz=max(4.5, p.lfo_rate_hz), lfo_depth_cents=max(8, p.lfo_depth_cents))
     if _has(text, "echo", "delay", "space", "spacious", "エコー", "ディレイ", "空間"):
         p = replace(p, delay_time_s=max(0.28, p.delay_time_s),
                     delay_feedback=max(0.26, p.delay_feedback), delay_mix=max(0.22, p.delay_mix))
-    if _has(text, "retro", "80s", "vintage", "レトロ", "ビンテージ"):
-        p = replace(p, osc1_wave="sawtooth", osc2_wave="sawtooth",
-                    osc2_detune_cents=max(9, p.osc2_detune_cents), delay_mix=max(0.12, p.delay_mix))
 
     p = replace(p, name=_slug_name(prompt, archetype))
     return validate_patch(p)

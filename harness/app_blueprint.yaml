@@ -1,18 +1,20 @@
 schema_version: '1.0'
 blueprint_name: natural-language-software-synth
-blueprint_version: 0.2.0
+blueprint_version: 0.3.0
 canonical_project: natural-language-software-synth
 purpose: >-
-  Generate and play local-first software-synth and synthesized-drum patches from
-  natural-language descriptions, while keeping generated model output constrained
-  to a validated deterministic patch schema that can later be driven by a sequencer.
+  Generate and play local-first multi-engine instrument patches from natural-language
+  descriptions. Support subtractive synthesis, PCM-style fretless bass, PCM-style drums,
+  and FM electric piano while keeping every generated or edited patch validated and bounded.
 required_capabilities:
 - natural_language_patch_generation
-- natural_language_drum_patch_generation
 - deterministic_offline_prompt_fallback
 - validated_patch_schema
 - browser_web_audio_polyphonic_engine
-- synthesized_drum_kit_engine
+- pcm_fretless_bass_engine
+- pcm_fretless_articulation_layers
+- pcm_studio_drum_engine
+- dx_style_fm_electric_piano_engine
 - adaptive_piano_or_drum_performance_surface
 - computer_keyboard_performance
 - onscreen_keyboard_performance
@@ -20,12 +22,15 @@ required_capabilities:
 - optional_web_midi_input
 - gm_style_drum_note_mapping
 - current_patch_sample_performance
-- sample_melody_chord_and_bass_patterns
+- fretless_sample_performance
+- fm_ep_sample_performance
 - drum_half_time_shuffle_sample_performance
 - drum_straight_sample_performance
-- sample_performance_stop_control
+- graphical_patch_parameter_editor
+- continuous_graphical_parameter_editing
+- engine_specific_parameter_controls
+- parameter_reset_to_generated_patch
 - patch_json_save_load
-- patch_parameter_visualization
 - stable_note_event_contract
 - future_sequencer_adapter_boundary
 - local_windows_setup
@@ -33,15 +38,19 @@ required_capabilities:
 non_negotiable_invariants:
 - generated_text_must_never_be_executed_as_code
 - generated_patch_must_be_schema_validated_and_clamped
+- graphical_parameter_edits_must_be_validated_and_clamped
+- graphical_slider_input_must_not_rebuild_control_during_drag
 - audio_context_must_start_only_after_user_gesture
+- all_engines_must_share_single_audio_context
 - master_gain_must_be_hard_limited
 - polyphony_must_be_bounded
 - oscillator_frequency_must_be_derived_from_valid_midi_note
 - sequencer_must_use_same_note_on_note_off_contract_as_live_playing
 - sample_performance_must_use_same_note_on_note_off_contract_as_live_playing
-- drum_mode_must_share_single_audio_context
+- pcm_sampler_must_use_audio_buffer_source_nodes
+- pcm_factory_buffers_must_not_embed_third_party_artist_recordings
 - drum_pad_and_sample_must_use_note_event_contract
-- drum_parameters_must_be_schema_validated_and_clamped
+- pcm_and_fm_parameters_must_be_schema_validated_and_clamped
 - saved_user_patches_must_not_be_copied_into_generated_apps
 - external_llm_credentials_must_not_be_required_for_offline_mode
 - eval_and_dynamic_script_injection_forbidden
@@ -60,6 +69,7 @@ required_files:
 - src/ai_synth/prompt_engine.py
 - web/index.html
 - web/app.js
+- web/patch_editor_runtime.js
 - web/style.css
 runtime_state_exclusions:
 - .env
@@ -81,10 +91,21 @@ ui_requirements:
   computer_keyboard: true
   midi_input_optional: true
   sample_performance: true
-  sample_performance_types: [melody, chords, bass, drum_shuffle, drum_straight]
+  sample_performance_types: [melody, chords, bass, fretless_demo, fm_ep_demo, drum_shuffle, drum_straight]
   sample_performance_stop: true
-  patch_parameter_panel: true
+  graphical_patch_parameter_editor: true
+  continuous_slider_editing: true
+  engine_specific_parameter_controls: true
+  reset_to_generated_patch: true
   patch_json_export_import: true
+engine_routing:
+  fretless_bass: sampler
+  studio_drums: drum
+  dx_style_electric_piano: fm
+  default: synth
+pcm_fretless_contract:
+  layers: [nearest_root_note, attack_noise, release_noise, slide_noise]
+  controls: [sample_tone, sample_attack_mix, finger_noise_mix, release_noise_mix, slide_amount, slide_time_s, mwah_amount, sample_velocity_curve]
 drum_contract:
   canonical_notes:
     kick: 36
@@ -96,6 +117,8 @@ drum_contract:
     high_tom: 50
     crash: 49
     ride: 51
+fm_contract:
+  controls: [fm_mod_index, fm_brightness, fm_ratio_1, fm_ratio_2, fm_decay_s, fm_release_s, fm_chorus_mix]
 sequencer_contract:
   note_on: "noteOn(midiNote, velocity, whenSeconds=0)"
   note_off: "noteOff(midiNote, whenSeconds=0)"

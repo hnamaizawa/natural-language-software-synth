@@ -10,9 +10,9 @@
   <main>
     <header>
       <div>
-        <p class="eyebrow">v0.2.0 · local-first</p>
+        <p class="eyebrow">v0.3.0 · multi-engine · local-first</p>
         <h1>Natural Language Software Synth</h1>
-        <p class="lead">楽器や雰囲気を自然言語で伝えると、鍵盤音源またはドラムキットを生成してその場で演奏できます。</p>
+        <p class="lead">自然言語から、減算シンセ・PCMフレットレスベース・PCMドラム・FMエレピを自動選択し、その場で演奏できます。</p>
       </div>
       <button id="audioBtn" class="primary">音源を有効化</button>
     </header>
@@ -20,17 +20,16 @@
     <section class="panel prompt-panel">
       <label for="prompt">どんな音が欲しいですか？</label>
       <div class="prompt-row">
-        <textarea id="prompt" rows="3">warm analog pad with slow attack, wide detune and gentle echo</textarea>
+        <textarea id="prompt" rows="3">ジャコ・パストリアスのような歌うフレットレスベース。指弾きのノイズとスライド感を強めに。</textarea>
         <button id="generateBtn" class="primary">音色を生成</button>
       </div>
       <div class="chips">
-        <button data-prompt="deep punchy synth bass, short and dark">Deep Bass</button>
-        <button data-prompt="bright glassy bell with a long release">Glass Bell</button>
-        <button data-prompt="retro lead, wide detune, bright and aggressive">Retro Lead</button>
-        <button data-prompt="soft dreamy ambient pad with lots of echo">Dream Pad</button>
-        <button data-prompt="Toto のロザーナーでジェフ ポーカロさんのシャッフルで有名なドラムの音を生成してください。">Half-Time Shuffle Drums</button>
+        <button data-prompt="ジャコ・パストリアスのような歌うフレットレスベース。指弾きのノイズとスライド感を強めに。">Fretless Bass</button>
+        <button data-prompt="Toto のロザーナーでジェフ ポーカロさんのシャッフルで有名なドラムの音を生成してください。">PCM Shuffle Drums</button>
+        <button data-prompt="80年代の DX-7 のような、きらびやかな FM エレピ">DX-style EP</button>
+        <button data-prompt="warm analog pad with slow attack, wide detune and gentle echo">Warm Pad</button>
       </div>
-      <p id="status">「音源を有効化」を押してから演奏してください。</p>
+      <p id="status">「音源を有効化」を押すとFactory PCMバッファも準備します。</p>
     </section>
 
     <section class="workspace">
@@ -39,6 +38,7 @@
           <div>
             <span class="kicker">PLAY · <span id="engineBadge">SYNTH</span></span>
             <h2 id="patchName">Init Patch</h2>
+            <div id="engineDetail" class="engine-detail">Subtractive Synth</div>
           </div>
           <div class="toolbar">
             <button id="exportBtn">JSON保存</button>
@@ -67,7 +67,7 @@
 
         <div id="drumKitWrap" hidden>
           <div id="drumKit" class="drum-kit" aria-label="drum kit pads"></div>
-          <div class="keyboard-help">PCキー: A=Kick / S=Snare / D=Closed Hat / F=Open Hat / G/H/J=Toms / K=Crash / L=Ride。GM系MIDIドラムノートにも対応します。</div>
+          <div class="keyboard-help">A=Kick / S=Snare / D=Closed Hat / F=Open Hat / G/H/J=Toms / K=Crash / L=Ride</div>
         </div>
 
         <div class="meter-wrap"><span>Output</span><div class="meter"><div id="meterBar"></div></div></div>
@@ -75,18 +75,24 @@
 
       <aside class="panel params-panel">
         <div class="section-title compact">
-          <div><span class="kicker">PATCH</span><h2>音色パラメータ</h2></div>
+          <div>
+            <span class="kicker">PATCH EDITOR</span>
+            <h2>音色をグラフィカルに調整</h2>
+          </div>
+          <button id="resetParamsBtn" class="small-btn">生成値へ戻す</button>
         </div>
-        <div id="params" class="params"></div>
+        <p class="param-help">スライダーを動かすと即座に現在の音へ反映されます。円形メーターは値を視覚化します。</p>
+        <div id="params" class="params-editor"></div>
       </aside>
     </section>
 
     <section class="panel future-panel">
       <span class="kicker">ENGINE CONTRACT</span>
-      <h2>鍵盤・ドラム・サンプル演奏で同じノートイベント境界を共有</h2>
-      <p>ライブ演奏・MIDI・サンプル演奏・将来のシーケンサーはすべて <code>noteOn()</code> / <code>noteOff()</code> を共有します。ドラムモードでも別のAudioContextを作りません。</p>
+      <h2>4種類の音源で同じ noteOn / noteOff 契約を共有</h2>
+      <p>PCMサンプラー、PCMドラム、FMエレピ、減算シンセのすべてを同じ演奏APIから呼び出します。Factory PCMは外部録音をコピーせず、ローカルで生成したPCMバッファを使用します。</p>
     </section>
   </main>
   <script src="/app.js"></script>
+  <script src="/patch_editor_runtime.js"></script>
 </body>
 </html>
