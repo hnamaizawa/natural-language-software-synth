@@ -27,6 +27,7 @@ required_capabilities:
 - drum_half_time_shuffle_sample_performance
 - drum_straight_sample_performance
 - graphical_patch_parameter_editor
+- continuous_graphical_parameter_editing
 - engine_specific_parameter_controls
 - parameter_reset_to_generated_patch
 - patch_json_save_load
@@ -38,6 +39,7 @@ non_negotiable_invariants:
 - generated_text_must_never_be_executed_as_code
 - generated_patch_must_be_schema_validated_and_clamped
 - graphical_parameter_edits_must_be_validated_and_clamped
+- graphical_slider_input_must_not_rebuild_control_during_drag
 - audio_context_must_start_only_after_user_gesture
 - all_engines_must_share_single_audio_context
 - master_gain_must_be_hard_limited
@@ -67,6 +69,7 @@ required_files:
 - src/ai_synth/prompt_engine.py
 - web/index.html
 - web/app.js
+- web/patch_editor_runtime.js
 - web/style.css
 runtime_state_exclusions:
 - .env
@@ -91,6 +94,7 @@ ui_requirements:
   sample_performance_types: [melody, chords, bass, fretless_demo, fm_ep_demo, drum_shuffle, drum_straight]
   sample_performance_stop: true
   graphical_patch_parameter_editor: true
+  continuous_slider_editing: true
   engine_specific_parameter_controls: true
   reset_to_generated_patch: true
   patch_json_export_import: true
