@@ -10,9 +10,9 @@
   <main>
     <header>
       <div>
-        <p class="eyebrow">v0.3.0 · multi-engine · local-first</p>
+        <p class="eyebrow">v0.4.0 · multi-engine · local-first</p>
         <h1>Natural Language Software Synth</h1>
-        <p class="lead">自然言語から、減算シンセ・PCMフレットレスベース・PCMドラム・FMエレピを自動選択し、その場で演奏できます。</p>
+        <p class="lead">自然言語から、減算シンセ・PCMフレットレスベース・PCMギター＋アンプ・PCMドラム・FMエレピを自動選択し、その場で演奏できます。</p>
       </div>
       <button id="audioBtn" class="primary">音源を有効化</button>
     </header>
@@ -20,10 +20,13 @@
     <section class="panel prompt-panel">
       <label for="prompt">どんな音が欲しいですか？</label>
       <div class="prompt-row">
-        <textarea id="prompt" rows="3">ジャコ・パストリアスのような歌うフレットレスベース。指弾きのノイズとスライド感を強めに。</textarea>
+        <textarea id="prompt" rows="3">ロック向けのエレキギター。アンプの歪みを強めにして、ピッキングのアタックが分かる音。</textarea>
         <button id="generateBtn" class="primary">音色を生成</button>
       </div>
       <div class="chips">
+        <button data-prompt="ロック向けのエレキギター。アンプの歪みを強めにして、ピッキングのアタックが分かる音。">Rock Guitar</button>
+        <button data-prompt="フュージョン向けの滑らかなエレキギター。クリーン寄りでコーラスを少し。">Fusion Guitar</button>
+        <button data-prompt="アコースティック調のギター。歪みなしでピックのニュアンスを強めに。">Acoustic-style Guitar</button>
         <button data-prompt="ジャコ・パストリアスのような歌うフレットレスベース。指弾きのノイズとスライド感を強めに。">Fretless Bass</button>
         <button data-prompt="Toto のロザーナーでジェフ ポーカロさんのシャッフルで有名なドラムの音を生成してください。">PCM Shuffle Drums</button>
         <button data-prompt="80年代の DX-7 のような、きらびやかな FM エレピ">DX-style EP</button>
@@ -81,18 +84,19 @@
           </div>
           <button id="resetParamsBtn" class="small-btn">生成値へ戻す</button>
         </div>
-        <p class="param-help">スライダーを動かすと即座に現在の音へ反映されます。円形メーターは値を視覚化します。</p>
+        <p class="param-help">スライダーを動かすと即座に現在の音へ反映されます。ギターではAmp Model / Drive / Tone / Presence / Cabinetも調整できます。</p>
         <div id="params" class="params-editor"></div>
       </aside>
     </section>
 
     <section class="panel future-panel">
       <span class="kicker">ENGINE CONTRACT</span>
-      <h2>4種類の音源で同じ noteOn / noteOff 契約を共有</h2>
-      <p>PCMサンプラー、PCMドラム、FMエレピ、減算シンセのすべてを同じ演奏APIから呼び出します。Factory PCMは外部録音をコピーせず、ローカルで生成したPCMバッファを使用します。</p>
+      <h2>5種類の音源モデルで同じ noteOn / noteOff 契約を共有</h2>
+      <p>PCMフレットレス、PCMギター＋アンプ、PCMドラム、FMエレピ、減算シンセのすべてを同じ演奏APIから呼び出します。Factory PCMは外部録音をコピーせず、ローカルで生成したPCMバッファを使用します。</p>
     </section>
   </main>
   <script src="/app.js"></script>
   <script src="/patch_editor_runtime.js"></script>
+  <script src="/guitar_runtime.js"></script>
 </body>
 </html>
