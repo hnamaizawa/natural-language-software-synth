@@ -3,6 +3,7 @@ from ai_synth.prompt_engine import generate_patch
 
 def test_warm_pad_is_slow_darkish_and_wide():
     p = generate_patch("warm analog pad with slow attack and wide detune")
+    assert p.engine_type == "synth"
     assert p.attack_s >= 1.0
     assert abs(p.osc2_detune_cents) >= 12
     assert p.filter_cutoff_hz < 4200
@@ -24,3 +25,19 @@ def test_bass_is_low_and_bounded():
     assert p.attack_s <= 0.01
     assert p.filter_cutoff_hz < 1000
     assert p.master_gain <= 0.35
+
+
+def test_user_rosanna_prompt_selects_half_time_shuffle_drums():
+    p = generate_patch("Toto のロザーナーでジェフ ポーカロさんのシャッフルで有名なドラムの音を生成してください。")
+    assert p.engine_type == "drum"
+    assert p.drum_style == "half_time_shuffle"
+    assert 35 <= p.kick_tune_hz <= 120
+    assert 90 <= p.snare_tone_hz <= 300
+    assert p.drum_brightness >= 0.7
+
+
+def test_generic_drum_prompt_selects_drum_engine():
+    p = generate_patch("tight studio drum kit with crisp hi-hat")
+    assert p.engine_type == "drum"
+    assert p.drum_style == "standard"
+    assert p.drum_room_mix <= 0.12
