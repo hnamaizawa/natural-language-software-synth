@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.0
+- エレキギター要求をPCMサンプラーへ自動振り分けし、`instrument_model=electric_guitar` を追加。
+- Factory Guitar PCMを決定論的な弦モデルからローカル生成し、複数ルート音を `AudioBufferSourceNode` で再生する方式を追加。
+- Pick Attack / Release Noise / Palm Mute / Sustain / Body ToneをギターPatchパラメータとして追加。
+- Clean / Crunch / High Gain / Acoustic のアンプモデルを追加。
+- `WaveShaper` によるDrive、Amp Tone、Presence、Cabinet、Chorusを追加し、アンプ歪みに対応。
+- 右側のグラフィカルPatch Editorでギター／アンプパラメータをリアルタイム編集可能にした。
+- ギター用サンプル演奏として「ロック・リフ」「フュージョン・フレーズ」「アコースティック・アルペジオ」を追加。
+- ギター音源も既存の単一AudioContextと `noteOn()` / `noteOff()` 契約を共有。
+- Factory Guitar PCMに外部録音を埋め込まず、将来ライセンス済み実録音PCMへ差し替え可能な境界を維持。
+- PCMギター、アンプ歪み、3種類のギターサンプル演奏用の回帰テストとハーネス不変条件を追加。
+
 ## v0.3.0
 - 音源を `synth / sampler / drum / fm` の4エンジン構成へ拡張。
 - フレットレスベース要求をPCMサンプラーへ自動振り分けし、Attack / Release / SlideのノイズレイヤーとMwah表現を追加。
