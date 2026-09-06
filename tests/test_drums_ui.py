@@ -8,19 +8,19 @@ def test_drum_surface_and_prompt_chip_are_exposed():
     assert 'id="drumKitWrap"' in html
     assert 'id="drumKit"' in html
     assert 'id="keyboardWrap"' in html
-    assert "Half-Time Shuffle Drums" in html
+    assert "PCM Shuffle Drums" in html
     assert "ロザーナー" in html
 
 
-def test_drum_engine_uses_single_audio_context_and_stable_note_contract():
+def test_drum_engine_uses_pcm_buffer_and_single_audio_context():
     js = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
-    assert "playDrum(midiNote" in js
-    assert "playKick(" in js
-    assert "playSnare(" in js
-    assert "playHat(" in js
+    assert "playDrumPCM(midiNote" in js
+    assert "createFactoryDrumPCM" in js
+    assert "DRUM_REGIONS" in js
+    assert "createBufferSource()" in js
     assert "canonicalDrumNote" in js
-    assert 'this.patch.engine_type === "drum"' in js
-    assert js.count("new (window.AudioContext || window.webkitAudioContext)()") == 1
+    assert 'this.patch.engine_type==="drum"' in js
+    assert js.count("new (window.AudioContext||window.webkitAudioContext)()") == 1
     assert "engine.noteOn(" in js
     assert "engine.noteOff(" in js
 
