@@ -5,8 +5,10 @@ from typing import Any
 
 WAVES = {"sine", "triangle", "sawtooth", "square"}
 ENGINE_TYPES = {"synth", "sampler", "drum", "fm"}
-INSTRUMENT_MODELS = {"generic", "fretless_bass", "studio_drums", "dx_ep"}
+INSTRUMENT_MODELS = {"generic", "fretless_bass", "electric_guitar", "studio_drums", "dx_ep"}
 DRUM_STYLES = {"standard", "half_time_shuffle"}
+GUITAR_AMP_MODELS = {"clean", "crunch", "high_gain", "acoustic"}
+GUITAR_DEMO_STYLES = {"rock", "fusion", "acoustic"}
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -47,6 +49,20 @@ class SynthPatch:
     slide_time_s: float = 0.16
     mwah_amount: float = 0.58
     sample_velocity_curve: float = 1.0
+
+    # PCM electric guitar + amp
+    guitar_amp_model: str = "clean"
+    guitar_demo_style: str = "fusion"
+    guitar_body_tone: float = 0.68
+    guitar_pick_mix: float = 0.34
+    guitar_release_mix: float = 0.14
+    guitar_palm_mute: float = 0.08
+    guitar_sustain: float = 0.72
+    guitar_amp_drive: float = 0.18
+    guitar_amp_tone: float = 0.64
+    guitar_amp_presence: float = 0.58
+    guitar_cabinet_mix: float = 0.78
+    guitar_chorus_mix: float = 0.08
 
     # PCM drums
     kick_tune_hz: float = 58.0
@@ -126,6 +142,18 @@ def validate_patch(data: dict[str, Any] | SynthPatch) -> SynthPatch:
         slide_time_s=_clamp(data.get("slide_time_s", 0.16), 0.0, 1.2),
         mwah_amount=_clamp(data.get("mwah_amount", 0.58), 0.0, 1.0),
         sample_velocity_curve=_clamp(data.get("sample_velocity_curve", 1.0), 0.4, 2.5),
+        guitar_amp_model=enum_value("guitar_amp_model", "clean", GUITAR_AMP_MODELS),
+        guitar_demo_style=enum_value("guitar_demo_style", "fusion", GUITAR_DEMO_STYLES),
+        guitar_body_tone=_clamp(data.get("guitar_body_tone", 0.68), 0.0, 1.0),
+        guitar_pick_mix=_clamp(data.get("guitar_pick_mix", 0.34), 0.0, 1.0),
+        guitar_release_mix=_clamp(data.get("guitar_release_mix", 0.14), 0.0, 1.0),
+        guitar_palm_mute=_clamp(data.get("guitar_palm_mute", 0.08), 0.0, 1.0),
+        guitar_sustain=_clamp(data.get("guitar_sustain", 0.72), 0.1, 1.0),
+        guitar_amp_drive=_clamp(data.get("guitar_amp_drive", 0.18), 0.0, 1.0),
+        guitar_amp_tone=_clamp(data.get("guitar_amp_tone", 0.64), 0.0, 1.0),
+        guitar_amp_presence=_clamp(data.get("guitar_amp_presence", 0.58), 0.0, 1.0),
+        guitar_cabinet_mix=_clamp(data.get("guitar_cabinet_mix", 0.78), 0.0, 1.0),
+        guitar_chorus_mix=_clamp(data.get("guitar_chorus_mix", 0.08), 0.0, 0.5),
         kick_tune_hz=_clamp(data.get("kick_tune_hz", 58.0), 35.0, 120.0),
         kick_decay_s=_clamp(data.get("kick_decay_s", 0.28), 0.05, 1.2),
         snare_tone_hz=_clamp(data.get("snare_tone_hz", 185.0), 90.0, 300.0),
