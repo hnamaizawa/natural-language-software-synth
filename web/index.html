@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Natural Language Software Synth</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">v0.1.0 · local-first</p>
+        <h1>Natural Language Software Synth</h1>
+        <p class="lead">楽器や雰囲気を自然言語で伝えると、その場で演奏できる音色を生成します。</p>
+      </div>
+      <button id="audioBtn" class="primary">音源を有効化</button>
+    </header>
+
+    <section class="panel prompt-panel">
+      <label for="prompt">どんな音が欲しいですか？</label>
+      <div class="prompt-row">
+        <textarea id="prompt" rows="3">warm analog pad with slow attack, wide detune and gentle echo</textarea>
+        <button id="generateBtn" class="primary">音色を生成</button>
+      </div>
+      <div class="chips">
+        <button data-prompt="deep punchy synth bass, short and dark">Deep Bass</button>
+        <button data-prompt="bright glassy bell with a long release">Glass Bell</button>
+        <button data-prompt="retro lead, wide detune, bright and aggressive">Retro Lead</button>
+        <button data-prompt="soft dreamy ambient pad with lots of echo">Dream Pad</button>
+      </div>
+      <p id="status">「音源を有効化」を押してから演奏してください。</p>
+    </section>
+
+    <section class="workspace">
+      <div class="panel instrument-panel">
+        <div class="section-title">
+          <div>
+            <span class="kicker">PLAY</span>
+            <h2 id="patchName">Init Patch</h2>
+          </div>
+          <div class="toolbar">
+            <button id="exportBtn">JSON保存</button>
+            <label class="file-btn">JSON読込<input id="importInput" type="file" accept="application/json,.json" /></label>
+          </div>
+        </div>
+        <div id="keyboard" class="keyboard" aria-label="piano keyboard"></div>
+        <div class="keyboard-help">PCキー: A W S E D F T G Y H U J K / MIDIキーボード対応（対応ブラウザ）</div>
+        <div class="meter-wrap"><span>Output</span><div class="meter"><div id="meterBar"></div></div></div>
+      </div>
+
+      <aside class="panel params-panel">
+        <div class="section-title compact">
+          <div><span class="kicker">PATCH</span><h2>音色パラメータ</h2></div>
+        </div>
+        <div id="params" class="params"></div>
+      </aside>
+    </section>
+
+    <section class="panel future-panel">
+      <span class="kicker">NEXT</span>
+      <h2>シーケンサー連携用の境界は最初から固定</h2>
+      <p>ライブ演奏・MIDI・将来のピアノロールはすべて <code>noteOn()</code> / <code>noteOff()</code> を共有します。音源側を書き直さずにシーケンサーを追加できます。</p>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

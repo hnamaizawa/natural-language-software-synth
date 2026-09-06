@@ -1,0 +1,72 @@
+schema_version: '1.0'
+blueprint_name: natural-language-software-synth
+blueprint_version: 0.1.0
+canonical_project: natural-language-software-synth
+purpose: >-
+  Generate and play local-first software-synth patches from natural-language
+  descriptions, while keeping generated model output constrained to a validated,
+  deterministic patch schema that can later be driven by a sequencer.
+required_capabilities:
+- natural_language_patch_generation
+- deterministic_offline_prompt_fallback
+- validated_patch_schema
+- browser_web_audio_polyphonic_engine
+- computer_keyboard_performance
+- onscreen_keyboard_performance
+- optional_web_midi_input
+- patch_json_save_load
+- patch_parameter_visualization
+- stable_note_event_contract
+- future_sequencer_adapter_boundary
+- local_windows_setup
+- regression_test_harness
+non_negotiable_invariants:
+- generated_text_must_never_be_executed_as_code
+- generated_patch_must_be_schema_validated_and_clamped
+- audio_context_must_start_only_after_user_gesture
+- master_gain_must_be_hard_limited
+- polyphony_must_be_bounded
+- oscillator_frequency_must_be_derived_from_valid_midi_note
+- sequencer_must_use_same_note_on_note_off_contract_as_live_playing
+- saved_user_patches_must_not_be_copied_into_generated_apps
+- external_llm_credentials_must_not_be_required_for_offline_mode
+- eval_and_dynamic_script_injection_forbidden
+required_files:
+- AGENTS.md
+- HARNESS.md
+- README.md
+- server.py
+- pyproject.toml
+- setup_windows.cmd
+- start_synth.cmd
+- check_harness.cmd
+- harness/app_blueprint.yaml
+- scripts/harness_check.py
+- src/ai_synth/patch.py
+- src/ai_synth/prompt_engine.py
+- web/index.html
+- web/app.js
+- web/style.css
+runtime_state_exclusions:
+- .env
+- .venv
+- .git
+- .pytest_cache
+- __pycache__
+- data/presets
+- generated
+acceptance_commands:
+- setup_windows.cmd
+- check_harness.cmd
+- start_synth.cmd
+ui_requirements:
+  prompt_to_patch: true
+  onscreen_keyboard: true
+  computer_keyboard: true
+  midi_input_optional: true
+  patch_parameter_panel: true
+  patch_json_export_import: true
+sequencer_contract:
+  note_on: "noteOn(midiNote, velocity, whenSeconds=0)"
+  note_off: "noteOff(midiNote, whenSeconds=0)"
+  set_patch: "setPatch(validatedPatch)"
