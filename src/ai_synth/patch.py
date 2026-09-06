@@ -4,6 +4,8 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 WAVES = {"sine", "triangle", "sawtooth", "square"}
+ENGINE_TYPES = {"synth", "drum"}
+DRUM_STYLES = {"standard", "half_time_shuffle"}
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -13,6 +15,8 @@ def _clamp(value: float, lo: float, hi: float) -> float:
 @dataclass(frozen=True)
 class SynthPatch:
     name: str = "Init Patch"
+    engine_type: str = "synth"
+    drum_style: str = "standard"
     osc1_wave: str = "sawtooth"
     osc2_wave: str = "sawtooth"
     osc_mix: float = 0.45
@@ -29,6 +33,14 @@ class SynthPatch:
     delay_time_s: float = 0.0
     delay_feedback: float = 0.0
     delay_mix: float = 0.0
+    kick_tune_hz: float = 58.0
+    kick_decay_s: float = 0.28
+    snare_tone_hz: float = 185.0
+    snare_decay_s: float = 0.22
+    hat_decay_s: float = 0.09
+    tom_decay_s: float = 0.42
+    drum_brightness: float = 0.68
+    drum_room_mix: float = 0.12
     master_gain: float = 0.22
     max_polyphony: int = 12
     prompt: str = ""
@@ -47,6 +59,14 @@ def validate_patch(data: dict[str, Any] | SynthPatch) -> SynthPatch:
         candidate = str(data.get(key, default)).lower()
         return candidate if candidate in WAVES else default
 
+    engine_type = str(data.get("engine_type", "synth")).lower()
+    if engine_type not in ENGINE_TYPES:
+        engine_type = "synth"
+
+    drum_style = str(data.get("drum_style", "standard")).lower()
+    if drum_style not in DRUM_STYLES:
+        drum_style = "standard"
+
     try:
         octave = int(data.get("octave_shift", 0))
     except (TypeError, ValueError):
@@ -58,6 +78,8 @@ def validate_patch(data: dict[str, Any] | SynthPatch) -> SynthPatch:
 
     return SynthPatch(
         name=str(data.get("name", "Generated Patch"))[:80],
+        engine_type=engine_type,
+        drum_style=drum_style,
         osc1_wave=wave("osc1_wave", "sawtooth"),
         osc2_wave=wave("osc2_wave", "sawtooth"),
         osc_mix=_clamp(data.get("osc_mix", 0.45), 0.0, 1.0),
@@ -74,6 +96,14 @@ def validate_patch(data: dict[str, Any] | SynthPatch) -> SynthPatch:
         delay_time_s=_clamp(data.get("delay_time_s", 0.0), 0.0, 1.5),
         delay_feedback=_clamp(data.get("delay_feedback", 0.0), 0.0, 0.75),
         delay_mix=_clamp(data.get("delay_mix", 0.0), 0.0, 0.65),
+        kick_tune_hz=_clamp(data.get("kick_tune_hz", 58.0), 35.0, 120.0),
+        kick_decay_s=_clamp(data.get("kick_decay_s", 0.28), 0.05, 1.2),
+        snare_tone_hz=_clamp(data.get("snare_tone_hz", 185.0), 90.0, 300.0),
+        snare_decay_s=_clamp(data.get("snare_decay_s", 0.22), 0.05, 1.0),
+        hat_decay_s=_clamp(data.get("hat_decay_s", 0.09), 0.02, 0.5),
+        tom_decay_s=_clamp(data.get("tom_decay_s", 0.42), 0.08, 1.5),
+        drum_brightness=_clamp(data.get("drum_brightness", 0.68), 0.0, 1.0),
+        drum_room_mix=_clamp(data.get("drum_room_mix", 0.12), 0.0, 0.45),
         master_gain=_clamp(data.get("master_gain", 0.22), 0.02, 0.35),
         max_polyphony=max(1, min(16, poly)),
         prompt=str(data.get("prompt", ""))[:500],
