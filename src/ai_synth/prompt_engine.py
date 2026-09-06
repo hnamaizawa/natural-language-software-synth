@@ -17,17 +17,85 @@ def _slug_name(prompt: str, archetype: str) -> str:
     return f"{archetype.title()} Patch"
 
 
+def _is_drum_prompt(text: str) -> bool:
+    return _has(
+        text,
+        "drum", "drums", "drummer", "drum kit", "kick", "snare", "hi-hat", "hihat",
+        "ドラム", "ドラマー", "ドラムセット", "キック", "スネア", "ハイハット",
+        "rosanna", "ロザーナ", "ロザーナー", "porcaro", "ポーカロ",
+    )
+
+
 def generate_patch(prompt: str) -> SynthPatch:
     """Generate a deterministic, inspectable patch from natural language.
 
-    This intentionally does not execute model output. It is the offline fallback
-    and future LLM adapters must return data that still passes validate_patch().
+    Generated text never becomes executable code. Drum and melodic patches both
+    pass through the same validated SynthPatch data contract.
     """
     text = (prompt or "").strip().lower()
     p = SynthPatch(prompt=prompt or "")
     archetype = "synth"
 
-    # Instrument archetypes first.
+    # Drum prompts select a dedicated synthesized drum engine mode.
+    if _is_drum_prompt(text):
+        archetype = "drum"
+        p = replace(
+            p,
+            engine_type="drum",
+            drum_style="standard",
+            kick_tune_hz=56,
+            kick_decay_s=0.30,
+            snare_tone_hz=185,
+            snare_decay_s=0.23,
+            hat_decay_s=0.085,
+            tom_decay_s=0.44,
+            drum_brightness=0.68,
+            drum_room_mix=0.12,
+            master_gain=0.24,
+            max_polyphony=16,
+        )
+        if _has(
+            text,
+            "shuffle", "half-time", "halftime", "half time",
+            "シャッフル", "ハーフタイム",
+            "rosanna", "ロザーナ", "ロザーナー", "porcaro", "ポーカロ",
+        ):
+            archetype = "half-time shuffle drum"
+            p = replace(
+                p,
+                drum_style="half_time_shuffle",
+                kick_tune_hz=54,
+                kick_decay_s=0.27,
+                snare_tone_hz=192,
+                snare_decay_s=0.20,
+                hat_decay_s=0.075,
+                tom_decay_s=0.40,
+                drum_brightness=0.74,
+                drum_room_mix=0.16,
+                master_gain=0.23,
+            )
+        if _has(text, "tight", "dry", "タイト", "ドライ"):
+            p = replace(
+                p,
+                kick_decay_s=min(p.kick_decay_s, 0.24),
+                snare_decay_s=min(p.snare_decay_s, 0.18),
+                drum_room_mix=min(p.drum_room_mix, 0.08),
+            )
+        if _has(text, "big", "huge", "roomy", "large room", "大きい", "太い", "広い"):
+            p = replace(
+                p,
+                kick_decay_s=max(p.kick_decay_s, 0.36),
+                snare_decay_s=max(p.snare_decay_s, 0.28),
+                drum_room_mix=max(p.drum_room_mix, 0.22),
+            )
+        if _has(text, "bright", "crisp", "明る", "抜け", "クリスプ"):
+            p = replace(p, drum_brightness=max(p.drum_brightness, 0.82))
+        if _has(text, "dark", "warm", "暗い", "暖か"):
+            p = replace(p, drum_brightness=min(p.drum_brightness, 0.50))
+        p = replace(p, name=_slug_name(prompt, archetype))
+        return validate_patch(p)
+
+    # Melodic instrument archetypes.
     if _has(text, "pad", "ambient", "atmosphere", "dreamy", "パッド", "アンビエント"):
         archetype = "pad"
         p = replace(p, osc1_wave="sawtooth", osc2_wave="triangle", osc_mix=0.42,
