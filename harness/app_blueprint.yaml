@@ -1,11 +1,12 @@
 schema_version: '1.0'
 blueprint_name: natural-language-software-synth
-blueprint_version: 0.3.0
+blueprint_version: 0.4.0
 canonical_project: natural-language-software-synth
 purpose: >-
   Generate and play local-first multi-engine instrument patches from natural-language
-  descriptions. Support subtractive synthesis, PCM-style fretless bass, PCM-style drums,
-  and FM electric piano while keeping every generated or edited patch validated and bounded.
+  descriptions. Support subtractive synthesis, PCM-style fretless bass, PCM-style electric
+  guitar with bounded amp/cabinet distortion, PCM-style drums, and FM electric piano while
+  keeping every generated or edited patch validated and bounded.
 required_capabilities:
 - natural_language_patch_generation
 - deterministic_offline_prompt_fallback
@@ -13,6 +14,12 @@ required_capabilities:
 - browser_web_audio_polyphonic_engine
 - pcm_fretless_bass_engine
 - pcm_fretless_articulation_layers
+- pcm_electric_guitar_engine
+- guitar_amp_distortion_stage
+- guitar_amp_model_controls
+- guitar_rock_sample_performance
+- guitar_fusion_sample_performance
+- guitar_acoustic_sample_performance
 - pcm_studio_drum_engine
 - dx_style_fm_electric_piano_engine
 - adaptive_piano_or_drum_performance_surface
@@ -49,6 +56,9 @@ non_negotiable_invariants:
 - sample_performance_must_use_same_note_on_note_off_contract_as_live_playing
 - pcm_sampler_must_use_audio_buffer_source_nodes
 - pcm_factory_buffers_must_not_embed_third_party_artist_recordings
+- guitar_pcm_must_use_existing_audio_context
+- guitar_amp_parameters_must_be_schema_validated_and_clamped
+- guitar_sample_performance_must_use_note_event_contract
 - drum_pad_and_sample_must_use_note_event_contract
 - pcm_and_fm_parameters_must_be_schema_validated_and_clamped
 - saved_user_patches_must_not_be_copied_into_generated_apps
@@ -70,6 +80,7 @@ required_files:
 - web/index.html
 - web/app.js
 - web/patch_editor_runtime.js
+- web/guitar_runtime.js
 - web/style.css
 runtime_state_exclusions:
 - .env
@@ -91,21 +102,29 @@ ui_requirements:
   computer_keyboard: true
   midi_input_optional: true
   sample_performance: true
-  sample_performance_types: [melody, chords, bass, fretless_demo, fm_ep_demo, drum_shuffle, drum_straight]
+  sample_performance_types: [melody, chords, bass, fretless_demo, fm_ep_demo, drum_shuffle, drum_straight, guitar_rock, guitar_fusion, guitar_acoustic]
   sample_performance_stop: true
   graphical_patch_parameter_editor: true
   continuous_slider_editing: true
   engine_specific_parameter_controls: true
+  guitar_amp_graphical_controls: true
   reset_to_generated_patch: true
   patch_json_export_import: true
 engine_routing:
   fretless_bass: sampler
+  electric_guitar: sampler
   studio_drums: drum
   dx_style_electric_piano: fm
   default: synth
 pcm_fretless_contract:
   layers: [nearest_root_note, attack_noise, release_noise, slide_noise]
   controls: [sample_tone, sample_attack_mix, finger_noise_mix, release_noise_mix, slide_amount, slide_time_s, mwah_amount, sample_velocity_curve]
+guitar_contract:
+  source: locally_generated_pcm_multisample
+  amp_models: [clean, crunch, high_gain, acoustic]
+  demo_styles: [rock, fusion, acoustic]
+  controls: [guitar_amp_model, guitar_amp_drive, guitar_amp_tone, guitar_amp_presence, guitar_cabinet_mix, guitar_body_tone, guitar_pick_mix, guitar_release_mix, guitar_palm_mute, guitar_sustain, guitar_chorus_mix]
+  effects: [waveshaper_distortion, tone_filter, presence_shelf, cabinet_filter, chorus_delay]
 drum_contract:
   canonical_notes:
     kick: 36

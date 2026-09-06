@@ -41,6 +41,47 @@ def test_sampler_patch_parameters_are_clamped():
     assert p.sample_velocity_curve == 0.4
 
 
+def test_guitar_amp_patch_parameters_are_clamped():
+    p = validate_patch({
+        "engine_type": "sampler",
+        "instrument_model": "electric_guitar",
+        "guitar_amp_model": "high_gain",
+        "guitar_demo_style": "rock",
+        "guitar_amp_drive": 99,
+        "guitar_amp_tone": -5,
+        "guitar_amp_presence": 9,
+        "guitar_cabinet_mix": 4,
+        "guitar_pick_mix": 2,
+        "guitar_release_mix": -2,
+        "guitar_palm_mute": 5,
+        "guitar_sustain": 0,
+        "guitar_chorus_mix": 4,
+    })
+    assert p.engine_type == "sampler"
+    assert p.instrument_model == "electric_guitar"
+    assert p.guitar_amp_model == "high_gain"
+    assert p.guitar_demo_style == "rock"
+    assert p.guitar_amp_drive == 1
+    assert p.guitar_amp_tone == 0
+    assert p.guitar_amp_presence == 1
+    assert p.guitar_cabinet_mix == 1
+    assert p.guitar_pick_mix == 1
+    assert p.guitar_release_mix == 0
+    assert p.guitar_palm_mute == 1
+    assert p.guitar_sustain == 0.1
+    assert p.guitar_chorus_mix == 0.5
+
+
+def test_invalid_guitar_enums_fall_back():
+    p = validate_patch({
+        "instrument_model": "electric_guitar",
+        "guitar_amp_model": "javascript:bad",
+        "guitar_demo_style": "unknown",
+    })
+    assert p.guitar_amp_model == "clean"
+    assert p.guitar_demo_style == "fusion"
+
+
 def test_drum_patch_clamps_and_rejects_unknown_engine():
     p = validate_patch({
         "engine_type": "drum",

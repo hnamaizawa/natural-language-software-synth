@@ -9,7 +9,7 @@ REQUIRED = [
     "AGENTS.md", "HARNESS.md", "README.md", "server.py", "pyproject.toml",
     "setup_windows.cmd", "start_synth.cmd", "check_harness.cmd",
     "harness/app_blueprint.yaml", "src/ai_synth/patch.py", "src/ai_synth/prompt_engine.py",
-    "web/index.html", "web/app.js", "web/patch_editor_runtime.js", "web/style.css",
+    "web/index.html", "web/app.js", "web/patch_editor_runtime.js", "web/guitar_runtime.js", "web/style.css",
 ]
 
 
@@ -41,6 +41,9 @@ def main():
         "sample_performance_must_use_same_note_on_note_off_contract_as_live_playing",
         "pcm_sampler_must_use_audio_buffer_source_nodes",
         "pcm_factory_buffers_must_not_embed_third_party_artist_recordings",
+        "guitar_pcm_must_use_existing_audio_context",
+        "guitar_amp_parameters_must_be_schema_validated_and_clamped",
+        "guitar_sample_performance_must_use_note_event_contract",
         "pcm_and_fm_parameters_must_be_schema_validated_and_clamped",
         "eval_and_dynamic_script_injection_forbidden",
     ]
@@ -54,20 +57,23 @@ def main():
         fail("master gain/polyphony clamps not found")
     for token in [
         'ENGINE_TYPES = {"synth", "sampler", "drum", "fm"}',
+        '"electric_guitar"', "GUITAR_AMP_MODELS", "GUITAR_DEMO_STYLES",
         "finger_noise_mix", "slide_amount", "mwah_amount",
+        "guitar_amp_drive", "guitar_amp_presence", "guitar_cabinet_mix", "guitar_palm_mute",
         "kick_tune_hz", "drum_room_mix",
         "fm_mod_index", "fm_ratio_1", "fm_chorus_mix",
     ]:
         if token not in patch_py:
             fail(f"multi-engine patch schema missing: {token}")
-    ok("hard audio, sampler, drum, and FM parameter bounds")
+    ok("hard audio, sampler, guitar amp, drum, and FM parameter bounds")
 
     runtime_js = (ROOT / "web/patch_editor_runtime.js").read_text(encoding="utf-8")
+    guitar_js = (ROOT / "web/guitar_runtime.js").read_text(encoding="utf-8")
     all_code = "\n".join(
         p.read_text(encoding="utf-8", errors="ignore")
         for p in [
             ROOT / "server.py", ROOT / "src/ai_synth/prompt_engine.py",
-            ROOT / "web/app.js", ROOT / "web/patch_editor_runtime.js",
+            ROOT / "web/app.js", ROOT / "web/patch_editor_runtime.js", ROOT / "web/guitar_runtime.js",
         ]
     )
     for token in ["eval(", "new Function(", "exec("]:
@@ -80,8 +86,8 @@ def main():
         if contract not in js:
             fail(f"sequencer/live contract missing: {contract}")
     audio_context_token = "new (window.AudioContext||window.webkitAudioContext)()"
-    if js.count(audio_context_token) != 1:
-        fail("all engines must share exactly one AudioContext creation path")
+    if js.count(audio_context_token) != 1 or "AudioContext" in guitar_js:
+        fail("all engines including guitar must share exactly one AudioContext creation path")
     ok("single AudioContext and stable note event contract")
 
     html = (ROOT / "web/index.html").read_text(encoding="utf-8")
@@ -90,6 +96,8 @@ def main():
             fail(f"required UI control missing: {control}")
     if 'src="/patch_editor_runtime.js"' not in html:
         fail("continuous patch editor runtime is not loaded")
+    if 'src="/guitar_runtime.js"' not in html:
+        fail("guitar runtime is not loaded")
     if "async function playSample()" not in js or "function stopSample(" not in js:
         fail("sample performance functions missing")
     sample_start = js.index("async function playSample()")
@@ -109,6 +117,28 @@ def main():
         if token not in js:
             fail(f"PCM fretless capability missing: {token}")
     ok("PCM fretless articulation engine")
+
+    for token in [
+        "createFactoryGuitarPCM", "GUITAR_ROOTS", "createBufferSource()", "playGuitarPCM",
+        "createWaveShaper()", "makeDistortionCurve", "guitar_amp_drive", "guitar_amp_model",
+        "guitar_amp_tone", "guitar_amp_presence", "guitar_cabinet_mix", "GUITAR_PARAM_DEFS",
+    ]:
+        if token not in guitar_js:
+            fail(f"PCM guitar/amp capability missing: {token}")
+    if "new AudioContext" in guitar_js or "new (window.AudioContext" in guitar_js:
+        fail("guitar runtime must not create its own AudioContext")
+    if ".wav" in guitar_js.lower() or ".mp3" in guitar_js.lower() or "fetch(" in guitar_js:
+        fail("factory guitar runtime must not fetch or embed external audio assets")
+    ok("PCM electric guitar and bounded amp distortion")
+
+    guitar_sample_start = guitar_js.index("async function playGuitarSample()")
+    guitar_sample_code = guitar_js[guitar_sample_start:]
+    for token in ["ロック・リフ", "フュージョン・フレーズ", "アコースティック・アルペジオ", "engine.noteOn(", "engine.noteOff("]:
+        if token not in guitar_sample_code and token not in guitar_js:
+            fail(f"guitar sample performance capability missing: {token}")
+    if "createOscillator" in guitar_sample_code or "AudioContext" in guitar_sample_code:
+        fail("guitar sample performance must use the stable note event contract")
+    ok("guitar rock/fusion/acoustic sample performances")
 
     for token in ["playDrumPCM(midiNote", "createFactoryDrumPCM", "DRUM_REGIONS", "canonicalDrumNote", "drum_shuffle"]:
         if token not in js:
@@ -131,15 +161,20 @@ def main():
     ]:
         if token not in runtime_js:
             fail(f"continuous graphical edit guard missing: {token}")
+    if "engine.setPatchWithRender(validateGuitarExtras" not in guitar_js:
+        fail("guitar graphical edits do not pass through validation/clamp")
     if ".param-dial" not in css or "conic-gradient" not in css:
         fail("graphical parameter visualization missing")
     ok("continuous graphical parameter editor")
 
     prompt_py = (ROOT / "src/ai_synth/prompt_engine.py").read_text(encoding="utf-8")
-    for token in ["フレットレス", "ジャコ", 'engine_type="sampler"', "ロザーナー", "ポーカロ", 'engine_type="drum"', "dx-7", 'engine_type="fm"']:
+    for token in [
+        "フレットレス", "ジャコ", 'engine_type="sampler"', "ロザーナー", "ポーカロ", 'engine_type="drum"',
+        "dx-7", 'engine_type="fm"', "エレキギター", 'instrument_model="electric_guitar"', "guitar_amp_drive", "フュージョン", "アコースティック",
+    ]:
         if token not in prompt_py:
             fail(f"multi-engine prompt recognition missing: {token}")
-    ok("fretless, drum, and DX-style prompt recognition")
+    ok("fretless, guitar, drum, and DX-style prompt recognition")
 
     print("\nRunning pytest...")
     result = subprocess.run([sys.executable, "-m", "pytest", "tests/"], cwd=ROOT)
