@@ -10,9 +10,9 @@
   <main>
     <header>
       <div>
-        <p class="eyebrow">v0.1.1 · local-first</p>
+        <p class="eyebrow">v0.2.0 · local-first</p>
         <h1>Natural Language Software Synth</h1>
-        <p class="lead">楽器や雰囲気を自然言語で伝えると、その場で演奏できる音色を生成します。</p>
+        <p class="lead">楽器や雰囲気を自然言語で伝えると、鍵盤音源またはドラムキットを生成してその場で演奏できます。</p>
       </div>
       <button id="audioBtn" class="primary">音源を有効化</button>
     </header>
@@ -28,6 +28,7 @@
         <button data-prompt="bright glassy bell with a long release">Glass Bell</button>
         <button data-prompt="retro lead, wide detune, bright and aggressive">Retro Lead</button>
         <button data-prompt="soft dreamy ambient pad with lots of echo">Dream Pad</button>
+        <button data-prompt="Toto のロザーナーでジェフ ポーカロさんのシャッフルで有名なドラムの音を生成してください。">Half-Time Shuffle Drums</button>
       </div>
       <p id="status">「音源を有効化」を押してから演奏してください。</p>
     </section>
@@ -36,7 +37,7 @@
       <div class="panel instrument-panel">
         <div class="section-title">
           <div>
-            <span class="kicker">PLAY</span>
+            <span class="kicker">PLAY · <span id="engineBadge">SYNTH</span></span>
             <h2 id="patchName">Init Patch</h2>
           </div>
           <div class="toolbar">
@@ -49,22 +50,26 @@
           <div class="sample-copy">
             <span class="kicker">SAMPLE</span>
             <strong>現在の音色でサンプル演奏</strong>
-            <span>生成した音色を短いフレーズで確認できます。</span>
+            <span id="sampleDescription">生成した音色を短いフレーズで確認できます。</span>
           </div>
           <div class="sample-controls">
             <label for="sampleSelect">演奏タイプ</label>
-            <select id="sampleSelect">
-              <option value="melody">メロディ</option>
-              <option value="chords">コード</option>
-              <option value="bass">ベースライン</option>
-            </select>
+            <select id="sampleSelect"></select>
             <button id="samplePlayBtn" class="primary">▶ サンプル演奏</button>
             <button id="sampleStopBtn" disabled>■ 停止</button>
           </div>
         </div>
 
-        <div id="keyboard" class="keyboard" aria-label="piano keyboard"></div>
-        <div class="keyboard-help">PCキー: A W S E D F T G Y H U J K / MIDIキーボード対応（対応ブラウザ）</div>
+        <div id="keyboardWrap">
+          <div id="keyboard" class="keyboard" aria-label="piano keyboard"></div>
+          <div class="keyboard-help">PCキー: A W S E D F T G Y H U J K / MIDIキーボード対応（対応ブラウザ）</div>
+        </div>
+
+        <div id="drumKitWrap" hidden>
+          <div id="drumKit" class="drum-kit" aria-label="drum kit pads"></div>
+          <div class="keyboard-help">PCキー: A=Kick / S=Snare / D=Closed Hat / F=Open Hat / G/H/J=Toms / K=Crash / L=Ride。GM系MIDIドラムノートにも対応します。</div>
+        </div>
+
         <div class="meter-wrap"><span>Output</span><div class="meter"><div id="meterBar"></div></div></div>
       </div>
 
@@ -77,9 +82,9 @@
     </section>
 
     <section class="panel future-panel">
-      <span class="kicker">NEXT</span>
-      <h2>シーケンサー連携用の境界は最初から固定</h2>
-      <p>ライブ演奏・MIDI・サンプル演奏・将来のピアノロールはすべて <code>noteOn()</code> / <code>noteOff()</code> を共有します。音源側を書き直さずにシーケンサーを追加できます。</p>
+      <span class="kicker">ENGINE CONTRACT</span>
+      <h2>鍵盤・ドラム・サンプル演奏で同じノートイベント境界を共有</h2>
+      <p>ライブ演奏・MIDI・サンプル演奏・将来のシーケンサーはすべて <code>noteOn()</code> / <code>noteOff()</code> を共有します。ドラムモードでも別のAudioContextを作りません。</p>
     </section>
   </main>
   <script src="/app.js"></script>
