@@ -61,3 +61,33 @@ def test_dx7_ep_prompt_selects_fm_engine():
     assert p.fm_mod_index > 4
     assert p.fm_brightness >= 0.75
     assert p.fm_chorus_mix > 0
+
+
+def test_rock_electric_guitar_prompt_selects_pcm_guitar_with_distortion():
+    p = generate_patch("ロック向けのエレキギター。アンプの歪みを強めにして、ピッキングのアタックが分かる音。")
+    assert p.engine_type == "sampler"
+    assert p.instrument_model == "electric_guitar"
+    assert p.guitar_amp_model == "crunch"
+    assert p.guitar_demo_style == "rock"
+    assert p.guitar_amp_drive >= 0.6
+    assert p.guitar_pick_mix >= 0.58
+
+
+def test_fusion_guitar_prompt_prefers_cleaner_amp_and_chorus():
+    p = generate_patch("フュージョン向けの滑らかなエレキギター。クリーン寄りでコーラスを少し。")
+    assert p.engine_type == "sampler"
+    assert p.instrument_model == "electric_guitar"
+    assert p.guitar_demo_style == "fusion"
+    assert p.guitar_amp_model == "clean"
+    assert p.guitar_chorus_mix >= 0.18
+    assert p.guitar_amp_drive <= 0.3
+
+
+def test_acoustic_style_guitar_prompt_removes_amp_drive():
+    p = generate_patch("アコースティック調のギター。歪みなしでピックのニュアンスを強めに。")
+    assert p.engine_type == "sampler"
+    assert p.instrument_model == "electric_guitar"
+    assert p.guitar_amp_model == "acoustic"
+    assert p.guitar_demo_style == "acoustic"
+    assert p.guitar_amp_drive == 0
+    assert p.guitar_pick_mix >= 0.5
