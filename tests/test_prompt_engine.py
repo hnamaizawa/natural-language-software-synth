@@ -27,9 +27,19 @@ def test_bass_is_low_and_bounded():
     assert p.master_gain <= 0.35
 
 
-def test_user_rosanna_prompt_selects_half_time_shuffle_drums():
+def test_fretless_bass_prompt_selects_pcm_sampler():
+    p = generate_patch("ジャコ・パストリアスのような歌うフレットレスベース。指弾きのノイズとスライド感を強めに。")
+    assert p.engine_type == "sampler"
+    assert p.instrument_model == "fretless_bass"
+    assert p.finger_noise_mix >= 0.5
+    assert p.slide_amount >= 0.68
+    assert p.mwah_amount >= 0.68
+
+
+def test_user_rosanna_prompt_selects_pcm_half_time_shuffle_drums():
     p = generate_patch("Toto のロザーナーでジェフ ポーカロさんのシャッフルで有名なドラムの音を生成してください。")
     assert p.engine_type == "drum"
+    assert p.instrument_model == "studio_drums"
     assert p.drum_style == "half_time_shuffle"
     assert 35 <= p.kick_tune_hz <= 120
     assert 90 <= p.snare_tone_hz <= 300
@@ -39,5 +49,15 @@ def test_user_rosanna_prompt_selects_half_time_shuffle_drums():
 def test_generic_drum_prompt_selects_drum_engine():
     p = generate_patch("tight studio drum kit with crisp hi-hat")
     assert p.engine_type == "drum"
+    assert p.instrument_model == "studio_drums"
     assert p.drum_style == "standard"
     assert p.drum_room_mix <= 0.12
+
+
+def test_dx7_ep_prompt_selects_fm_engine():
+    p = generate_patch("80年代の DX-7 のような、きらびやかな FM エレピ")
+    assert p.engine_type == "fm"
+    assert p.instrument_model == "dx_ep"
+    assert p.fm_mod_index > 4
+    assert p.fm_brightness >= 0.75
+    assert p.fm_chorus_mix > 0
