@@ -22,17 +22,59 @@ def test_invalid_wave_falls_back():
     assert p.osc2_wave == "sawtooth"
 
 
+def test_sampler_patch_parameters_are_clamped():
+    p = validate_patch({
+        "engine_type": "sampler",
+        "instrument_model": "fretless_bass",
+        "finger_noise_mix": 99,
+        "slide_amount": -1,
+        "slide_time_s": 99,
+        "mwah_amount": 9,
+        "sample_velocity_curve": 0,
+    })
+    assert p.engine_type == "sampler"
+    assert p.instrument_model == "fretless_bass"
+    assert p.finger_noise_mix == 1
+    assert p.slide_amount == 0
+    assert p.slide_time_s == 1.2
+    assert p.mwah_amount == 1
+    assert p.sample_velocity_curve == 0.4
+
+
 def test_drum_patch_clamps_and_rejects_unknown_engine():
     p = validate_patch({
         "engine_type": "drum",
+        "instrument_model": "studio_drums",
         "drum_style": "half_time_shuffle",
         "kick_tune_hz": 999,
         "snare_tone_hz": -1,
         "drum_room_mix": 99,
     })
     assert p.engine_type == "drum"
+    assert p.instrument_model == "studio_drums"
     assert p.drum_style == "half_time_shuffle"
     assert p.kick_tune_hz == 120
     assert p.snare_tone_hz == 90
     assert p.drum_room_mix == 0.45
     assert validate_patch({"engine_type": "javascript:bad"}).engine_type == "synth"
+
+
+def test_fm_patch_parameters_are_clamped():
+    p = validate_patch({
+        "engine_type": "fm",
+        "instrument_model": "dx_ep",
+        "fm_mod_index": 999,
+        "fm_brightness": -5,
+        "fm_ratio_1": 999,
+        "fm_ratio_2": 0,
+        "fm_release_s": 100,
+        "fm_chorus_mix": 9,
+    })
+    assert p.engine_type == "fm"
+    assert p.instrument_model == "dx_ep"
+    assert p.fm_mod_index == 18
+    assert p.fm_brightness == 0
+    assert p.fm_ratio_1 == 20
+    assert p.fm_ratio_2 == 0.25
+    assert p.fm_release_s == 8
+    assert p.fm_chorus_mix == 0.5
