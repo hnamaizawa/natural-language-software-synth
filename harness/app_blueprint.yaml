@@ -1,6 +1,6 @@
 schema_version: '1.0'
 blueprint_name: natural-language-software-synth
-blueprint_version: 0.1.0
+blueprint_version: 0.1.1
 canonical_project: natural-language-software-synth
 purpose: >-
   Generate and play local-first software-synth patches from natural-language
@@ -14,6 +14,9 @@ required_capabilities:
 - computer_keyboard_performance
 - onscreen_keyboard_performance
 - optional_web_midi_input
+- current_patch_sample_performance
+- sample_melody_chord_and_bass_patterns
+- sample_performance_stop_control
 - patch_json_save_load
 - patch_parameter_visualization
 - stable_note_event_contract
@@ -28,6 +31,7 @@ non_negotiable_invariants:
 - polyphony_must_be_bounded
 - oscillator_frequency_must_be_derived_from_valid_midi_note
 - sequencer_must_use_same_note_on_note_off_contract_as_live_playing
+- sample_performance_must_use_same_note_on_note_off_contract_as_live_playing
 - saved_user_patches_must_not_be_copied_into_generated_apps
 - external_llm_credentials_must_not_be_required_for_offline_mode
 - eval_and_dynamic_script_injection_forbidden
@@ -64,6 +68,9 @@ ui_requirements:
   onscreen_keyboard: true
   computer_keyboard: true
   midi_input_optional: true
+  sample_performance: true
+  sample_performance_types: [melody, chords, bass]
+  sample_performance_stop: true
   patch_parameter_panel: true
   patch_json_export_import: true
 sequencer_contract:

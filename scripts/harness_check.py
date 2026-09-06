@@ -35,6 +35,7 @@ def main():
         "master_gain_must_be_hard_limited",
         "polyphony_must_be_bounded",
         "sequencer_must_use_same_note_on_note_off_contract_as_live_playing",
+        "sample_performance_must_use_same_note_on_note_off_contract_as_live_playing",
         "eval_and_dynamic_script_injection_forbidden",
     ]
     for item in required_invariants:
@@ -62,6 +63,21 @@ def main():
         if contract not in js:
             fail(f"sequencer/live contract missing: {contract}")
     ok("live/sequencer event contract")
+
+    html = (ROOT / "web/index.html").read_text(encoding="utf-8")
+    for control in ["sampleSelect", "samplePlayBtn", "sampleStopBtn"]:
+        if f'id="{control}"' not in html:
+            fail(f"sample performance control missing: {control}")
+    if "async function playSample()" not in js or "function stopSample(" not in js:
+        fail("sample performance functions missing")
+    sample_start = js.index("async function playSample()")
+    sample_end = js.index("async function generate()")
+    sample_code = js[sample_start:sample_end]
+    if "engine.noteOn(note" not in sample_code or "engine.noteOff(note)" not in sample_code:
+        fail("sample performance bypasses stable note event contract")
+    if "createOscillator" in sample_code or "new AudioContext" in sample_code:
+        fail("sample performance must not create a parallel audio engine")
+    ok("sample performance uses stable note event contract")
 
     print("\nRunning pytest...")
     result = subprocess.run([sys.executable, "-m", "pytest", "tests/"], cwd=ROOT)

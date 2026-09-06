@@ -25,7 +25,15 @@ This harness keeps the synth reproducible and safe to evolve through natural-lan
 - Master output gain is bounded.
 - Polyphony is bounded.
 - AudioContext begins only from a user gesture.
-- Live keyboard, MIDI, and future sequencer use the same note event contract.
+- Live keyboard, MIDI, sample performance, and future sequencer use the same note event contract.
+- Sample performance must not create a second audio engine or bypass `noteOn()` / `noteOff()`.
+
+## v0.1.1 sample performance checks
+- The UI must expose sample type, play, and stop controls.
+- Melody, chord, and bass sample patterns must be available.
+- Sample playback must call the existing synth engine event contract.
+- Starting manual keyboard or MIDI playing stops the automated sample sequence to avoid voice conflicts.
+- Changing or importing a patch stops any active sample sequence before applying the new patch.
 
 ## Run
 ```bat
