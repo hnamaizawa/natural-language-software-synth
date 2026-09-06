@@ -42,11 +42,42 @@
 
 ## Windowsでの起動方法
 
-コマンドプロンプトでプロジェクトフォルダを開き、以下を順番に実行します。
+### 必要な環境
+
+- Windows 10 / 11
+- Python 3.11 以上
+  - `setup_windows.cmd` は Windows の Python Launcher (`py`) を使用します。
+- Chrome または Edge
+- MIDIキーボードは任意です。
+
+### 初回だけ行う手順
+
+GitHubから取得する場合は、コマンドプロンプトまたはPowerShellで以下を実行します。
+
+```bat
+git clone https://github.com/hnamaizawa/natural-language-software-synth.git
+cd natural-language-software-synth
+```
+
+すでにプロジェクトフォルダがある場合は、そのフォルダへ移動してください。
+
+次に、Python仮想環境と開発用依存関係をセットアップします。
 
 ```bat
 setup_windows.cmd
+```
+
+`setup_windows.cmd` は `.venv` を作成し、必要なPythonパッケージをインストールします。
+
+セットアップ後、ハーネスと回帰テストを確認します。
+
+```bat
 check_harness.cmd
+```
+
+最後にソフトシンセを起動します。
+
+```bat
 start_synth.cmd
 ```
 
@@ -55,6 +86,41 @@ start_synth.cmd
 ```text
 http://127.0.0.1:8765
 ```
+
+画面が表示されたら、自然言語で音色を入力して生成し、画面鍵盤またはPCキーボードで演奏できます。
+
+### 2回目以降の起動
+
+通常はプロジェクトフォルダで以下を実行するだけです。
+
+```bat
+start_synth.cmd
+```
+
+GitHub上の最新版を取り込んでから起動する場合は、先に以下を実行します。
+
+```bat
+git pull
+start_synth.cmd
+```
+
+依存関係やセットアップ内容が変更された場合は、再度以下を実行してください。
+
+```bat
+setup_windows.cmd
+check_harness.cmd
+start_synth.cmd
+```
+
+### 終了方法
+
+`start_synth.cmd` を実行しているコマンドプロンプトまたはPowerShellで、次を押します。
+
+```text
+Ctrl + C
+```
+
+これでローカルHTTPサーバーが終了します。
 
 ## PCキーボードでの演奏
 
