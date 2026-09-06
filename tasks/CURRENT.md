@@ -1,5 +1,26 @@
 # CURRENT
 
+## v0.4.0 Electric Guitar + Amp
+
+- [x] エレキギター自然言語のPCM sampler判定
+- [x] `instrument_model=electric_guitar` Patchモデル
+- [x] 複数ルート音のFactory Guitar PCM
+- [x] `AudioBufferSourceNode` によるギターPCM再生
+- [x] Pick Attack / Release Noise
+- [x] Palm Mute / Sustain / Body Tone
+- [x] Clean / Crunch / High Gain / Acoustic アンプモデル
+- [x] `WaveShaper` によるアンプDrive / Distortion
+- [x] Amp Tone / Presence / Cabinet / Chorus
+- [x] ギター／アンプ用グラフィカルPatch Editor
+- [x] ロック・リフのサンプル演奏
+- [x] フュージョン・フレーズのサンプル演奏
+- [x] アコースティック・アルペジオのサンプル演奏
+- [x] 単一AudioContext維持
+- [x] 既存 `noteOn()` / `noteOff()` 契約の維持
+- [x] Factory Guitar PCMへ外部録音を埋め込まない
+- [x] Guitar / Amp / Sample Performance回帰テスト
+- [x] Blueprint / Harness / README / Changelog更新
+
 ## v0.3.0 Multi-engine + Graphical Patch Editor
 
 - [x] `engine_type=synth|sampler|drum|fm` へPatchスキーマ拡張
