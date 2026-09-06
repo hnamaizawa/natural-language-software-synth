@@ -42,6 +42,17 @@ def _is_dx_ep_prompt(text: str) -> bool:
     ) or (_has(text, "エレピ", "electric piano") and _has(text, "80s", "80年代", "fm", "デジタル"))
 
 
+def _is_guitar_prompt(text: str) -> bool:
+    if _has(text, "bass guitar", "electric bass", "ベースギター", "エレキベース"):
+        return False
+    return _has(
+        text,
+        "electric guitar", "guitar", "strat", "telecaster", "humbucker", "single coil",
+        "エレキギター", "ギター", "ストラト", "テレキャスター", "ハムバッカー", "シングルコイル",
+        "acoustic guitar", "アコースティックギター", "アコギ",
+    )
+
+
 def generate_patch(prompt: str) -> SynthPatch:
     """Generate a deterministic, inspectable patch from natural language.
 
@@ -166,6 +177,102 @@ def generate_patch(prompt: str) -> SynthPatch:
             p = replace(p, fm_brightness=0.92, fm_mod_index=7.2)
         if _has(text, "long", "余韻", "長い"):
             p = replace(p, fm_release_s=2.4)
+        p = replace(p, name=_slug_name(prompt, archetype))
+        return validate_patch(p)
+
+    # 4) PCM electric guitar with an amp/cabinet stage.
+    if _is_guitar_prompt(text):
+        archetype = "pcm electric guitar"
+        p = replace(
+            p,
+            engine_type="sampler",
+            instrument_model="electric_guitar",
+            guitar_amp_model="clean",
+            guitar_demo_style="fusion",
+            guitar_body_tone=0.70,
+            guitar_pick_mix=0.36,
+            guitar_release_mix=0.14,
+            guitar_palm_mute=0.08,
+            guitar_sustain=0.74,
+            guitar_amp_drive=0.16,
+            guitar_amp_tone=0.66,
+            guitar_amp_presence=0.58,
+            guitar_cabinet_mix=0.76,
+            guitar_chorus_mix=0.08,
+            master_gain=0.20,
+            max_polyphony=10,
+        )
+        if _has(text, "rock", "ロック", "distortion", "distorted", "overdrive", "crunch", "歪", "ディストーション", "オーバードライブ"):
+            archetype = "pcm rock guitar"
+            p = replace(
+                p,
+                guitar_amp_model="crunch",
+                guitar_demo_style="rock",
+                guitar_amp_drive=0.62,
+                guitar_amp_tone=0.64,
+                guitar_amp_presence=0.70,
+                guitar_cabinet_mix=0.88,
+                guitar_palm_mute=0.18,
+                guitar_sustain=0.82,
+                guitar_chorus_mix=0.03,
+                master_gain=0.18,
+            )
+        if _has(text, "metal", "high gain", "high-gain", "heavy", "メタル", "ハイゲイン", "激しい歪"):
+            archetype = "pcm high-gain guitar"
+            p = replace(
+                p,
+                guitar_amp_model="high_gain",
+                guitar_demo_style="rock",
+                guitar_amp_drive=0.88,
+                guitar_amp_tone=0.58,
+                guitar_amp_presence=0.78,
+                guitar_cabinet_mix=0.94,
+                guitar_palm_mute=0.38,
+                guitar_sustain=0.88,
+                master_gain=0.16,
+            )
+        if _has(text, "fusion", "フュージョン", "smooth lead", "スムース", "滑らか"):
+            archetype = "pcm fusion guitar"
+            p = replace(
+                p,
+                guitar_amp_model="clean",
+                guitar_demo_style="fusion",
+                guitar_amp_drive=max(p.guitar_amp_drive, 0.28),
+                guitar_amp_tone=0.72,
+                guitar_amp_presence=0.66,
+                guitar_cabinet_mix=0.70,
+                guitar_chorus_mix=0.20,
+                guitar_sustain=0.84,
+                guitar_palm_mute=0.04,
+            )
+        if _has(text, "acoustic", "unplugged", "アコースティック", "アコギ", "生ギター"):
+            archetype = "pcm acoustic-style guitar"
+            p = replace(
+                p,
+                guitar_amp_model="acoustic",
+                guitar_demo_style="acoustic",
+                guitar_body_tone=0.84,
+                guitar_pick_mix=0.50,
+                guitar_release_mix=0.20,
+                guitar_palm_mute=0.02,
+                guitar_sustain=0.68,
+                guitar_amp_drive=0.0,
+                guitar_amp_tone=0.76,
+                guitar_amp_presence=0.44,
+                guitar_cabinet_mix=0.26,
+                guitar_chorus_mix=0.04,
+                master_gain=0.21,
+            )
+        if _has(text, "clean", "クリーン"):
+            p = replace(p, guitar_amp_model="clean", guitar_amp_drive=min(p.guitar_amp_drive, 0.08))
+        if _has(text, "bright", "bite", "明る", "抜け", "ジャキ"):
+            p = replace(p, guitar_body_tone=max(p.guitar_body_tone, 0.80), guitar_amp_presence=max(p.guitar_amp_presence, 0.72))
+        if _has(text, "warm", "mellow", "暖か", "丸い", "甘い"):
+            p = replace(p, guitar_body_tone=min(p.guitar_body_tone, 0.58), guitar_amp_tone=min(p.guitar_amp_tone, 0.56))
+        if _has(text, "palm mute", "palm-muted", "パームミュート", "ブリッジミュート", "ミュート"):
+            p = replace(p, guitar_palm_mute=max(p.guitar_palm_mute, 0.60))
+        if _has(text, "pick noise", "pick attack", "ピックノイズ", "ピッキング", "アタック"):
+            p = replace(p, guitar_pick_mix=max(p.guitar_pick_mix, 0.58))
         p = replace(p, name=_slug_name(prompt, archetype))
         return validate_patch(p)
 
