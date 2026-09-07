@@ -30,9 +30,9 @@ def test_every_instrument_has_a_jazz_sample_performance():
     for token in [
         "ジャズ・シンセリード",
         "ジャズ・ウォーキングベース",
-        "ジャズ・エレピ・ボイシング",
+        "ジャズ・エレピ・4度堆積ボイシング",
         "ジャズ・スウィング",
-        "ジャズ・コンピング",
+        "ジャズ・4度堆積コンピング",
     ]:
         assert token in js
 
