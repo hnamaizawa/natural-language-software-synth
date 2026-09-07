@@ -1,12 +1,13 @@
 schema_version: '1.0'
 blueprint_name: natural-language-software-synth
-blueprint_version: 0.4.2
+blueprint_version: 0.5.0
 canonical_project: natural-language-software-synth
 purpose: >-
   Generate and play local-first multi-engine instrument patches from natural-language
   descriptions. Support subtractive synthesis, PCM-style fretless bass, PCM-style electric
-  guitar with bounded amp/cabinet distortion, PCM-style drums, and FM electric piano while
-  keeping every generated or edited patch validated and bounded.
+  guitar with bounded amp/cabinet distortion and strum timing, PCM-style grand piano,
+  PCM-style drums, and FM electric piano while keeping every generated or edited patch
+  validated and bounded. Let users register bounded local-only sample phrases.
 required_capabilities:
 - natural_language_patch_generation
 - deterministic_offline_prompt_fallback
@@ -14,13 +15,20 @@ required_capabilities:
 - browser_web_audio_polyphonic_engine
 - pcm_fretless_bass_engine
 - pcm_fretless_articulation_layers
+- enhanced_fretless_finger_noise
 - pcm_electric_guitar_engine
 - guitar_amp_distortion_stage
 - guitar_amp_model_controls
+- guitar_chord_strum_timing
 - guitar_rock_sample_performance
 - guitar_fusion_sample_performance
 - guitar_acoustic_sample_performance
 - guitar_jazz_sample_performance
+- pcm_grand_piano_engine
+- grand_piano_hammer_articulation
+- grand_piano_damper_articulation
+- grand_piano_resonance_controls
+- grand_piano_sample_performance
 - pcm_studio_drum_engine
 - dx_style_fm_electric_piano_engine
 - adaptive_piano_or_drum_performance_surface
@@ -32,6 +40,10 @@ required_capabilities:
 - gm_style_drum_note_mapping
 - current_patch_sample_performance
 - instrument_model_specific_sample_performance
+- expanded_sample_performance_genres
+- user_registered_sample_performance
+- local_custom_sample_phrase_storage
+- custom_sample_phrase_delete
 - fretless_sample_performance
 - fretless_jazz_walking_sample_performance
 - fm_ep_sample_performance
@@ -70,13 +82,20 @@ non_negotiable_invariants:
 - sequencer_must_use_same_note_on_note_off_contract_as_live_playing
 - sample_performance_must_use_same_note_on_note_off_contract_as_live_playing
 - sample_performance_must_match_explicit_instrument_model
+- expanded_sample_library_must_use_note_event_contract
+- custom_sample_phrases_must_remain_local_browser_data
+- custom_sample_phrase_values_must_be_bounded
+- custom_sample_phrases_must_not_execute_user_text
 - guitar_detection_must_require_explicit_electric_guitar_model
+- guitar_chord_sample_performance_must_apply_strum_timing
 - drum_patch_must_keep_drum_surface_and_drum_keymap
 - pcm_sampler_must_use_audio_buffer_source_nodes
 - pcm_factory_buffers_must_not_embed_third_party_artist_recordings
 - guitar_pcm_must_use_existing_audio_context
 - guitar_amp_parameters_must_be_schema_validated_and_clamped
 - guitar_sample_performance_must_use_note_event_contract
+- grand_piano_pcm_must_use_existing_audio_context
+- grand_piano_parameters_must_be_schema_validated_and_clamped
 - drum_pad_and_sample_must_use_note_event_contract
 - pcm_and_fm_parameters_must_be_schema_validated_and_clamped
 - saved_user_patches_must_not_be_copied_into_generated_apps
@@ -99,8 +118,11 @@ required_files:
 - web/app.js
 - web/patch_editor_runtime.js
 - web/guitar_runtime.js
+- web/piano_runtime.js
 - web/instrument_performance_runtime.js
+- web/performance_library_runtime.js
 - web/output_level_runtime.js
+- web/performance_editor.css
 - web/style.css
 runtime_state_exclusions:
 - .env
@@ -123,17 +145,23 @@ ui_requirements:
   midi_input_optional: true
   sample_performance: true
   instrument_model_specific_sample_performance: true
-  sample_performance_types: [synth_melody, synth_chords, synth_jazz, fretless_phrase, fretless_jazz, ep_chords, ep_jazz, drum_shuffle, drum_straight, drum_jazz, guitar_rock, guitar_fusion, guitar_acoustic, guitar_jazz]
+  expanded_sample_performance_genres: true
+  custom_sample_phrase_registration: true
+  custom_sample_phrase_delete: true
+  custom_sample_phrase_storage: localStorage
+  sample_performance_types: [synth_melody, synth_chords, synth_jazz, synth_pop, synth_edm, synth_ambient, fretless_phrase, fretless_jazz, fretless_funk, fretless_fusion, fretless_ballad, ep_chords, ep_jazz, ep_citypop, ep_fusion, ep_ballad, piano_classical, piano_jazz, piano_ballad, piano_pop, piano_boogie, drum_shuffle, drum_straight, drum_jazz, drum_rock, drum_funk, drum_fusion, drum_bossa, guitar_rock, guitar_fusion, guitar_acoustic, guitar_jazz, guitar_blues, guitar_funk, guitar_pop, guitar_bossa]
   sample_performance_stop: true
   graphical_patch_parameter_editor: true
   continuous_slider_editing: true
   engine_specific_parameter_controls: true
   guitar_amp_graphical_controls: true
+  grand_piano_graphical_controls: true
   reset_to_generated_patch: true
   patch_json_export_import: true
 engine_routing:
   fretless_bass: sampler
   electric_guitar: sampler
+  grand_piano: sampler
   studio_drums: drum
   dx_style_electric_piano: fm
   default: synth
@@ -155,12 +183,36 @@ jazz_voicing_contract:
 pcm_fretless_contract:
   layers: [nearest_root_note, attack_noise, release_noise, slide_noise]
   controls: [sample_tone, sample_attack_mix, finger_noise_mix, release_noise_mix, slide_amount, slide_time_s, mwah_amount, sample_velocity_curve]
+  generated_finger_noise_default_min: 0.68
+  explicit_finger_style_noise_min: 0.82
 guitar_contract:
   source: locally_generated_pcm_multisample
   amp_models: [clean, crunch, high_gain, acoustic]
-  demo_styles: [rock, fusion, acoustic, jazz]
+  demo_styles: [rock, fusion, acoustic, jazz, blues, funk, pop, bossa]
   controls: [guitar_amp_model, guitar_amp_drive, guitar_amp_tone, guitar_amp_presence, guitar_cabinet_mix, guitar_body_tone, guitar_pick_mix, guitar_release_mix, guitar_palm_mute, guitar_sustain, guitar_chorus_mix]
   effects: [waveshaper_distortion, tone_filter, presence_shelf, cabinet_filter, chorus_delay]
+  chord_strum:
+    note_event_api: noteOn_noteOff_whenSeconds
+    interval_seconds_min: 0.016
+    interval_seconds_max: 0.028
+    directions: [down, up]
+grand_piano_contract:
+  source: locally_generated_pcm_multisample
+  layers: [string_body, hammer_attack, damper_release, soundboard_resonance]
+  controls: [piano_tone, piano_hammer_mix, piano_resonance, piano_damper_noise, piano_softness, piano_sustain, piano_velocity_curve, piano_room_mix]
+  root_notes: [36, 43, 48, 55, 60, 67, 72, 79, 84]
+custom_sample_contract:
+  storage: browser_localStorage_only
+  maximum_phrases: 50
+  maximum_steps_per_phrase: 128
+  bpm_min: 40
+  bpm_max: 240
+  step_beats_min: 0.125
+  step_beats_max: 8
+  velocity_min: 0.05
+  velocity_max: 1.0
+  accepted_note_forms: [midi_0_to_127, scientific_pitch_name, rest]
+  executable_user_text: forbidden
 drum_contract:
   canonical_notes:
     kick: 36

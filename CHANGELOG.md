@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.5.0
+- `grand_piano` 楽器モデルを追加し、グランドピアノ要求をPCMサンプラーへ自動振り分け。
+- Factory Grand Piano PCMをブラウザ内で決定論的に生成し、複数ルート音 + Playback Rateで演奏する方式を追加。
+- グランドピアノに Hammer Attack / Damper Release / String & Soundboard Resonance / Tone / Softness / Sustain / Velocity Curve / Room を追加。
+- グランドピアノ用グラフィカルPatch Editorと、クラシック／バラード／ポップ／ジャズ／ブギウギのサンプル演奏を追加。
+- フレットレスベースのFinger NoiseとAttack PCM既定値を引き上げ、指弾きを明示した要求では `finger_noise_mix >= 0.82` / `sample_attack_mix >= 0.60` とした。
+- ギター和音のサンプル演奏でDown/Up Strokeを導入し、スタイルに応じて各構成音を16〜28msずつずらして発音。
+- ギターの発音ずらしは既存 `noteOn` / `noteOff` の `whenSeconds` のみを使い、新しい音源経路を作らない設計とした。
+- SAMPLE欄にユーザー独自フレーズの登録／削除UIを追加。音名またはMIDI番号、拍数、Velocity、休符を入力可能。
+- 登録フレーズは現在の楽器モデルへ紐付け、ブラウザの `localStorage` にのみ保存。GitHubやサーバーへ送信しない。
+- 登録フレーズを最大50件、1フレーズ128ステップ、BPM 40〜240、拍数0.125〜8、Velocity 0.05〜1.0、MIDI 0〜127に制限。
+- 内蔵サンプル演奏を拡充し、Pop / EDM / Ambient / Funk / Fusion / City Pop / Classical / Boogie / Blues / Bossa Nova等を追加。
+- Grand Pianoを既存の出力レベル正規化対象へ追加し、Master Gain上限を迂回しない設計を維持。
+- Piano / Fretless Finger Noise / Guitar Strum / Custom Phrase / Expanded Genres用の回帰テストとHarness不変条件を追加。
+
 ## v0.4.2
 - 音源モデルごとの聴感上の音量差を小さくする出力レベル補正を追加。
 - `generic / fretless_bass / studio_drums / dx_ep / electric_guitar` ごとに限定範囲（0.82〜1.22）のVelocity補正を適用。

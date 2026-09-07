@@ -6,9 +6,11 @@ This harness keeps the synth reproducible and safe to evolve through natural-lan
 ## Canonical artifacts
 - `harness/app_blueprint.yaml`: capabilities, boundaries, required files, acceptance commands.
 - `scripts/harness_check.py`: validates project structure, forbidden execution paths, schema invariants, and tests.
-- `src/ai_synth/patch.py`: canonical patch data contract and clamps for synth, sampler, guitar amp, drum, and FM modes.
-- `web/app.js`: real-time multi-engine implementation behind the stable `noteOn` / `noteOff` boundary.
-- `web/guitar_runtime.js`: PCM electric-guitar model plus bounded amp/cabinet processing that extends the existing sampler without creating a second AudioContext.
+- `src/ai_synth/patch.py`: canonical patch data contract and clamps for synth, sampler, guitar amp, grand piano, drum, and FM modes.
+- `web/app.js`: base real-time multi-engine implementation behind the stable `noteOn` / `noteOff` boundary.
+- `web/guitar_runtime.js`: PCM electric-guitar model plus bounded amp/cabinet processing.
+- `web/piano_runtime.js`: locally generated PCM grand-piano model with hammer/damper articulation and resonance.
+- `web/performance_library_runtime.js`: expanded original demo library, guitar chord strum timing, and bounded local-only user phrase registration.
 
 ## Standard development loop
 1. Read `tasks/CURRENT.md` and the blueprint.
@@ -20,42 +22,37 @@ This harness keeps the synth reproducible and safe to evolve through natural-lan
 7. Update CHANGELOG and CURRENT.
 8. Open a PR and let the human review before merge.
 
-## Audio invariants
-- Generated natural-language output is never executable code.
+## Audio and data invariants
+- Generated natural-language output and registered phrase text are never executable code.
 - Every generated, imported, or graphically edited patch is validated and clamped.
-- Master output gain and polyphony are bounded.
-- AudioContext begins only from a user gesture.
-- Subtractive synth, PCM fretless sampler, PCM electric guitar, PCM drums, and FM EP share one AudioContext.
-- Live keyboard, drum pads, MIDI, sample performance, and future sequencer use the same note event contract.
-- Sample performance must not create a second audio engine or bypass `noteOn()` / `noteOff()`.
-- Factory PCM buffers must be generated locally or replaced only with appropriately licensed samples; artist recordings are not embedded.
-- Guitar amp Drive / Tone / Presence / Cabinet / Chorus parameters remain bounded and validated.
+- Master output gain, polyphony, instrument trim, and engine-specific parameters are bounded.
+- AudioContext begins only from a user gesture; all instruments share the single base AudioContext.
+- Live keyboard, drum pads, MIDI, built-in samples, registered samples, and future sequencer use the same `noteOn()` / `noteOff()` contract.
+- Factory PCM buffers are generated locally or may later be replaced only with appropriately licensed samples; artist recordings are not embedded.
+- User-registered sample phrases remain browser-local (`localStorage`) and are never copied into source code or generated applications.
+- Registered phrase BPM, step count, beats, velocity, and MIDI notes are bounded before playback.
 
-## v0.4.0 guitar + amp checks
-- Guitar / electric-guitar prompts select `engine_type=sampler` and `instrument_model=electric_guitar`.
-- Guitar Factory PCM is generated locally and replayed with `AudioBufferSourceNode`; the guitar runtime must not fetch `.wav` / `.mp3` assets.
-- The guitar runtime must not create an AudioContext; it extends the existing shared engine only.
-- Guitar notes continue through the stable `noteOn()` / `noteOff()` contract used by keyboard, MIDI, sample playback, and future sequencer.
-- Amp Drive uses a bounded `WaveShaper` distortion stage followed by Tone / Presence / Cabinet processing.
-- Amp models are limited to Clean / Crunch / High Gain / Acoustic.
-- The right-side Patch Editor exposes Amp Model / Drive / Amp Tone / Presence / Cabinet / Body Tone / Pick Attack / Release Noise / Palm Mute / Sustain / Chorus.
-- Guitar graphical edits pass through validation/clamp and preserve continuous slider dragging.
-- Guitar sample playback provides original short Rock / Fusion / Acoustic-style demonstrations and does not bypass the note event contract.
+## v0.5.0 checks
+- Grand-piano prompts select `engine_type=sampler` and `instrument_model=grand_piano`; DX/FM electric-piano prompts remain `dx_ep`.
+- Grand Piano uses locally generated PCM root samples plus Hammer Attack, Damper Release, Soundboard/Body Resonance, Tone, Softness, Sustain, Velocity Curve, and Room controls.
+- `piano_runtime.js` must not create a new AudioContext or fetch `.wav` / `.mp3` assets.
+- Fretless generation defaults to stronger finger articulation; explicit finger-style prompts raise `finger_noise_mix` to at least 0.82 and attack mix to at least 0.60.
+- Multi-note electric-guitar sample steps use `whenSeconds` offsets so down/up strokes do not start every string simultaneously. Current style intervals remain between 16 and 28 ms.
+- Expanded genre samples use only the stable note-event contract.
+- Custom sample phrases are stored only in `localStorage`, limited to 50 phrases / 128 steps each, BPM 40–240, beats 0.125–8, velocity 0.05–1.0, MIDI notes 0–127.
 
-## v0.3.0 multi-engine checks
-- Fretless / Jaco / Pastorius prompts select `engine_type=sampler` and `instrument_model=fretless_bass`.
-- The fretless engine uses AudioBuffer PCM playback with nearest-root note selection plus attack, release, and slide articulation layers.
-- Rosanna / Porcaro / shuffle drum prompts select `engine_type=drum`, `instrument_model=studio_drums`, and `drum_style=half_time_shuffle`.
-- Drum playback uses a PCM one-shot buffer and preserves the drum-pad surface and GM-style note mapping.
-- DX-7 / DX7 / FM electric-piano prompts select `engine_type=fm` and `instrument_model=dx_ep`.
-- FM EP uses frequency modulation inside the existing AudioContext and does not introduce a parallel engine boundary.
-- The right-side patch editor exposes engine-specific range/select controls and applies changes through `validatePatch()` + `setPatch()`.
-- The reset control restores the most recently generated/imported patch.
+## v0.4.x retained checks
+- Electric-guitar detection requires explicit `instrument_model=electric_guitar`; guitar defaults serialized on other patches must not reroute them.
+- Drum patches retain the drum surface and drum PC-key mapping.
+- Guitar Amp Drive uses bounded `WaveShaper` distortion followed by Tone / Presence / Cabinet processing.
+- Output-level normalization remains bounded (0.82–1.22 trim), uses the existing AudioContext, and does not add make-up gain beyond `master_gain`.
+- Jazz chord samples use four-note quartal voicing with adjacent perfect fourths (5 semitones).
 
-## v0.2.0 drum mode checks
-- Drum patches replace the piano performance surface with drum pads.
-- Drum pads expose kick, snare, closed/open hat, three toms, crash, and ride.
-- The half-time shuffle sample is an original short demonstration of the feel rather than a recording or transcription of a copyrighted track.
+## v0.3.0 retained checks
+- Fretless / Jaco / Pastorius prompts select PCM fretless sampler.
+- Rosanna / Porcaro / shuffle drum prompts select PCM half-time-shuffle drums.
+- DX-7 / DX7 / FM electric-piano prompts select the FM engine.
+- The right-side Patch Editor applies changes through validation/clamp and supports continuous slider dragging.
 
 ## Run
 ```bat

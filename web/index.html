@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Natural Language Software Synth</title>
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/performance_editor.css" />
 </head>
 <body>
   <main>
     <header>
       <div>
-        <p class="eyebrow">v0.4.2 · multi-engine · local-first</p>
+        <p class="eyebrow">v0.5.0 · multi-engine · local-first</p>
         <h1>Natural Language Software Synth</h1>
-        <p class="lead">自然言語から、減算シンセ・PCMフレットレスベース・PCMギター＋アンプ・PCMドラム・FMエレピを自動選択し、その場で演奏できます。</p>
+        <p class="lead">自然言語から、減算シンセ・PCMフレットレスベース・PCMギター＋アンプ・PCMグランドピアノ・PCMドラム・FMエレピを自動選択し、その場で演奏できます。</p>
       </div>
       <button id="audioBtn" class="primary">音源を有効化</button>
     </header>
@@ -20,14 +21,15 @@
     <section class="panel prompt-panel">
       <label for="prompt">どんな音が欲しいですか？</label>
       <div class="prompt-row">
-        <textarea id="prompt" rows="3">ロック向けのエレキギター。アンプの歪みを強めにして、ピッキングのアタックが分かる音。</textarea>
+        <textarea id="prompt" rows="3">コンサートホールで弾くような豊かなグランドピアノ。ハンマーのアタックと響板の余韻が自然な音。</textarea>
         <button id="generateBtn" class="primary">音色を生成</button>
       </div>
       <div class="chips">
+        <button data-prompt="コンサートホールで弾くような豊かなグランドピアノ。ハンマーのアタックと響板の余韻が自然な音。">Grand Piano</button>
         <button data-prompt="ロック向けのエレキギター。アンプの歪みを強めにして、ピッキングのアタックが分かる音。">Rock Guitar</button>
         <button data-prompt="フュージョン向けの滑らかなエレキギター。クリーン寄りでコーラスを少し。">Fusion Guitar</button>
         <button data-prompt="アコースティック調のギター。歪みなしでピックのニュアンスを強めに。">Acoustic-style Guitar</button>
-        <button data-prompt="ジャコ・パストリアスのような歌うフレットレスベース。指弾きのノイズとスライド感を強めに。">Fretless Bass</button>
+        <button data-prompt="ジャコ・パストリアスのような歌うフレットレスベース。指弾きのフィンガーノイズとスライド感を強めに。">Fretless Bass</button>
         <button data-prompt="Toto のロザーナーでジェフ ポーカロさんのシャッフルで有名なドラムの音を生成してください。">PCM Shuffle Drums</button>
         <button data-prompt="80年代の DX-7 のような、きらびやかな FM エレピ">DX-style EP</button>
         <button data-prompt="warm analog pad with slow attack, wide detune and gentle echo">Warm Pad</button>
@@ -61,6 +63,24 @@
             <button id="samplePlayBtn" class="primary">▶ サンプル演奏</button>
             <button id="sampleStopBtn" disabled>■ 停止</button>
           </div>
+
+          <details class="custom-sample-editor">
+            <summary>＋ 自分のサンプル演奏フレーズを登録</summary>
+            <div class="custom-sample-grid">
+              <label>登録先の楽器<span id="customSampleInstrument" class="custom-instrument-badge">シンセ</span></label>
+              <label>BPM<input id="customSampleBpm" type="number" min="40" max="240" value="100" /></label>
+              <label class="custom-wide">フレーズ名<input id="customSampleName" maxlength="40" placeholder="例: 自分のフュージョンフレーズ" /></label>
+              <label class="custom-wide">フレーズ
+                <textarea id="customSampleSteps" rows="6" placeholder="C4,E4,G4 | 1 | 0.84&#10;A4 | 0.5 | 0.80&#10;R | 0.5 | 0.80&#10;67,71,74 | 1 | 0.88"></textarea>
+              </label>
+              <p class="custom-sample-help">1行=1ステップ。形式は「音名またはMIDIノート | 拍数 | Velocity」です。和音はカンマ区切り、休符は R。ギターの和音は登録フレーズでも高速ストロークとして発音をずらします。ドラムは例: Kick=36 / Snare=38 / Closed Hat=42。</p>
+              <div class="custom-sample-actions">
+                <button id="customSampleSaveBtn" class="primary">登録</button>
+                <button id="customSampleDeleteBtn" disabled>選択中の登録フレーズを削除</button>
+              </div>
+              <p id="customSampleStatus" class="custom-sample-status"></p>
+            </div>
+          </details>
         </div>
 
         <div id="keyboardWrap">
@@ -84,21 +104,23 @@
           </div>
           <button id="resetParamsBtn" class="small-btn">生成値へ戻す</button>
         </div>
-        <p class="param-help">スライダーを動かすと即座に現在の音へ反映されます。ギターではAmp Model / Drive / Tone / Presence / Cabinetも調整できます。</p>
+        <p class="param-help">スライダーを動かすと即座に現在の音へ反映されます。ギターではAmp Model / Drive、グランドピアノではHammer / Resonance / Damper Noiseなどを調整できます。</p>
         <div id="params" class="params-editor"></div>
       </aside>
     </section>
 
     <section class="panel future-panel">
       <span class="kicker">ENGINE CONTRACT</span>
-      <h2>5種類の音源モデルで同じ noteOn / noteOff 契約を共有</h2>
-      <p>PCMフレットレス、PCMギター＋アンプ、PCMドラム、FMエレピ、減算シンセのすべてを同じ演奏APIから呼び出します。Factory PCMは外部録音をコピーせず、ローカルで生成したPCMバッファを使用します。</p>
+      <h2>6種類の音源モデルで同じ noteOn / noteOff 契約を共有</h2>
+      <p>PCMフレットレス、PCMギター＋アンプ、PCMグランドピアノ、PCMドラム、FMエレピ、減算シンセのすべてを同じ演奏APIから呼び出します。Factory PCMは外部録音をコピーせず、ローカルで生成したPCMバッファを使用します。登録したサンプル演奏フレーズはブラウザのlocalStorageだけに保存されます。</p>
     </section>
   </main>
   <script src="/app.js"></script>
   <script src="/patch_editor_runtime.js"></script>
   <script src="/guitar_runtime.js"></script>
+  <script src="/piano_runtime.js"></script>
   <script src="/instrument_performance_runtime.js"></script>
+  <script src="/performance_library_runtime.js"></script>
   <script src="/output_level_runtime.js"></script>
 </body>
 </html>

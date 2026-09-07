@@ -1,6 +1,6 @@
 "use strict";
 
-// v0.4.2 perceived output-level normalization.
+// v0.5.0 perceived output-level normalization.
 // Keeps the existing master_gain clamp intact, adds only bounded per-instrument velocity trims
 // and a gentle final compressor inside the existing audio graph.
 (() => {
@@ -9,10 +9,12 @@
     fretless_bass:1.16,
     studio_drums:1.04,
     dx_ep:1.10,
-    electric_guitar:.96
+    electric_guitar:.96,
+    grand_piano:1.03
   });
 
   function outputInstrumentKey(p){
+    if(p&&p.instrument_model==="grand_piano")return"grand_piano";
     if(p&&p.instrument_model==="electric_guitar")return"electric_guitar";
     if(p&&(p.instrument_model==="studio_drums"||p.engine_type==="drum"))return"studio_drums";
     if(p&&p.instrument_model==="fretless_bass")return"fretless_bass";
@@ -31,6 +33,11 @@
       if(amp==="high_gain")trim*=.90;
       else if(amp==="acoustic")trim*=1.08;
       else if(amp==="clean")trim*=1.03;
+    }else if(key==="grand_piano"){
+      const softness=Number(p?.piano_softness??.18);
+      if(softness>.55)trim*=1.07;
+      const resonance=Number(p?.piano_resonance??.58);
+      if(resonance>.78)trim*=.97;
     }
     return clamp(trim,.82,1.22);
   }

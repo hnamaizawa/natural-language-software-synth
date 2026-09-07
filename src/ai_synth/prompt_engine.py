@@ -42,6 +42,16 @@ def _is_dx_ep_prompt(text: str) -> bool:
     ) or (_has(text, "エレピ", "electric piano") and _has(text, "80s", "80年代", "fm", "デジタル"))
 
 
+def _is_grand_piano_prompt(text: str) -> bool:
+    if _has(text, "electric piano", "fm piano", "dx piano", "エレピ", "dx-7", "dx7"):
+        return False
+    return _has(
+        text,
+        "grand piano", "concert grand", "acoustic piano", "concert piano", "piano",
+        "グランドピアノ", "コンサートグランド", "アコースティックピアノ", "生ピアノ", "ピアノ",
+    )
+
+
 def _is_guitar_prompt(text: str) -> bool:
     if _has(text, "bass guitar", "electric bass", "ベースギター", "エレキベース"):
         return False
@@ -71,9 +81,9 @@ def generate_patch(prompt: str) -> SynthPatch:
             engine_type="sampler",
             instrument_model="fretless_bass",
             sample_tone=0.70,
-            sample_attack_mix=0.35,
-            finger_noise_mix=0.42,
-            release_noise_mix=0.28,
+            sample_attack_mix=0.52,
+            finger_noise_mix=0.68,
+            release_noise_mix=0.30,
             slide_amount=0.38,
             slide_time_s=0.18,
             mwah_amount=0.68,
@@ -84,7 +94,7 @@ def generate_patch(prompt: str) -> SynthPatch:
             max_polyphony=10,
         )
         if _has(text, "finger", "fingerstyle", "指", "指弾", "フィンガー"):
-            p = replace(p, finger_noise_mix=max(p.finger_noise_mix, 0.50), sample_attack_mix=0.42)
+            p = replace(p, finger_noise_mix=max(p.finger_noise_mix, 0.82), sample_attack_mix=max(p.sample_attack_mix, 0.60))
         if _has(text, "slide", "gliss", "スライド", "グリス"):
             p = replace(p, slide_amount=max(p.slide_amount, 0.68), slide_time_s=0.28)
         if _has(text, "mwah", "歌う", "うねり", "粘る"):
@@ -180,7 +190,36 @@ def generate_patch(prompt: str) -> SynthPatch:
         p = replace(p, name=_slug_name(prompt, archetype))
         return validate_patch(p)
 
-    # 4) PCM electric guitar with an amp/cabinet stage.
+    # 4) PCM grand piano: locally generated multi-sample with hammer/damper layers.
+    if _is_grand_piano_prompt(text):
+        archetype = "pcm grand piano"
+        p = replace(
+            p,
+            engine_type="sampler",
+            instrument_model="grand_piano",
+            piano_tone=0.74,
+            piano_hammer_mix=0.56,
+            piano_resonance=0.66,
+            piano_damper_noise=0.18,
+            piano_softness=0.16,
+            piano_sustain=0.88,
+            piano_velocity_curve=1.12,
+            piano_room_mix=0.16,
+            master_gain=0.21,
+            max_polyphony=16,
+        )
+        if _has(text, "concert", "classical", "コンサート", "クラシック", "豊か", "荘厳"):
+            p = replace(p, piano_resonance=max(p.piano_resonance, 0.76), piano_room_mix=max(p.piano_room_mix, 0.22), piano_sustain=max(p.piano_sustain, 0.92))
+        if _has(text, "soft", "mellow", "gentle", "柔らか", "丸い", "優しい"):
+            p = replace(p, piano_softness=max(p.piano_softness, 0.48), piano_tone=min(p.piano_tone, 0.60), piano_hammer_mix=min(p.piano_hammer_mix, 0.36))
+        if _has(text, "bright", "brilliant", "clear", "明る", "きらびやか", "抜け"):
+            p = replace(p, piano_tone=max(p.piano_tone, 0.88), piano_hammer_mix=max(p.piano_hammer_mix, 0.66))
+        if _has(text, "dry", "close", "intimate", "ドライ", "近い", "小さい部屋"):
+            p = replace(p, piano_room_mix=min(p.piano_room_mix, 0.06), piano_resonance=min(p.piano_resonance, 0.52))
+        p = replace(p, name=_slug_name(prompt, archetype))
+        return validate_patch(p)
+
+    # 5) PCM electric guitar with an amp/cabinet stage.
     if _is_guitar_prompt(text):
         archetype = "pcm electric guitar"
         p = replace(

@@ -20,7 +20,7 @@ PORT = 8765
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "NaturalLanguageSynth/0.4"
+    server_version = "NaturalLanguageSynth/0.5"
 
     def _json(self, payload, status=HTTPStatus.OK):
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
@@ -33,7 +33,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
-            return self._json({"ok": True, "version": "0.4.0"})
+            return self._json({"ok": True, "version": "0.5.0"})
         rel = unquote(parsed.path.lstrip("/")) or "index.html"
         target = (WEB / rel).resolve()
         try:
@@ -61,7 +61,7 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/generate-patch":
             prompt = str(payload.get("prompt", ""))[:500]
             patch = generate_patch(prompt)
-            return self._json({"patch": patch.to_dict(), "engine": "offline-deterministic-v0.4"})
+            return self._json({"patch": patch.to_dict(), "engine": "offline-deterministic-v0.5"})
         if parsed.path == "/api/validate-patch":
             try:
                 patch = validate_patch(payload.get("patch", {}))
@@ -75,7 +75,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    print("Natural Language Software Synth v0.4.0")
+    print("Natural Language Software Synth v0.5.0")
     print(f"Open http://{HOST}:{PORT}")
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
 
