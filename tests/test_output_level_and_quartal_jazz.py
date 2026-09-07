@@ -57,4 +57,5 @@ def test_output_normalization_keeps_master_gain_contract_untouched():
     output_js = (ROOT / "web" / "output_level_runtime.js").read_text(encoding="utf-8")
     assert "master_gain:clamp(p.master_gain,.02,.35)" in app_js
     assert "this.master.gain.setTargetAtTime(this.patch.master_gain" in app_js
-    assert "master_gain" not in output_js
+    assert "this.master.gain" not in output_js
+    assert "createGain()" not in output_js
