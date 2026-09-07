@@ -1,6 +1,6 @@
 schema_version: '1.0'
 blueprint_name: natural-language-software-synth
-blueprint_version: 0.4.0
+blueprint_version: 0.4.1
 canonical_project: natural-language-software-synth
 purpose: >-
   Generate and play local-first multi-engine instrument patches from natural-language
@@ -20,19 +20,26 @@ required_capabilities:
 - guitar_rock_sample_performance
 - guitar_fusion_sample_performance
 - guitar_acoustic_sample_performance
+- guitar_jazz_sample_performance
 - pcm_studio_drum_engine
 - dx_style_fm_electric_piano_engine
 - adaptive_piano_or_drum_performance_surface
+- drum_surface_must_persist_for_drum_patch
 - computer_keyboard_performance
 - onscreen_keyboard_performance
 - onscreen_drum_pad_performance
 - optional_web_midi_input
 - gm_style_drum_note_mapping
 - current_patch_sample_performance
+- instrument_model_specific_sample_performance
 - fretless_sample_performance
+- fretless_jazz_walking_sample_performance
 - fm_ep_sample_performance
+- fm_ep_jazz_sample_performance
 - drum_half_time_shuffle_sample_performance
 - drum_straight_sample_performance
+- drum_jazz_swing_sample_performance
+- synth_jazz_sample_performance
 - graphical_patch_parameter_editor
 - continuous_graphical_parameter_editing
 - engine_specific_parameter_controls
@@ -54,6 +61,9 @@ non_negotiable_invariants:
 - oscillator_frequency_must_be_derived_from_valid_midi_note
 - sequencer_must_use_same_note_on_note_off_contract_as_live_playing
 - sample_performance_must_use_same_note_on_note_off_contract_as_live_playing
+- sample_performance_must_match_explicit_instrument_model
+- guitar_detection_must_require_explicit_electric_guitar_model
+- drum_patch_must_keep_drum_surface_and_drum_keymap
 - pcm_sampler_must_use_audio_buffer_source_nodes
 - pcm_factory_buffers_must_not_embed_third_party_artist_recordings
 - guitar_pcm_must_use_existing_audio_context
@@ -81,6 +91,7 @@ required_files:
 - web/app.js
 - web/patch_editor_runtime.js
 - web/guitar_runtime.js
+- web/instrument_performance_runtime.js
 - web/style.css
 runtime_state_exclusions:
 - .env
@@ -102,7 +113,8 @@ ui_requirements:
   computer_keyboard: true
   midi_input_optional: true
   sample_performance: true
-  sample_performance_types: [melody, chords, bass, fretless_demo, fm_ep_demo, drum_shuffle, drum_straight, guitar_rock, guitar_fusion, guitar_acoustic]
+  instrument_model_specific_sample_performance: true
+  sample_performance_types: [synth_melody, synth_chords, synth_jazz, fretless_phrase, fretless_jazz, ep_chords, ep_jazz, drum_shuffle, drum_straight, drum_jazz, guitar_rock, guitar_fusion, guitar_acoustic, guitar_jazz]
   sample_performance_stop: true
   graphical_patch_parameter_editor: true
   continuous_slider_editing: true
@@ -122,7 +134,7 @@ pcm_fretless_contract:
 guitar_contract:
   source: locally_generated_pcm_multisample
   amp_models: [clean, crunch, high_gain, acoustic]
-  demo_styles: [rock, fusion, acoustic]
+  demo_styles: [rock, fusion, acoustic, jazz]
   controls: [guitar_amp_model, guitar_amp_drive, guitar_amp_tone, guitar_amp_presence, guitar_cabinet_mix, guitar_body_tone, guitar_pick_mix, guitar_release_mix, guitar_palm_mute, guitar_sustain, guitar_chorus_mix]
   effects: [waveshaper_distortion, tone_filter, presence_shelf, cabinet_filter, chorus_delay]
 drum_contract:
