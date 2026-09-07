@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.2
+- 音源モデルごとの聴感上の音量差を小さくする出力レベル補正を追加。
+- `generic / fretless_bass / studio_drums / dx_ep / electric_guitar` ごとに限定範囲（0.82〜1.22）のVelocity補正を適用。
+- 暗いFilter設定のシンセ、Clean/Acoustic/High Gainギターについて追加の小さな補正を行い、Patch間の音量差も緩和。
+- 最終出力段に穏やかな `DynamicsCompressor` を追加し、大きい音色・和音だけを抑えて音量感を揃えるようにした。
+- 既存の `master_gain <= 0.35` は変更せず、Make-up Gainも追加しないため、Master Gainの安全上限を迂回しない設計を維持。
+- FMエレピのジャズ・ボイシングを3度系の堆積から4度堆積へ変更。
+- ギターのジャズ・コンピングも4度堆積へ変更。
+- 4度堆積コードは共通 `quartalVoicing()` で生成し、隣接音を常に完全4度（5半音）、4声で構成。
+- 出力レベル補正、Master Gain上限維持、単一音源経路、4度堆積ジャズ・コードの回帰テストとHarness不変条件を追加。
+
 ## v0.4.1
 - v0.4.0のギター拡張が全Patchに存在する `guitar_amp_model` 既定値をギター判定に使っていたため、ドラム・FMエレピ・フレットレスまでギターへ再判定される問題を修正。
 - ギター判定を明示的な `instrument_model=electric_guitar` のみに限定。
