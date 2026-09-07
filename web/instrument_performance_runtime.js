@@ -1,6 +1,6 @@
 "use strict";
 
-// v0.4.1 instrument-specific sample-performance and surface routing.
+// v0.4.2 instrument-specific sample-performance and surface routing.
 // Loaded after guitar_runtime.js so it can correct cross-instrument routing introduced by
 // the v0.4.0 guitar extension without duplicating or replacing any audio engine.
 (() => {
@@ -47,6 +47,12 @@
     return steps;
   }
 
+  // Jazz chord demos use quartal harmony: every adjacent chord tone is a perfect fourth
+  // (5 semitones). This deliberately avoids the previous tertian/third-stacked voicings.
+  function quartalVoicing(root,size=4){
+    return Array.from({length:size},(_,index)=>root+index*5);
+  }
+
   const PERFORMANCES=Object.freeze({
     synth_melody:{label:"シンセ・メロディ",bpm:108,steps:[
       {notes:[60],beats:.5},{notes:[64],beats:.5},{notes:[67],beats:.5},{notes:[69],beats:.5},
@@ -75,10 +81,10 @@
     ep_chords:{label:"FMエレピ・コード",bpm:78,steps:[
       {notes:[60,64,67,71],beats:2},{notes:[57,60,64,67],beats:2},{notes:[62,65,69,72],beats:2},{notes:[55,59,62,65],beats:2}
     ]},
-    ep_jazz:{label:"ジャズ・エレピ・ボイシング",bpm:96,steps:[
-      {notes:[52,55,59,62],beats:2},{notes:[53,57,60,64],beats:2},
-      {notes:[50,53,57,60],beats:2},{notes:[51,54,58,62],beats:2},
-      {notes:[52,55,59,62],beats:4}
+    ep_jazz:{label:"ジャズ・エレピ・4度堆積ボイシング",bpm:96,steps:[
+      {notes:quartalVoicing(48),beats:2},{notes:quartalVoicing(50),beats:2},
+      {notes:quartalVoicing(52),beats:2},{notes:quartalVoicing(53),beats:2},
+      {notes:quartalVoicing(48),beats:4}
     ]},
 
     drum_shuffle:{label:"ハーフタイム・シャッフル",bpm:88,steps:buildHalfTimeShuffleSteps()},
@@ -102,28 +108,28 @@
       {notes:[43],beats:.5},{notes:[50],beats:.5},{notes:[55],beats:.5},{notes:[59],beats:.5},
       {notes:[40,47,52,55],beats:2,gate:.88}
     ]},
-    guitar_jazz:{label:"ジャズ・コンピング",bpm:104,steps:[
-      {notes:[40,50,55,59],beats:1.5,gate:.72},{notes:[45,52,55,60],beats:.5,gate:.55},
-      {notes:[43,50,53,59],beats:1,gate:.62},{notes:[44,50,54,59],beats:1,gate:.65},
-      {notes:[45,52,55,60],beats:1.5,gate:.72},{notes:[47,53,57,62],beats:.5,gate:.55},
-      {notes:[40,50,55,59],beats:2,gate:.78}
+    guitar_jazz:{label:"ジャズ・4度堆積コンピング",bpm:104,steps:[
+      {notes:quartalVoicing(43),beats:1.5,gate:.72},{notes:quartalVoicing(45),beats:.5,gate:.55},
+      {notes:quartalVoicing(47),beats:1,gate:.62},{notes:quartalVoicing(48),beats:1,gate:.65},
+      {notes:quartalVoicing(45),beats:1.5,gate:.72},{notes:quartalVoicing(47),beats:.5,gate:.55},
+      {notes:quartalVoicing(43),beats:2,gate:.78}
     ]}
   });
 
   const OPTIONS=Object.freeze({
     generic:[["synth_melody","シンセ・メロディ"],["synth_chords","シンセ・コード"],["synth_jazz","ジャズ・シンセリード"]],
     fretless_bass:[["fretless_phrase","フレットレス・歌うフレーズ"],["fretless_jazz","ジャズ・ウォーキングベース"]],
-    dx_ep:[["ep_chords","FMエレピ・コード"],["ep_jazz","ジャズ・エレピ・ボイシング"]],
+    dx_ep:[["ep_chords","FMエレピ・コード"],["ep_jazz","ジャズ・エレピ・4度堆積ボイシング"]],
     studio_drums:[["drum_shuffle","ハーフタイム・シャッフル"],["drum_straight","ストレート・ドラム"],["drum_jazz","ジャズ・スウィング"]],
-    electric_guitar:[["guitar_rock","ロック・リフ"],["guitar_fusion","フュージョン・フレーズ"],["guitar_acoustic","アコースティック・アルペジオ"],["guitar_jazz","ジャズ・コンピング"]]
+    electric_guitar:[["guitar_rock","ロック・リフ"],["guitar_fusion","フュージョン・フレーズ"],["guitar_acoustic","アコースティック・アルペジオ"],["guitar_jazz","ジャズ・4度堆積コンピング"]]
   });
 
   const DESCRIPTIONS=Object.freeze({
     generic:"シンセ向けのメロディ、コード、ジャズリードで音色を確認できます。",
     fretless_bass:"指弾き、スライド、mwahが分かるフレットレス専用フレーズとジャズ・ウォーキングを確認できます。",
-    dx_ep:"FMエレピのアタックと倍音が分かるコード演奏／ジャズ・ボイシングを確認できます。",
+    dx_ep:"FMエレピのアタックと倍音が分かるコード演奏／4度堆積ジャズ・ボイシングを確認できます。",
     studio_drums:"PCMドラムキットでシャッフル、ストレート、ジャズ・スウィングを確認できます。",
-    electric_guitar:"PCMギター＋アンプでロック、フュージョン、アコースティック、ジャズを確認できます。"
+    electric_guitar:"PCMギター＋アンプでロック、フュージョン、アコースティック、4度堆積ジャズ・コンピングを確認できます。"
   });
 
   updateInstrumentSurface = function(){
