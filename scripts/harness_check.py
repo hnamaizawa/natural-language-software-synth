@@ -10,7 +10,7 @@ REQUIRED = [
     "setup_windows.cmd", "start_synth.cmd", "check_harness.cmd",
     "harness/app_blueprint.yaml", "src/ai_synth/patch.py", "src/ai_synth/prompt_engine.py",
     "web/index.html", "web/app.js", "web/patch_editor_runtime.js", "web/guitar_runtime.js",
-    "web/instrument_performance_runtime.js", "web/style.css",
+    "web/instrument_performance_runtime.js", "web/output_level_runtime.js", "web/style.css",
 ]
 
 
@@ -37,6 +37,10 @@ def main():
         "graphical_slider_input_must_not_rebuild_control_during_drag",
         "all_engines_must_share_single_audio_context",
         "master_gain_must_be_hard_limited",
+        "output_level_normalization_must_not_bypass_master_gain_limit",
+        "output_level_runtime_must_use_existing_audio_context",
+        "instrument_level_trim_must_be_bounded",
+        "jazz_chord_samples_must_use_quartal_voicing",
         "polyphony_must_be_bounded",
         "sequencer_must_use_same_note_on_note_off_contract_as_live_playing",
         "sample_performance_must_use_same_note_on_note_off_contract_as_live_playing",
@@ -74,12 +78,13 @@ def main():
     runtime_js = (ROOT / "web/patch_editor_runtime.js").read_text(encoding="utf-8")
     guitar_js = (ROOT / "web/guitar_runtime.js").read_text(encoding="utf-8")
     instrument_js = (ROOT / "web/instrument_performance_runtime.js").read_text(encoding="utf-8")
+    output_js = (ROOT / "web/output_level_runtime.js").read_text(encoding="utf-8")
     all_code = "\n".join(
         p.read_text(encoding="utf-8", errors="ignore")
         for p in [
             ROOT / "server.py", ROOT / "src/ai_synth/prompt_engine.py",
             ROOT / "web/app.js", ROOT / "web/patch_editor_runtime.js", ROOT / "web/guitar_runtime.js",
-            ROOT / "web/instrument_performance_runtime.js",
+            ROOT / "web/instrument_performance_runtime.js", ROOT / "web/output_level_runtime.js",
         ]
     )
     for token in ["eval(", "new Function(", "exec("]:
@@ -92,22 +97,26 @@ def main():
         if contract not in js:
             fail(f"sequencer/live contract missing: {contract}")
     audio_context_token = "new (window.AudioContext||window.webkitAudioContext)()"
-    if js.count(audio_context_token) != 1 or "AudioContext" in guitar_js or "AudioContext" in instrument_js:
-        fail("all engines including guitar must share exactly one AudioContext creation path")
-    ok("single AudioContext and stable note event contract")
+    if js.count(audio_context_token) != 1:
+        fail("base engine must contain exactly one audio context creation path")
+    for extension_name, extension_js in [
+        ("guitar", guitar_js), ("instrument performance", instrument_js), ("output level", output_js)
+    ]:
+        if "new AudioContext" in extension_js or "new (window.AudioContext" in extension_js:
+            fail(f"{extension_name} runtime must not create its own audio context")
+    ok("single audio context and stable note event contract")
 
     html = (ROOT / "web/index.html").read_text(encoding="utf-8")
     for control in ["sampleSelect", "samplePlayBtn", "sampleStopBtn", "params", "resetParamsBtn"]:
         if f'id="{control}"' not in html:
             fail(f"required UI control missing: {control}")
-    if 'src="/patch_editor_runtime.js"' not in html:
-        fail("continuous patch editor runtime is not loaded")
-    if 'src="/guitar_runtime.js"' not in html:
-        fail("guitar runtime is not loaded")
-    if 'src="/instrument_performance_runtime.js"' not in html:
-        fail("instrument performance runtime is not loaded")
+    for script in ["/patch_editor_runtime.js", "/guitar_runtime.js", "/instrument_performance_runtime.js", "/output_level_runtime.js"]:
+        if f'src="{script}"' not in html:
+            fail(f"required browser runtime is not loaded: {script}")
     if html.index('/guitar_runtime.js') > html.index('/instrument_performance_runtime.js'):
         fail("instrument performance runtime must load after guitar runtime")
+    if html.index('/instrument_performance_runtime.js') > html.index('/output_level_runtime.js'):
+        fail("output level runtime must load after instrument performance runtime")
     if "async function playSample()" not in js or "function stopSample(" not in js:
         fail("sample performance functions missing")
     sample_start = js.index("async function playSample()")
@@ -134,18 +143,35 @@ def main():
     ok("explicit instrument-model sample routing and persistent drum surface")
 
     for token in [
-        "ジャズ・シンセリード", "ジャズ・ウォーキングベース", "ジャズ・エレピ・ボイシング",
-        "ジャズ・スウィング", "ジャズ・コンピング",
+        "ジャズ・シンセリード", "ジャズ・ウォーキングベース", "ジャズ・エレピ・4度堆積ボイシング",
+        "ジャズ・スウィング", "ジャズ・4度堆積コンピング",
     ]:
         if token not in instrument_js:
             fail(f"instrument jazz sample performance missing: {token}")
+    if "function quartalVoicing(root,size=4)" not in instrument_js or "root+index*5" not in instrument_js:
+        fail("jazz chord voicings are not explicit stacked-fourth voicings")
+    if "{notes:[52,55,59,62],beats:2}" in instrument_js or "{notes:[40,50,55,59],beats:1.5" in instrument_js:
+        fail("legacy tertian jazz chord voicing still present")
     unified_start = instrument_js.index("async function playInstrumentSample()")
     unified_sample_code = instrument_js[unified_start:]
     if "engine.noteOn(" not in unified_sample_code or "engine.noteOff(" not in unified_sample_code:
         fail("instrument sample performance bypasses stable note event contract")
     if "createOscillator" in unified_sample_code or "AudioContext" in unified_sample_code:
         fail("instrument sample performance must not create a parallel audio engine")
-    ok("instrument-specific and jazz sample performances")
+    ok("instrument-specific samples and quartal jazz voicings")
+
+    for token in [
+        "LEVEL_TRIMS", "perceivedLevelTrim", "createDynamicsCompressor()",
+        "leveler.threshold.value=-18", "leveler.ratio.value=2.5",
+        "this.master.disconnect(this.analyser)", "this.master.connect(leveler)",
+        "leveler.connect(this.analyser)", "normalizedVelocity=clamp",
+        "clamp(trim,.82,1.22)", "baseNoteOn(midiNote,normalizedVelocity,whenSeconds)",
+    ]:
+        if token not in output_js:
+            fail(f"output normalization capability missing: {token}")
+    if "createGain()" in output_js or "this.master.gain" in output_js:
+        fail("output normalization must not add a makeup-gain stage or bypass the master gain clamp")
+    ok("bounded perceived output-level normalization")
 
     for token in [
         "createFactoryFretlessPCM", "FRETLESS_REGIONS", "createBufferSource()",
@@ -164,7 +190,7 @@ def main():
         if token not in guitar_js:
             fail(f"PCM guitar/amp capability missing: {token}")
     if "new AudioContext" in guitar_js or "new (window.AudioContext" in guitar_js:
-        fail("guitar runtime must not create its own AudioContext")
+        fail("guitar runtime must not create its own audio context")
     if ".wav" in guitar_js.lower() or ".mp3" in guitar_js.lower() or "fetch(" in guitar_js:
         fail("factory guitar runtime must not fetch or embed external audio assets")
     ok("PCM electric guitar and bounded amp distortion")
