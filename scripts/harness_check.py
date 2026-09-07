@@ -9,7 +9,8 @@ REQUIRED = [
     "AGENTS.md", "HARNESS.md", "README.md", "server.py", "pyproject.toml",
     "setup_windows.cmd", "start_synth.cmd", "check_harness.cmd",
     "harness/app_blueprint.yaml", "src/ai_synth/patch.py", "src/ai_synth/prompt_engine.py",
-    "web/index.html", "web/app.js", "web/patch_editor_runtime.js", "web/guitar_runtime.js", "web/style.css",
+    "web/index.html", "web/app.js", "web/patch_editor_runtime.js", "web/guitar_runtime.js",
+    "web/instrument_performance_runtime.js", "web/style.css",
 ]
 
 
@@ -39,6 +40,9 @@ def main():
         "polyphony_must_be_bounded",
         "sequencer_must_use_same_note_on_note_off_contract_as_live_playing",
         "sample_performance_must_use_same_note_on_note_off_contract_as_live_playing",
+        "sample_performance_must_match_explicit_instrument_model",
+        "guitar_detection_must_require_explicit_electric_guitar_model",
+        "drum_patch_must_keep_drum_surface_and_drum_keymap",
         "pcm_sampler_must_use_audio_buffer_source_nodes",
         "pcm_factory_buffers_must_not_embed_third_party_artist_recordings",
         "guitar_pcm_must_use_existing_audio_context",
@@ -69,11 +73,13 @@ def main():
 
     runtime_js = (ROOT / "web/patch_editor_runtime.js").read_text(encoding="utf-8")
     guitar_js = (ROOT / "web/guitar_runtime.js").read_text(encoding="utf-8")
+    instrument_js = (ROOT / "web/instrument_performance_runtime.js").read_text(encoding="utf-8")
     all_code = "\n".join(
         p.read_text(encoding="utf-8", errors="ignore")
         for p in [
             ROOT / "server.py", ROOT / "src/ai_synth/prompt_engine.py",
             ROOT / "web/app.js", ROOT / "web/patch_editor_runtime.js", ROOT / "web/guitar_runtime.js",
+            ROOT / "web/instrument_performance_runtime.js",
         ]
     )
     for token in ["eval(", "new Function(", "exec("]:
@@ -86,7 +92,7 @@ def main():
         if contract not in js:
             fail(f"sequencer/live contract missing: {contract}")
     audio_context_token = "new (window.AudioContext||window.webkitAudioContext)()"
-    if js.count(audio_context_token) != 1 or "AudioContext" in guitar_js:
+    if js.count(audio_context_token) != 1 or "AudioContext" in guitar_js or "AudioContext" in instrument_js:
         fail("all engines including guitar must share exactly one AudioContext creation path")
     ok("single AudioContext and stable note event contract")
 
@@ -98,6 +104,10 @@ def main():
         fail("continuous patch editor runtime is not loaded")
     if 'src="/guitar_runtime.js"' not in html:
         fail("guitar runtime is not loaded")
+    if 'src="/instrument_performance_runtime.js"' not in html:
+        fail("instrument performance runtime is not loaded")
+    if html.index('/guitar_runtime.js') > html.index('/instrument_performance_runtime.js'):
+        fail("instrument performance runtime must load after guitar runtime")
     if "async function playSample()" not in js or "function stopSample(" not in js:
         fail("sample performance functions missing")
     sample_start = js.index("async function playSample()")
@@ -108,6 +118,34 @@ def main():
     if "createOscillator" in sample_code or "AudioContext" in sample_code:
         fail("sample performance must not create a parallel audio engine")
     ok("sample performance uses stable note event contract")
+
+    for token in [
+        'p.instrument_model === "electric_guitar"',
+        "delete sanitized.guitar_amp_model",
+        "instrumentKey(currentPatch)",
+        'p.instrument_model === "studio_drums" || p.engine_type === "drum"',
+        'document.getElementById("keyboardWrap").hidden=drum',
+        'document.getElementById("drumKitWrap").hidden=!drum',
+        "isDrumPatch(currentPatch) ? DRUM_KEY_MAP : SYNTH_KEY_MAP",
+        "oldPlayButton.replaceWith(playButton)",
+    ]:
+        if token not in instrument_js:
+            fail(f"instrument routing guard missing: {token}")
+    ok("explicit instrument-model sample routing and persistent drum surface")
+
+    for token in [
+        "ジャズ・シンセリード", "ジャズ・ウォーキングベース", "ジャズ・エレピ・ボイシング",
+        "ジャズ・スウィング", "ジャズ・コンピング",
+    ]:
+        if token not in instrument_js:
+            fail(f"instrument jazz sample performance missing: {token}")
+    unified_start = instrument_js.index("async function playInstrumentSample()")
+    unified_sample_code = instrument_js[unified_start:]
+    if "engine.noteOn(" not in unified_sample_code or "engine.noteOff(" not in unified_sample_code:
+        fail("instrument sample performance bypasses stable note event contract")
+    if "createOscillator" in unified_sample_code or "AudioContext" in unified_sample_code:
+        fail("instrument sample performance must not create a parallel audio engine")
+    ok("instrument-specific and jazz sample performances")
 
     for token in [
         "createFactoryFretlessPCM", "FRETLESS_REGIONS", "createBufferSource()",
