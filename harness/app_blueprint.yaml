@@ -1,6 +1,6 @@
 schema_version: '1.0'
 blueprint_name: natural-language-software-synth
-blueprint_version: 0.4.1
+blueprint_version: 0.4.2
 canonical_project: natural-language-software-synth
 purpose: >-
   Generate and play local-first multi-engine instrument patches from natural-language
@@ -40,6 +40,10 @@ required_capabilities:
 - drum_straight_sample_performance
 - drum_jazz_swing_sample_performance
 - synth_jazz_sample_performance
+- quartal_jazz_chord_voicings
+- perceived_output_level_normalization
+- bounded_instrument_level_trim
+- final_output_dynamics_leveler
 - graphical_patch_parameter_editor
 - continuous_graphical_parameter_editing
 - engine_specific_parameter_controls
@@ -57,6 +61,10 @@ non_negotiable_invariants:
 - audio_context_must_start_only_after_user_gesture
 - all_engines_must_share_single_audio_context
 - master_gain_must_be_hard_limited
+- output_level_normalization_must_not_bypass_master_gain_limit
+- output_level_runtime_must_use_existing_audio_context
+- instrument_level_trim_must_be_bounded
+- jazz_chord_samples_must_use_quartal_voicing
 - polyphony_must_be_bounded
 - oscillator_frequency_must_be_derived_from_valid_midi_note
 - sequencer_must_use_same_note_on_note_off_contract_as_live_playing
@@ -92,6 +100,7 @@ required_files:
 - web/patch_editor_runtime.js
 - web/guitar_runtime.js
 - web/instrument_performance_runtime.js
+- web/output_level_runtime.js
 - web/style.css
 runtime_state_exclusions:
 - .env
@@ -128,6 +137,21 @@ engine_routing:
   studio_drums: drum
   dx_style_electric_piano: fm
   default: synth
+output_normalization_contract:
+  instrument_velocity_trim_min: 0.82
+  instrument_velocity_trim_max: 1.22
+  final_leveler:
+    type: dynamics_compressor
+    threshold_db: -18
+    knee_db: 16
+    ratio: 2.5
+    attack_s: 0.006
+    release_s: 0.18
+  master_gain_makeup_stage: forbidden
+jazz_voicing_contract:
+  harmony: quartal
+  adjacent_interval_semitones: 5
+  chord_tones: 4
 pcm_fretless_contract:
   layers: [nearest_root_note, attack_noise, release_noise, slide_noise]
   controls: [sample_tone, sample_attack_mix, finger_noise_mix, release_noise_mix, slide_amount, slide_time_s, mwah_amount, sample_velocity_curve]
