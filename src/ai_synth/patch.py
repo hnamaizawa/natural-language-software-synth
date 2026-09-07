@@ -5,7 +5,9 @@ from typing import Any
 
 WAVES = {"sine", "triangle", "sawtooth", "square"}
 ENGINE_TYPES = {"synth", "sampler", "drum", "fm"}
-INSTRUMENT_MODELS = {"generic", "fretless_bass", "electric_guitar", "studio_drums", "dx_ep"}
+INSTRUMENT_MODELS = {
+    "generic", "fretless_bass", "electric_guitar", "grand_piano", "studio_drums", "dx_ep"
+}
 DRUM_STYLES = {"standard", "half_time_shuffle"}
 GUITAR_AMP_MODELS = {"clean", "crunch", "high_gain", "acoustic"}
 GUITAR_DEMO_STYLES = {"rock", "fusion", "acoustic"}
@@ -42,8 +44,8 @@ class SynthPatch:
 
     # PCM fretless sampler
     sample_tone: float = 0.68
-    sample_attack_mix: float = 0.34
-    finger_noise_mix: float = 0.38
+    sample_attack_mix: float = 0.48
+    finger_noise_mix: float = 0.62
     release_noise_mix: float = 0.24
     slide_amount: float = 0.32
     slide_time_s: float = 0.16
@@ -63,6 +65,16 @@ class SynthPatch:
     guitar_amp_presence: float = 0.58
     guitar_cabinet_mix: float = 0.78
     guitar_chorus_mix: float = 0.08
+
+    # PCM grand piano
+    piano_tone: float = 0.72
+    piano_hammer_mix: float = 0.48
+    piano_resonance: float = 0.58
+    piano_damper_noise: float = 0.16
+    piano_softness: float = 0.18
+    piano_sustain: float = 0.82
+    piano_velocity_curve: float = 1.10
+    piano_room_mix: float = 0.14
 
     # PCM drums
     kick_tune_hz: float = 58.0
@@ -135,8 +147,8 @@ def validate_patch(data: dict[str, Any] | SynthPatch) -> SynthPatch:
         delay_feedback=_clamp(data.get("delay_feedback", 0.0), 0.0, 0.75),
         delay_mix=_clamp(data.get("delay_mix", 0.0), 0.0, 0.65),
         sample_tone=_clamp(data.get("sample_tone", 0.68), 0.0, 1.0),
-        sample_attack_mix=_clamp(data.get("sample_attack_mix", 0.34), 0.0, 1.0),
-        finger_noise_mix=_clamp(data.get("finger_noise_mix", 0.38), 0.0, 1.0),
+        sample_attack_mix=_clamp(data.get("sample_attack_mix", 0.48), 0.0, 1.0),
+        finger_noise_mix=_clamp(data.get("finger_noise_mix", 0.62), 0.0, 1.0),
         release_noise_mix=_clamp(data.get("release_noise_mix", 0.24), 0.0, 1.0),
         slide_amount=_clamp(data.get("slide_amount", 0.32), 0.0, 1.0),
         slide_time_s=_clamp(data.get("slide_time_s", 0.16), 0.0, 1.2),
@@ -154,6 +166,14 @@ def validate_patch(data: dict[str, Any] | SynthPatch) -> SynthPatch:
         guitar_amp_presence=_clamp(data.get("guitar_amp_presence", 0.58), 0.0, 1.0),
         guitar_cabinet_mix=_clamp(data.get("guitar_cabinet_mix", 0.78), 0.0, 1.0),
         guitar_chorus_mix=_clamp(data.get("guitar_chorus_mix", 0.08), 0.0, 0.5),
+        piano_tone=_clamp(data.get("piano_tone", 0.72), 0.0, 1.0),
+        piano_hammer_mix=_clamp(data.get("piano_hammer_mix", 0.48), 0.0, 1.0),
+        piano_resonance=_clamp(data.get("piano_resonance", 0.58), 0.0, 1.0),
+        piano_damper_noise=_clamp(data.get("piano_damper_noise", 0.16), 0.0, 1.0),
+        piano_softness=_clamp(data.get("piano_softness", 0.18), 0.0, 1.0),
+        piano_sustain=_clamp(data.get("piano_sustain", 0.82), 0.2, 1.0),
+        piano_velocity_curve=_clamp(data.get("piano_velocity_curve", 1.10), 0.5, 2.0),
+        piano_room_mix=_clamp(data.get("piano_room_mix", 0.14), 0.0, 0.5),
         kick_tune_hz=_clamp(data.get("kick_tune_hz", 58.0), 35.0, 120.0),
         kick_decay_s=_clamp(data.get("kick_decay_s", 0.28), 0.05, 1.2),
         snare_tone_hz=_clamp(data.get("snare_tone_hz", 185.0), 90.0, 300.0),
