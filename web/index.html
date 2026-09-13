@@ -11,9 +11,9 @@
   <main>
     <header>
       <div>
-        <p class="eyebrow">v0.5.0 · multi-engine · local-first</p>
+        <p class="eyebrow">v0.6.0 · multi-engine · local-first</p>
         <h1>Natural Language Software Synth</h1>
-        <p class="lead">自然言語から、減算シンセ・PCMフレットレスベース・PCMギター＋アンプ・PCMグランドピアノ・PCMドラム・FMエレピを自動選択し、その場で演奏できます。</p>
+        <p class="lead">自然言語から音源を生成し、鍵盤・MIDI・ドラムパッドに加えて、マイクへ歌った鼻歌をMIDIノート相当のメロディーデータとして録音できます。</p>
       </div>
       <button id="audioBtn" class="primary">音源を有効化</button>
     </header>
@@ -83,6 +83,27 @@
           </details>
         </div>
 
+        <details class="humming-recorder" open>
+          <summary>🎤 鼻歌からメロディーを録音</summary>
+          <div class="humming-grid">
+            <p class="humming-help">マイク音声そのものは保存しません。単音の鼻歌をブラウザ内で解析し、MIDIノート相当の音程・長さ・Velocityへ変換します。</p>
+            <label>BPM<input id="hummingBpm" type="number" min="40" max="240" value="100" /></label>
+            <label>量子化<select id="hummingQuantize"><option value="0.5">1/8音符</option><option value="0.25" selected>1/16音符</option><option value="0.125">1/32音符</option></select></label>
+            <div class="humming-live custom-wide"><span class="kicker">LIVE PITCH</span><strong id="hummingLivePitch">—</strong><span id="hummingConfidence"></span></div>
+            <div class="humming-actions custom-wide">
+              <button id="hummingStartBtn" class="primary">● 録音開始</button>
+              <button id="hummingStopBtn" disabled>■ 録音停止</button>
+              <button id="hummingPlayBtn" disabled>▶ 録音データを試聴</button>
+              <button id="hummingTransferBtn" disabled>登録フレーズへ取り込む</button>
+              <button id="hummingClearBtn" disabled>クリア</button>
+            </div>
+            <label class="custom-wide">検出したMIDI相当データ
+              <textarea id="hummingResult" rows="7" readonly placeholder="録音後に C4 | 0.5 | 0.82 のようなノート列を表示します。"></textarea>
+            </label>
+            <p id="hummingStatus" class="humming-status custom-wide">マイク待機中。Chrome / Edge でマイク利用を許可してから録音してください。</p>
+          </div>
+        </details>
+
         <div id="keyboardWrap">
           <div id="keyboard" class="keyboard" aria-label="piano keyboard"></div>
           <div class="keyboard-help">PCキー: A W S E D F T G Y H U J K / MIDIキーボード対応（対応ブラウザ）</div>
@@ -111,8 +132,8 @@
 
     <section class="panel future-panel">
       <span class="kicker">ENGINE CONTRACT</span>
-      <h2>6種類の音源モデルで同じ noteOn / noteOff 契約を共有</h2>
-      <p>PCMフレットレス、PCMギター＋アンプ、PCMグランドピアノ、PCMドラム、FMエレピ、減算シンセのすべてを同じ演奏APIから呼び出します。Factory PCMは外部録音をコピーせず、ローカルで生成したPCMバッファを使用します。登録したサンプル演奏フレーズはブラウザのlocalStorageだけに保存されます。</p>
+      <h2>全音源と鼻歌メロディーで同じ noteOn / noteOff 契約を共有</h2>
+      <p>PCMフレットレス、PCMギター＋アンプ、PCMグランドピアノ、PCMドラム、FMエレピ、減算シンセのすべてを同じ演奏APIから呼び出します。鼻歌録音も音声を保存せず、検出したノートイベントだけを同じAPIで試聴します。</p>
     </section>
   </main>
   <script src="/app.js"></script>
@@ -122,5 +143,6 @@
   <script src="/instrument_performance_runtime.js"></script>
   <script src="/performance_library_runtime.js"></script>
   <script src="/output_level_runtime.js"></script>
+  <script src="/humming_runtime.js"></script>
 </body>
 </html>
