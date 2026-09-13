@@ -11,7 +11,7 @@ REQUIRED = [
     "harness/app_blueprint.yaml", "src/ai_synth/patch.py", "src/ai_synth/prompt_engine.py",
     "web/index.html", "web/app.js", "web/patch_editor_runtime.js", "web/guitar_runtime.js",
     "web/piano_runtime.js", "web/instrument_performance_runtime.js", "web/performance_library_runtime.js",
-    "web/output_level_runtime.js", "web/performance_editor.css", "web/style.css",
+    "web/output_level_runtime.js", "web/humming_runtime.js", "web/performance_editor.css", "web/style.css",
 ]
 
 
@@ -37,6 +37,11 @@ def main():
         "graphical_parameter_edits_must_be_validated_and_clamped",
         "graphical_slider_input_must_not_rebuild_control_during_drag",
         "all_engines_must_share_single_audio_context",
+        "microphone_capture_must_use_existing_audio_context",
+        "microphone_audio_must_not_be_persisted_or_uploaded",
+        "humming_capture_must_be_monophonic_and_bounded",
+        "humming_preview_must_use_same_note_on_note_off_contract",
+        "humming_note_data_must_be_quantized_to_bounded_custom_phrase_values",
         "master_gain_must_be_hard_limited",
         "output_level_normalization_must_not_bypass_master_gain_limit",
         "output_level_runtime_must_use_existing_audio_context",
@@ -91,13 +96,14 @@ def main():
     instrument_js = (ROOT / "web/instrument_performance_runtime.js").read_text(encoding="utf-8")
     library_js = (ROOT / "web/performance_library_runtime.js").read_text(encoding="utf-8")
     output_js = (ROOT / "web/output_level_runtime.js").read_text(encoding="utf-8")
+    humming_js = (ROOT / "web/humming_runtime.js").read_text(encoding="utf-8")
     all_code = "\n".join(
         p.read_text(encoding="utf-8", errors="ignore")
         for p in [
             ROOT / "server.py", ROOT / "src/ai_synth/prompt_engine.py", ROOT / "web/app.js",
             ROOT / "web/patch_editor_runtime.js", ROOT / "web/guitar_runtime.js", ROOT / "web/piano_runtime.js",
             ROOT / "web/instrument_performance_runtime.js", ROOT / "web/performance_library_runtime.js",
-            ROOT / "web/output_level_runtime.js",
+            ROOT / "web/output_level_runtime.js", ROOT / "web/humming_runtime.js",
         ]
     )
     for token in ["eval(", "new Function(", "exec("]:
@@ -113,7 +119,7 @@ def main():
         fail("base engine must contain exactly one audio context creation path")
     for extension_name, extension_js in [
         ("guitar", guitar_js), ("piano", piano_js), ("instrument performance", instrument_js),
-        ("performance library", library_js), ("output level", output_js),
+        ("performance library", library_js), ("output level", output_js), ("humming", humming_js),
     ]:
         if "new AudioContext" in extension_js or "new (window.AudioContext" in extension_js:
             fail(f"{extension_name} runtime must not create its own audio context")
@@ -124,12 +130,16 @@ def main():
         "sampleSelect", "samplePlayBtn", "sampleStopBtn", "params", "resetParamsBtn",
         "customSampleInstrument", "customSampleBpm", "customSampleName", "customSampleSteps",
         "customSampleSaveBtn", "customSampleDeleteBtn", "customSampleStatus",
+        "hummingBpm", "hummingQuantize", "hummingLivePitch", "hummingConfidence",
+        "hummingStartBtn", "hummingStopBtn", "hummingPlayBtn", "hummingTransferBtn",
+        "hummingClearBtn", "hummingResult", "hummingStatus",
     ]:
         if f'id="{control}"' not in html:
             fail(f"required UI control missing: {control}")
     scripts = [
         "/patch_editor_runtime.js", "/guitar_runtime.js", "/piano_runtime.js",
         "/instrument_performance_runtime.js", "/performance_library_runtime.js", "/output_level_runtime.js",
+        "/humming_runtime.js",
     ]
     for script in scripts:
         if f'src="{script}"' not in html:
@@ -137,10 +147,27 @@ def main():
     if not (
         html.index('/guitar_runtime.js') < html.index('/piano_runtime.js')
         < html.index('/instrument_performance_runtime.js') < html.index('/performance_library_runtime.js')
-        < html.index('/output_level_runtime.js')
+        < html.index('/output_level_runtime.js') < html.index('/humming_runtime.js')
     ):
         fail("extension runtime load order is invalid")
-    ok("adaptive UI, piano runtime, and custom sample controls")
+    ok("adaptive UI, piano runtime, custom sample controls, and humming controls")
+
+    for token in [
+        "navigator.mediaDevices.getUserMedia", "engine.ctx.createMediaStreamSource(stream)",
+        "engine.ctx.createAnalyser()", "mediaSource.connect(analyser)",
+        "function detectPitchYin(samples,sampleRate)", "const MIN_FREQ_HZ=75", "const MAX_FREQ_HZ=1000",
+        "const MIN_CONFIDENCE=0.72", "const MAX_RECORDING_MS=120000", "const MAX_CAPTURED_NOTES=512",
+        "function hzToMidi(freq)", "69+12*Math.log2(freq/440)",
+        "clampLocal(quantizeSelect.value,.125,.5)", "clampLocal(bpmInput.value,40,240)",
+        "engine.noteOn(note,velocity)", "engine.noteOff(note)",
+        'document.getElementById("customSampleSteps")', "steps.value=resultBox.value",
+    ]:
+        if token not in humming_js:
+            fail(f"humming capture capability missing: {token}")
+    for forbidden in ["MediaRecorder", "fetch(", "XMLHttpRequest", "localStorage.setItem"]:
+        if forbidden in humming_js:
+            fail(f"humming microphone audio/data must remain local and non-persistent until explicit custom phrase registration: {forbidden}")
+    ok("local monophonic humming-to-MIDI-like note capture")
 
     # Keep v0.4.x explicit routing guards intact.
     for token in [
@@ -266,9 +293,9 @@ def main():
         fail("guitar graphical edits do not pass through validation/clamp")
     if "engine.setPatchWithRender(validatePianoExtras" not in piano_js:
         fail("piano graphical edits do not pass through validation/clamp")
-    if ".param-dial" not in css or "conic-gradient" not in css or ".custom-sample-editor" not in custom_css:
-        fail("graphical parameter/custom phrase visualization missing")
-    ok("continuous graphical parameter and custom phrase editor")
+    if ".param-dial" not in css or "conic-gradient" not in css or ".custom-sample-editor" not in custom_css or ".humming-recorder" not in custom_css:
+        fail("graphical parameter/custom phrase/humming visualization missing")
+    ok("continuous graphical parameter, custom phrase, and humming editor")
 
     for token in [
         "フレットレス", "ジャコ", 'engine_type="sampler"', "ロザーナー", "ポーカロ", 'engine_type="drum"',
