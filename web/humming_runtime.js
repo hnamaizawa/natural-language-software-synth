@@ -77,7 +77,7 @@
     const maxTau=Math.min(Math.floor(sampleRate/MIN_FREQ_HZ),Math.floor(samples.length/2)-2);
     if(maxTau<=minTau)return null;
     const diff=new Float32Array(maxTau+1);
-    for(let tau=minTau;tau<=maxTau;tau++){
+    for(let tau=1;tau<=maxTau;tau++){
       let d=0;
       const limit=samples.length-tau;
       for(let i=0;i<limit;i++){
