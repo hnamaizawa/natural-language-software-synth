@@ -1,5 +1,27 @@
 # CURRENT
 
+## v0.6.0 Humming → MIDI-like Melody Capture
+
+- [x] マイク入力を `navigator.mediaDevices.getUserMedia()` で取得
+- [x] 既存 `engine.ctx` の `MediaStreamSource` / `AnalyserNode` を利用
+- [x] マイク音声をMaster/スピーカーへ接続しない
+- [x] マイク音声そのものを録音／保存／アップロードしない
+- [x] YIN系の単音ピッチ検出
+- [x] 75〜1000Hzの鼻歌／口笛相当レンジを検出
+- [x] MIDIノート番号／音名へ変換
+- [x] ビブラート時の過剰なノート切替を抑えるヒステリシス
+- [x] ノート開始／終了／長さ／Velocity相当を記録
+- [x] 録音最大2分、最大512ノート
+- [x] 1/8・1/16・1/32量子化
+- [x] 休符を含む既存Custom Phrase形式へ変換
+- [x] 現在の音色で録音データを試聴
+- [x] 試聴は既存 `noteOn()` / `noteOff()` 契約を利用
+- [x] 「自分のサンプル演奏」登録欄へワンクリックで取り込み
+- [x] マイク権限エラー／未対応ブラウザをUI表示
+- [x] 単一AudioContext維持
+- [x] Regression tests / Blueprint / Harness / Changelog更新
+- [ ] Native VST3 Host（将来フェーズ。ブラウザ外のWindowsネイティブブリッジが必要）
+
 ## v0.5.0 Grand Piano + Custom Performance Library
 
 - [x] グランドピアノ自然言語のPCM sampler判定

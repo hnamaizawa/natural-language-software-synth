@@ -1,13 +1,14 @@
 schema_version: '1.0'
 blueprint_name: natural-language-software-synth
-blueprint_version: 0.5.0
+blueprint_version: 0.6.0
 canonical_project: natural-language-software-synth
 purpose: >-
   Generate and play local-first multi-engine instrument patches from natural-language
   descriptions. Support subtractive synthesis, PCM-style fretless bass, PCM-style electric
   guitar with bounded amp/cabinet distortion and strum timing, PCM-style grand piano,
   PCM-style drums, and FM electric piano while keeping every generated or edited patch
-  validated and bounded. Let users register bounded local-only sample phrases.
+  validated and bounded. Let users register bounded local-only sample phrases and capture
+  monophonic humming as local MIDI-like note-event data without storing microphone audio.
 required_capabilities:
 - natural_language_patch_generation
 - deterministic_offline_prompt_fallback
@@ -44,6 +45,13 @@ required_capabilities:
 - user_registered_sample_performance
 - local_custom_sample_phrase_storage
 - custom_sample_phrase_delete
+- microphone_humming_melody_capture
+- monophonic_yin_pitch_detection
+- humming_midi_like_note_event_capture
+- humming_note_duration_and_velocity_capture
+- humming_quantization
+- humming_preview_with_current_patch
+- humming_to_custom_phrase_transfer
 - fretless_sample_performance
 - fretless_jazz_walking_sample_performance
 - fm_ep_sample_performance
@@ -63,6 +71,7 @@ required_capabilities:
 - patch_json_save_load
 - stable_note_event_contract
 - future_sequencer_adapter_boundary
+- future_native_vst3_host_boundary
 - local_windows_setup
 - regression_test_harness
 non_negotiable_invariants:
@@ -72,6 +81,11 @@ non_negotiable_invariants:
 - graphical_slider_input_must_not_rebuild_control_during_drag
 - audio_context_must_start_only_after_user_gesture
 - all_engines_must_share_single_audio_context
+- microphone_capture_must_use_existing_audio_context
+- microphone_audio_must_not_be_persisted_or_uploaded
+- humming_capture_must_be_monophonic_and_bounded
+- humming_preview_must_use_same_note_on_note_off_contract
+- humming_note_data_must_be_quantized_to_bounded_custom_phrase_values
 - master_gain_must_be_hard_limited
 - output_level_normalization_must_not_bypass_master_gain_limit
 - output_level_runtime_must_use_existing_audio_context
@@ -122,6 +136,7 @@ required_files:
 - web/instrument_performance_runtime.js
 - web/performance_library_runtime.js
 - web/output_level_runtime.js
+- web/humming_runtime.js
 - web/performance_editor.css
 - web/style.css
 runtime_state_exclusions:
@@ -143,6 +158,12 @@ ui_requirements:
   adaptive_instrument_surface: true
   computer_keyboard: true
   midi_input_optional: true
+  microphone_humming_capture: true
+  humming_live_pitch_display: true
+  humming_record_start_stop: true
+  humming_preview: true
+  humming_transfer_to_custom_phrase: true
+  humming_quantize_values: [0.5, 0.25, 0.125]
   sample_performance: true
   instrument_model_specific_sample_performance: true
   expanded_sample_performance_genres: true
@@ -213,6 +234,23 @@ custom_sample_contract:
   velocity_max: 1.0
   accepted_note_forms: [midi_0_to_127, scientific_pitch_name, rest]
   executable_user_text: forbidden
+humming_capture_contract:
+  microphone_source: navigator_media_devices_get_user_media
+  microphone_audio_storage: forbidden
+  microphone_audio_upload: forbidden
+  analysis_location: browser_only
+  audio_context: shared_existing_context
+  detector: yin_style_monophonic
+  minimum_frequency_hz: 75
+  maximum_frequency_hz: 1000
+  minimum_confidence: 0.72
+  maximum_recording_seconds: 120
+  maximum_notes: 512
+  minimum_note_duration_ms: 90
+  quantize_beats: [0.5, 0.25, 0.125]
+  output: [midi_note, duration_beats, velocity, rest]
+  preview_api: noteOn_noteOff
+  custom_phrase_transfer: true
 drum_contract:
   canonical_notes:
     kick: 36

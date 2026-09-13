@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.6.0
+- マイクへ歌った単音の鼻歌／口笛を、MIDIノート相当の音程データとして録音する機能を追加。
+- `navigator.mediaDevices.getUserMedia()` で取得したマイクを既存 `engine.ctx` の `MediaStreamSource` / `AnalyserNode` へ接続し、別AudioContextを作らない設計とした。
+- マイク音声はスピーカーへ返さず、`MediaRecorder` 等で録音せず、サーバー／GitHubへ送信しないローカル解析のみとした。
+- YIN系の単音ピッチ検出を追加し、75〜1000Hz、最低Confidence 0.72で音程を判定。
+- 検出音程をMIDI番号／音名へ変換し、ノート開始・終了・長さ・Velocity相当を最大512ノート、最大2分まで記録。
+- ビブラート時に半音境界を細かく行き来しすぎないよう、安定判定とヒステリシスを追加。
+- 鼻歌の長さをBPMに基づいて1/8・1/16・1/32音符へ量子化し、休符を含むCustom Phrase形式へ変換。
+- 検出結果を現在の音色で `noteOn()` / `noteOff()` 経由で試聴可能にした。
+- 「登録フレーズへ取り込む」で既存のユーザー登録サンプル演奏欄へ転記し、その後localStorageへ保存できるようにした。
+- 鼻歌録音UI、マイク権限エラー表示、リアルタイム音名／MIDI番号／Hz／cent／Confidence表示を追加。
+- VST3については、ブラウザ内直接ロードではなく将来のWindowsネイティブVST3ホスト／ブリッジ境界としてBlueprintへ方向性を追加。
+- Humming Capture用の回帰テストとHarness不変条件を追加。
+
 ## v0.5.0
 - `grand_piano` 楽器モデルを追加し、グランドピアノ要求をPCMサンプラーへ自動振り分け。
 - Factory Grand Piano PCMをブラウザ内で決定論的に生成し、複数ルート音 + Playback Rateで演奏する方式を追加。

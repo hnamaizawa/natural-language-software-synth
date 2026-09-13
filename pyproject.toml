@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "natural-language-software-synth"
-version = "0.5.0"
-description = "Local-first multi-engine software synthesizer with PCM grand piano, stronger fretless articulation, guitar strum timing, local custom sample phrases, expanded performance genres, output normalization, PCM guitar amp distortion, PCM drums, FM EP, and graphical patch editing."
+version = "0.6.0"
+description = "Local-first multi-engine software synthesizer with microphone humming-to-MIDI-like melody capture, PCM grand piano, stronger fretless articulation, guitar strum timing, local custom sample phrases, expanded performance genres, output normalization, PCM guitar amp distortion, PCM drums, FM EP, and graphical patch editing."
 requires-python = ">=3.11"
 dependencies = []
 
