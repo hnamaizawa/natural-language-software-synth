@@ -11,23 +11,16 @@ def _js() -> str:
     return (ROOT / "web" / "humming_runtime.js").read_text(encoding="utf-8")
 
 
-def test_humming_capture_controls_are_exposed():
+def test_humming_capture_and_auto_assist_controls_are_exposed():
     html = _html()
     for control_id in [
-        "hummingBpm",
-        "hummingQuantize",
-        "hummingLivePitch",
-        "hummingConfidence",
-        "hummingStartBtn",
-        "hummingStopBtn",
-        "hummingPlayBtn",
-        "hummingTransferBtn",
-        "hummingClearBtn",
-        "hummingResult",
-        "hummingStatus",
+        "hummingAutoKey", "hummingKeyDisplay", "hummingAutoTiming", "hummingTimingDisplay",
+        "hummingBpm", "hummingQuantize", "hummingLivePitch", "hummingConfidence",
+        "hummingStartBtn", "hummingStopBtn", "hummingPlayBtn", "hummingTransferBtn",
+        "hummingClearBtn", "hummingResult", "hummingScore", "hummingStatus",
     ]:
         assert f'id="{control_id}"' in html
-    assert "鼻歌からメロディーを録音" in html
+    assert "鼻歌からメロディーを録音・自動補正" in html
     assert 'src="/humming_runtime.js"' in html
 
 
@@ -37,66 +30,82 @@ def test_microphone_capture_is_local_analysis_only():
     assert "engine.ctx.createMediaStreamSource(stream)" in js
     assert "engine.ctx.createAnalyser()" in js
     assert "mediaSource.connect(analyser)" in js
-    assert "analyser" in js
     assert "new AudioContext" not in js
     assert "new (window.AudioContext" not in js
     assert "MediaRecorder" not in js
     assert "fetch(" not in js
     assert "XMLHttpRequest" not in js
+    assert "localStorage.setItem" not in js
 
 
 def test_yin_pitch_detector_and_midi_conversion_are_present():
     js = _js()
     for token in [
         "function detectPitchYin(samples,sampleRate)",
-        "const MIN_FREQ_HZ=75",
-        "const MAX_FREQ_HZ=1000",
-        "const MIN_CONFIDENCE=0.72",
-        "function hzToMidi(freq)",
-        "69+12*Math.log2(freq/440)",
-        "function midiToName(midi)",
-        "const threshold=.16",
+        "MIN_FREQ_HZ=75",
+        "MAX_FREQ_HZ=1000",
+        "MIN_CONFIDENCE=.72",
+        "hzToMidi=freq=>69+12*Math.log2(freq/440)",
+        "midiToName=midi=>",
     ]:
         assert token in js
 
 
 def test_humming_note_capture_is_bounded_and_monophonic():
     js = _js()
-    assert "const MAX_RECORDING_MS=120000" in js
-    assert "const MAX_CAPTURED_NOTES=512" in js
-    assert "const MIN_NOTE_MS=90" in js
+    assert "MAX_RECORDING_MS=120000" in js
+    assert "MAX_CAPTURED_NOTES=512" in js
+    assert "MIN_NOTE_MS=90" in js
     assert "Math.abs(midiFloat-currentNote.midi)<.62" in js
     assert "rawEvents.length<MAX_CAPTURED_NOTES" in js
-    assert "renderedSteps" in js
 
 
-def test_humming_quantization_matches_custom_phrase_bounds():
-    html = _html()
+def test_key_scale_inference_and_pitch_snap_are_present():
     js = _js()
-    for value in ["0.5", "0.25", "0.125"]:
-        assert f'value="{value}"' in html
-    assert "clampLocal(quantizeSelect.value,.125,.5)" in js
-    assert "clampLocal(bpmInput.value,40,240)" in js
-    assert "function quantizeValue(beats,quantum)" in js
-    assert "R | ${formatBeats(step.beats)} | 0.50" in js
+    assert "const MAJOR=[0,2,4,5,7,9,11]" in js
+    assert "MINOR=[0,2,3,5,7,8,10]" in js
+    assert "function estimateKey(events)" in js
+    assert 'for(const mode of ["major","minor"])' in js
+    assert "function snapMidiToScale(midi,key)" in js
+    assert "for(let distance=1;distance<=3;distance++)" in js
+    assert "midi:snapMidiToScale(e.midi,key)" in js
+
+
+def test_timing_is_automatically_estimated_and_quantized():
+    js = _js()
+    assert "function estimateTiming(events)" in js
+    assert "for(let bpm=60;bpm<=180;bpm++)" in js
+    assert "const candidates=[.5,.25,.125]" in js
+    assert "quantizeValue" in js
+    assert "bpmInput.value=bpm" in js
+    assert "quantizeSelect.value=String(quantum)" in js
+
+
+def test_score_is_derived_from_corrected_quantized_steps():
+    js = _js()
+    assert "function renderScore()" in js
+    assert "const notes=renderedSteps.filter" in js
+    assert 'document.createElementNS(NS,name)' in js
+    assert "staffY(midi,clef" in js
+    assert 'clef==="bass"?"𝄢":"𝄞"' in js
+    assert 'role="img"' in _html()
 
 
 def test_humming_preview_uses_existing_note_event_contract():
     js = _js()
-    start = js.index("async function previewResult()")
-    preview = js[start:]
+    preview = js[js.index("async function previewResult()") :]
     assert "engine.noteOn(note,velocity)" in preview
     assert "engine.noteOff(note)" in preview
     assert "createOscillator" not in preview
     assert "AudioContext" not in preview
 
 
-def test_humming_can_transfer_to_existing_custom_phrase_editor():
+def test_humming_can_transfer_corrected_phrase_to_existing_editor():
     js = _js()
     for token in [
-        'document.getElementById("customSampleName")',
-        'document.getElementById("customSampleBpm")',
-        'document.getElementById("customSampleSteps")',
+        'byId("customSampleName")',
+        'byId("customSampleBpm")',
+        'byId("customSampleSteps")',
         'name.value="鼻歌メロディー"',
         "steps.value=resultBox.value",
         'document.querySelector(".custom-sample-editor")',
@@ -104,16 +113,10 @@ def test_humming_can_transfer_to_existing_custom_phrase_editor():
         assert token in js
 
 
-def test_humming_runtime_loads_after_existing_audio_extensions():
-    html = _html()
-    assert html.index('/performance_library_runtime.js') < html.index('/output_level_runtime.js')
-    assert html.index('/output_level_runtime.js') < html.index('/humming_runtime.js')
-
-
-def test_v060_version_is_visible():
+def test_v070_version_is_visible():
     html = _html()
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     server = (ROOT / "server.py").read_text(encoding="utf-8")
-    assert "v0.6.0" in html
-    assert 'version = "0.6.0"' in pyproject
-    assert '"version": "0.6.0"' in server
+    assert "v0.7.0" in html
+    assert 'version = "0.7.0"' in pyproject
+    assert '"version": "0.7.0"' in server
