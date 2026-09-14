@@ -1,5 +1,33 @@
 # CURRENT
 
+## v0.7.0 Humming Assist + Score + Native VST3 Host
+
+- [x] 鼻歌全体からMajor / Natural Minorのキー／スケールを自動推定
+- [x] 音価・検出Confidenceを重みとしてキー推定
+- [x] スケール外の検出音を近傍スケール音へ自動補正
+- [x] 自動キー補正をデフォルトON、手動OFF可能
+- [x] 60〜180 BPMを探索して鼻歌のテンポを自動推定
+- [x] 1/8・1/16・1/32から量子化グリッドを自動選択
+- [x] 自動タイミング補正をデフォルトON、BPM/量子化の手動変更も可能
+- [x] 補正済みノート列を既存Custom Phrase形式へ変換
+- [x] 補正済みノート列をSVG五線譜として表示
+- [x] 音域に応じてTreble / Bass clefを自動選択
+- [x] 楽譜に推定キーとBPMを表示
+- [x] VST3検索UI
+- [x] Windows標準VST3パス + `NLSS_VST3_PATHS` 追加検索
+- [x] VST3選択／ロード／解除
+- [x] 鍵盤・PCキー・Web MIDI・サンプル演奏・鼻歌試聴をVST3へルーティング
+- [x] `whenSeconds` をブラウザ側で保持してVST3イベント送信をスケジュール
+- [x] VST3パラメータ列挙／0..1正規化スライダー編集
+- [x] Python localhost server → stdio → native VST3 host の分離構成
+- [x] プラグインロードをスキャン済みIDのみに制限
+- [x] Note / Velocity / Parameter値をBridge側でBound
+- [x] Steinberg VST3 SDK 3.8.1をcommit SHA固定
+- [x] miniaudio 0.11.25をcommit SHA固定
+- [x] `build_vst3_host.cmd` を追加
+- [x] Windows GitHub ActionsでNative VST3 Hostを実ビルド
+- [x] Regression tests / Blueprint / Harness更新
+
 ## v0.6.0 Humming → MIDI-like Melody Capture
 
 - [x] マイク入力を `navigator.mediaDevices.getUserMedia()` で取得
@@ -12,103 +40,38 @@
 - [x] ビブラート時の過剰なノート切替を抑えるヒステリシス
 - [x] ノート開始／終了／長さ／Velocity相当を記録
 - [x] 録音最大2分、最大512ノート
-- [x] 1/8・1/16・1/32量子化
-- [x] 休符を含む既存Custom Phrase形式へ変換
 - [x] 現在の音色で録音データを試聴
-- [x] 試聴は既存 `noteOn()` / `noteOff()` 契約を利用
-- [x] 「自分のサンプル演奏」登録欄へワンクリックで取り込み
-- [x] マイク権限エラー／未対応ブラウザをUI表示
-- [x] 単一AudioContext維持
-- [x] Regression tests / Blueprint / Harness / Changelog更新
-- [ ] Native VST3 Host（将来フェーズ。ブラウザ外のWindowsネイティブブリッジが必要）
+- [x] 「自分のサンプル演奏」登録欄へ取り込み
 
 ## v0.5.0 Grand Piano + Custom Performance Library
 
-- [x] グランドピアノ自然言語のPCM sampler判定
-- [x] `instrument_model=grand_piano` Patchモデル
-- [x] 複数ルート音のFactory Grand Piano PCM
-- [x] `AudioBufferSourceNode` によるGrand Piano PCM再生
-- [x] Hammer Attack / Damper Release
-- [x] String / Soundboard Resonance
-- [x] Tone / Softness / Sustain / Velocity Curve / Room
-- [x] グランドピアノ用グラフィカルPatch Editor
-- [x] DX/FMエレピとのルーティング競合防止
-- [x] フレットレスFinger Noise既定値の強化
-- [x] 指弾きプロンプトのFinger Noise / Attack PCM追加強化
-- [x] ギター和音のDown / Up Stroke
-- [x] ギター和音の構成音を16〜28msずつずらして発音
-- [x] Strum timingを既存 `whenSeconds` Note Event契約で実装
-- [x] ユーザー登録サンプル演奏UI
-- [x] 音名 / MIDI番号 / 休符 / 拍数 / Velocity入力
-- [x] 登録フレーズを現在の楽器モデルへ紐付け
-- [x] `localStorage` のみへ保存し、サーバー／GitHubへ送信しない
-- [x] 登録フレーズ削除
-- [x] 登録件数／ステップ／BPM／拍／Velocity／MIDIノートをBound
-- [x] Synth: Pop / EDM / Ambient追加
-- [x] Fretless: Funk / Fusion / Ballad追加
-- [x] FM EP: City Pop / Fusion / Ballad追加
-- [x] Grand Piano: Classical / Ballad / Pop / Jazz / Boogie追加
-- [x] Drums: Rock / Funk / Fusion / Bossa Nova追加
-- [x] Guitar: Blues / Funk / Pop / Bossa Nova追加
-- [x] Grand Pianoを出力レベル正規化へ追加
-- [x] 単一AudioContext維持
-- [x] Master Gain / Polyphony上限維持
-- [x] 既存v0.4.2の楽器別routing / Drum UI / Quartal Jazz / Output Level invariants維持
-- [x] Regression tests / Blueprint / Harness / README / Changelog更新
+- [x] PCM Grand Piano / Hammer / Damper / Resonance
+- [x] フレットレスFinger Noise強化
+- [x] ギター和音のDown / Up Stroke 16〜28ms
+- [x] ユーザー登録サンプル演奏（localStorageのみ）
+- [x] Sample Performanceジャンル拡張
 
-## v0.4.2 Output Level + Quartal Jazz
+## v0.4.x Electric Guitar / Routing / Output Level
 
-- [x] 楽器別のbounded Velocity Trim
-- [x] 最終段のgentle DynamicsCompressor
-- [x] Master Gain上限を迂回しない
-- [x] FM EP / Guitarのジャズコードを4度堆積へ統一
-
-## v0.4.1 Instrument-specific Samples + Jazz
-
-- [x] 明示的な `instrument_model` によるサンプル演奏routing
-- [x] 非ギターPatchのギター誤判定修正
-- [x] Drum PatchのドラムUI / PC Keymap固定
-- [x] Synth / Fretless / FM EP / Drum / GuitarへJazzサンプル追加
-
-## v0.4.0 Electric Guitar + Amp
-
-- [x] エレキギター自然言語のPCM sampler判定
-- [x] `instrument_model=electric_guitar` Patchモデル
-- [x] 複数ルート音のFactory Guitar PCM
-- [x] `AudioBufferSourceNode` によるギターPCM再生
-- [x] Pick Attack / Release Noise
-- [x] Palm Mute / Sustain / Body Tone
-- [x] Clean / Crunch / High Gain / Acoustic アンプモデル
-- [x] `WaveShaper` によるアンプDrive / Distortion
-- [x] Amp Tone / Presence / Cabinet / Chorus
-- [x] ギター／アンプ用グラフィカルPatch Editor
-- [x] ロック / フュージョン / アコースティックのサンプル演奏
-- [x] 単一AudioContext維持
-- [x] Factory Guitar PCMへ外部録音を埋め込まない
+- [x] PCM Electric Guitar + Clean / Crunch / High Gain / Acoustic Amp
+- [x] WaveShaper Drive / Tone / Presence / Cabinet / Chorus
+- [x] 楽器別Sample routing / Drum UI固定
+- [x] Quartal Jazz voicing
+- [x] bounded Output Level normalization
 
 ## v0.3.0 Multi-engine + Graphical Patch Editor
 
-- [x] `engine_type=synth|sampler|drum|fm` へPatchスキーマ拡張
+- [x] `engine_type=synth|sampler|drum|fm`
 - [x] PCM Fretless / PCM Drum / DX-style FM EP
-- [x] 右側のグラフィカルPatch Editor
-- [x] 全エンジンで単一AudioContext維持
-- [x] 既存 `noteOn()` / `noteOff()` 契約の維持
+- [x] 右側Graphical Patch Editor
+- [x] Stable `noteOn()` / `noteOff()` contract
 
 ## v0.2.0 Drum Kit
+- [x] Drum Patch / Drum Pad / GM系MIDI
 
-- [x] ドラムPatch / Drum Pad / GM系MIDI
-- [x] Half-time Shuffle / Straight sample performance
-
-## v0.1.1 Sample Performance
-
-- [x] 現在のSynthPatchを使ったサンプル演奏
-- [x] 再生停止操作
-
-## v0.1.0 MVP
-
-- [x] Natural-language to patch generation
-- [x] Validated/clamped patch schema
+## v0.1.x MVP
+- [x] Natural-language Patch generation
+- [x] Validated/clamped Patch schema
 - [x] Polyphonic Web Audio playback
 - [x] On-screen keyboard / PC keyboard / optional MIDI
 - [x] Patch JSON export/import
-- [x] Stable note event boundary and harness
