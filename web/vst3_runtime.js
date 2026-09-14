@@ -60,5 +60,5 @@
   window.addEventListener("beforeunload",cancelScheduled);
 
   api("/api/vst3/status").then(data=>{show(data.native_host_available?"VST3ネイティブホストを利用できます。「VST3を検索」を押してください。":"VST3を使う場合は build_vst3_host.cmd を一度実行してください。");}).catch(()=>show("VST3状態を確認できませんでした。"));
-  window.vst3Router={scan,load,unload,refreshParameters,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked};
+  window["vst3Router"]={scan,load,unload,refreshParameters,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked};
 })();
