@@ -36,3 +36,21 @@ jobs:
 
       - name: Run harness checks
         run: python scripts/harness_check.py
+
+  native-vst3-build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build native VST3 host
+        shell: cmd
+        run: build_vst3_host.cmd
+
+      - name: Verify VST3 host executable
+        shell: pwsh
+        run: |
+          $exe = "native/vst3_host/build/Release/nlss_vst3_host.exe"
+          if (-not (Test-Path $exe)) { throw "VST3 host executable was not produced: $exe" }
