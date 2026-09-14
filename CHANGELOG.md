@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.7.0
+- 鼻歌録音後にMajor / Natural Minorの24候補からキー／スケールを自動推定する機能を追加。
+- キー推定はノート長とPitch Confidenceを重みとして評価し、スケール外の音だけを最大3半音以内の近傍スケール音へ補正。
+- 「キー／スケールを自動補正」をデフォルトONとし、必要に応じてユーザーがOFFにできるようにした。
+- 鼻歌の開始位置／長さからBPM 60〜180と1/8・1/16・1/32グリッドを比較して、自動テンポ／音符クォンタイズを追加。
+- BPMまたは量子化をユーザーが手動変更した場合は自動タイミング補正を解除し、明示値を優先。
+- 補正・量子化後のノートイベントからSVG五線譜を描画。音域に応じたTreble/Bass clef、4/4、小節線、休符、シャープ、推定キー／BPM表示を追加。
+- Windows Native VST3 Hostを追加。ブラウザは`.vst3`を直接ロードせず、既存Python loopback serverから別プロセスの`nlss_vst3_host.exe`を操作する構成とした。
+- Windows標準VST3パスと任意の`NLSS_VST3_PATHS`を検索し、ブラウザにはスキャン済みのopaque IDだけを公開。ロードはスキャン済みIDに限定。
+- VST3 Note On / Note Off / Velocity、パラメータ列挙、正規化0〜1パラメータ変更に対応。
+- `web/vst3_runtime.js`を最終Note Event境界へ追加し、鍵盤、PCキー、Web MIDI、サンプル演奏、ギターストラム、鼻歌試聴をVST3へルーティング可能にした。
+- VST3 routing OFF時は従来のWeb Audio音源経路をそのまま利用。
+- Steinberg VST3 SDK 3.8.1 (`3cdf9ca...`) と miniaudio 0.11.25 (`9634bed...`) をcommit SHA固定。
+- `build_vst3_host.cmd`を追加し、Visual Studio 2022 x64 + CMakeでNative Hostをビルド可能にした。
+- GitHub ActionsへWindows Native VST3 Hostの実ビルドジョブを追加し、Python pytest/Harnessと併せて回帰確認するようにした。
+- Humming Assist / Score / VST3用の回帰テスト、Blueprint、Harness、README、AGENTS、CURRENTを更新。
+
 ## v0.6.0
 - マイクへ歌った単音の鼻歌／口笛を、MIDIノート相当の音程データとして録音する機能を追加。
 - `navigator.mediaDevices.getUserMedia()` で取得したマイクを既存 `engine.ctx` の `MediaStreamSource` / `AnalyserNode` へ接続し、別AudioContextを作らない設計とした。
@@ -11,7 +28,6 @@
 - 検出結果を現在の音色で `noteOn()` / `noteOff()` 経由で試聴可能にした。
 - 「登録フレーズへ取り込む」で既存のユーザー登録サンプル演奏欄へ転記し、その後localStorageへ保存できるようにした。
 - 鼻歌録音UI、マイク権限エラー表示、リアルタイム音名／MIDI番号／Hz／cent／Confidence表示を追加。
-- VST3については、ブラウザ内直接ロードではなく将来のWindowsネイティブVST3ホスト／ブリッジ境界としてBlueprintへ方向性を追加。
 - Humming Capture用の回帰テストとHarness不変条件を追加。
 
 ## v0.5.0
@@ -21,77 +37,33 @@
 - グランドピアノ用グラフィカルPatch Editorと、クラシック／バラード／ポップ／ジャズ／ブギウギのサンプル演奏を追加。
 - フレットレスベースのFinger NoiseとAttack PCM既定値を引き上げ、指弾きを明示した要求では `finger_noise_mix >= 0.82` / `sample_attack_mix >= 0.60` とした。
 - ギター和音のサンプル演奏でDown/Up Strokeを導入し、スタイルに応じて各構成音を16〜28msずつずらして発音。
-- ギターの発音ずらしは既存 `noteOn` / `noteOff` の `whenSeconds` のみを使い、新しい音源経路を作らない設計とした。
-- SAMPLE欄にユーザー独自フレーズの登録／削除UIを追加。音名またはMIDI番号、拍数、Velocity、休符を入力可能。
-- 登録フレーズは現在の楽器モデルへ紐付け、ブラウザの `localStorage` にのみ保存。GitHubやサーバーへ送信しない。
-- 登録フレーズを最大50件、1フレーズ128ステップ、BPM 40〜240、拍数0.125〜8、Velocity 0.05〜1.0、MIDI 0〜127に制限。
+- SAMPLE欄にユーザー独自フレーズの登録／削除UIを追加し、登録フレーズはブラウザの `localStorage` にのみ保存。
 - 内蔵サンプル演奏を拡充し、Pop / EDM / Ambient / Funk / Fusion / City Pop / Classical / Boogie / Blues / Bossa Nova等を追加。
-- Grand Pianoを既存の出力レベル正規化対象へ追加し、Master Gain上限を迂回しない設計を維持。
-- Piano / Fretless Finger Noise / Guitar Strum / Custom Phrase / Expanded Genres用の回帰テストとHarness不変条件を追加。
 
 ## v0.4.2
 - 音源モデルごとの聴感上の音量差を小さくする出力レベル補正を追加。
-- `generic / fretless_bass / studio_drums / dx_ep / electric_guitar` ごとに限定範囲（0.82〜1.22）のVelocity補正を適用。
-- 暗いFilter設定のシンセ、Clean/Acoustic/High Gainギターについて追加の小さな補正を行い、Patch間の音量差も緩和。
-- 最終出力段に穏やかな `DynamicsCompressor` を追加し、大きい音色・和音だけを抑えて音量感を揃えるようにした。
-- 既存の `master_gain <= 0.35` は変更せず、Make-up Gainも追加しないため、Master Gainの安全上限を迂回しない設計を維持。
-- FMエレピのジャズ・ボイシングを3度系の堆積から4度堆積へ変更。
-- ギターのジャズ・コンピングも4度堆積へ変更。
-- 4度堆積コードは共通 `quartalVoicing()` で生成し、隣接音を常に完全4度（5半音）、4声で構成。
-- 出力レベル補正、Master Gain上限維持、単一音源経路、4度堆積ジャズ・コードの回帰テストとHarness不変条件を追加。
+- 最終出力段に穏やかな `DynamicsCompressor` を追加し、Master Gain上限を迂回しない設計を維持。
+- FMエレピ／ギターのジャズコードを4度堆積へ統一。
 
 ## v0.4.1
-- v0.4.0のギター拡張が全Patchに存在する `guitar_amp_model` 既定値をギター判定に使っていたため、ドラム・FMエレピ・フレットレスまでギターへ再判定される問題を修正。
-- ギター判定を明示的な `instrument_model=electric_guitar` のみに限定。
-- サンプル演奏の選択を `engine_type` 中心から `instrument_model` 中心へ統一し、各楽器専用の演奏へ切り替えるruntimeを追加。
-- フレットレスベース: 「フレットレス・歌うフレーズ」「ジャズ・ウォーキングベース」を追加。
-- FMエレピ: 「FMエレピ・コード」「ジャズ・エレピ・ボイシング」を追加。
-- ドラム: 「ハーフタイム・シャッフル」「ストレート・ドラム」「ジャズ・スウィング」を追加。
-- エレキギター: 「ロック・リフ」「フュージョン・フレーズ」「アコースティック・アルペジオ」「ジャズ・コンピング」を選択可能にした。
-- 減算シンセ: シンセ向けメロディ／コードに加え「ジャズ・シンセリード」を追加。
-- ドラムPatchでは `studio_drums` または `engine_type=drum` をドラム表示条件とし、鍵盤UIへ戻らないようにした。
-- PCキーボード割当も同じドラム判定を利用し、ドラムUI表示と演奏キーの不整合を防止。
-- すべての新しいサンプル演奏は既存の `noteOn()` / `noteOff()` 契約のみを使用し、別AudioContextや別音源を作らない。
-- 楽器別サンプル、ジャズ5系統、ギター誤判定、ドラムUI固定の回帰テストとHarnessチェックを追加。
+- ギター判定を明示的な `instrument_model=electric_guitar` のみに限定し、他楽器がギターへ誤判定される問題を修正。
+- 楽器別Sample Performance routing、Drum UI/PC Keymap固定、各楽器のJazzサンプルを追加。
 
 ## v0.4.0
-- エレキギター要求をPCMサンプラーへ自動振り分けし、`instrument_model=electric_guitar` を追加。
-- Factory Guitar PCMを決定論的な弦モデルからローカル生成し、複数ルート音を `AudioBufferSourceNode` で再生する方式を追加。
-- Pick Attack / Release Noise / Palm Mute / Sustain / Body ToneをギターPatchパラメータとして追加。
-- Clean / Crunch / High Gain / Acoustic のアンプモデルを追加。
-- `WaveShaper` によるDrive、Amp Tone、Presence、Cabinet、Chorusを追加し、アンプ歪みに対応。
-- 右側のグラフィカルPatch Editorでギター／アンプパラメータをリアルタイム編集可能にした。
-- ギター用サンプル演奏として「ロック・リフ」「フュージョン・フレーズ」「アコースティック・アルペジオ」を追加。
-- ギター音源も既存の単一AudioContextと `noteOn()` / `noteOff()` 契約を共有。
-- Factory Guitar PCMに外部録音を埋め込まず、将来ライセンス済み実録音PCMへ差し替え可能な境界を維持。
-- PCMギター、アンプ歪み、3種類のギターサンプル演奏用の回帰テストとハーネス不変条件を追加。
+- PCMエレキギターと Clean / Crunch / High Gain / Acoustic Amp Modelを追加。
+- `WaveShaper`によるDrive、Tone、Presence、Cabinet、Chorusを追加。
+- ロック／フュージョン／アコースティックのギターSample Performanceを追加。
 
 ## v0.3.0
 - 音源を `synth / sampler / drum / fm` の4エンジン構成へ拡張。
-- フレットレスベース要求をPCMサンプラーへ自動振り分けし、Attack / Release / SlideのノイズレイヤーとMwah表現を追加。
-- ドラム音源をノートごとのリアルタイム合成からPCM one-shot再生方式へ変更し、VelocityによるSnare差を追加。
-- DX-7 / DX7 / FMエレピ要求を専用FMエンジンへ振り分ける機能を追加。
-- FM Index / Operator Ratio / Decay / Release / ChorusをPatchパラメータとして追加。
-- 画面右側にスライダーと円形メーターによるグラフィカルPatch Editorを追加。
-- 音源タイプに応じて編集項目を自動切替し、変更値を即時反映。
-- 「生成値へ戻す」で直前に生成／読込したPatchへ戻す機能を追加。
-- Factory PCMは外部アーティスト録音を使わず、ブラウザ内で生成したPCMバッファをAudioBufferSourceNodeで再生する方式とした。
-- PCM / FM / graphical editor用の回帰テストとハーネス不変条件を追加。
+- PCM Fretless / PCM Drum / DX-style FM EPを追加。
+- 右側にGraphical Patch Editorを追加。
 
 ## v0.2.0
-- 自然言語から `engine_type=drum` のドラムPatchを生成できるようにした。
-- Rosanna / Porcaro / shuffle / シャッフル系の要求を `drum_style=half_time_shuffle` として認識。
-- Kick / Snare / Closed Hat / Open Hat / 3 Toms / Crash / Ride の合成ドラム音源を追加。
-- ドラムPatchではピアノ鍵盤を自動的にドラムパッドへ切り替えるUIを追加。
-- PCキーボードおよびGM系MIDIドラムノートに対応。
-- ドラム用サンプル演奏としてハーフタイム・シャッフルとストレート・ドラムを追加。
-- ドラムモードでも既存の単一AudioContextと `noteOn()` / `noteOff()` 契約を共有する回帰テストとハーネスを追加。
+- Natural-language Drum Patch、Drum Pad、GM系MIDI、Half-time Shuffle / Straight Drum Sampleを追加。
 
 ## v0.1.1
-- 現在の音色を使ったサンプル演奏機能を追加。
-- メロディ、コード、ベースラインの3種類を選択可能。
-- サンプル演奏の停止操作を追加。
-- サンプル演奏は既存の `noteOn()` / `noteOff()` 契約のみを使用し、別の音源経路を作らないようハーネスと回帰テストを追加。
+- 現在の音色を使ったSample Performanceと停止操作を追加。
 
 ## v0.1.0
 - Initial MVP.
