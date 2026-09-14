@@ -75,7 +75,7 @@
   function quantizeValue(beats,quantum){return Math.max(quantum,Math.round(beats/quantum)*quantum);}
   function estimateTiming(events){
     if(events.length<2)return {bpm:Math.round(clampLocal(bpmInput.value,40,240)),quantum:.25,score:0};
-    const origin=events[0].startMs,candidates=[.5,.25,.125];let best=null;
+    const origin=events[0].startMs;const candidates=[.5,.25,.125];let best=null;
     for(let bpm=60;bpm<=180;bpm++){const beatMs=60000/bpm;for(const quantum of candidates){let error=0,weight=0;
       for(const event of events){const start=(event.startMs-origin)/beatMs,dur=Math.max(MIN_NOTE_MS,event.endMs-event.startMs)/beatMs;const qs=Math.round(start/quantum)*quantum,qd=Math.max(quantum,Math.round(dur/quantum)*quantum);const w=.5+.5*(event.confidence||.8);error+=(Math.abs(start-qs)+.7*Math.abs(dur-qd))*w;weight+=w;}
       const finePenalty=quantum===.125?.055:quantum===.25?.018:0;const tempoPenalty=Math.abs(bpm-110)/110*.012;const score=error/Math.max(1,weight)+finePenalty+tempoPenalty;if(!best||score<best.score)best={bpm,quantum,score};
