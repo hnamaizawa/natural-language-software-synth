@@ -1,27 +1,30 @@
 # Natural Language Software Synth
 
-自然言語で楽器や雰囲気を指定すると、音源方式まで自動選択してPatchを生成し、その場で演奏できるローカル実行型ソフトウェア音源です。
+自然言語で楽器・音色・雰囲気を指定すると音源方式まで選択してPatchを生成し、その場で演奏できるローカル実行型ソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／サンプル演奏に加え、鼻歌からMIDIライクなメロディーを作成できます。v0.7.0では鼻歌の音程・タイミング自動補正、楽譜表示、Windows VST3 Instrumentホストを追加しました。
 
-## v0.5.0 の主な変更
+## v0.7.0 の主な変更
 
-- **PCMグランドピアノ**を追加。`グランドピアノ / concert grand / acoustic piano / piano` などを認識します。
-- フレットレスベースの**フィンガーノイズとAttack成分を強化**しました。
-- ギターの和音は全音を同時発音せず、**ピックで弦を高速にストロークするように16〜28ms程度ずつ発音をずらす**ようにしました。
-- サンプル演奏のフレーズをユーザー自身が登録／削除できるようにしました。登録データは**ブラウザのlocalStorageだけ**に保存されます。
-- サンプル演奏ジャンルを大幅に増やしました。ポップ、EDM、アンビエント、ファンク、フュージョン、シティポップ、クラシック、ブギウギ、ブルース、ボサノバなどを追加しています。
+- 鼻歌から推定した音程列を **Major / Natural Minor のキー／スケールへ自動補正**。
+- 鼻歌のタイミングから **BPMと1/8・1/16・1/32の量子化グリッドを自動推定**。
+- 補正済みメロディーを **SVG五線譜** で確認可能。
+- Windowsの一般的な **VST3 Instrument** を検索・ロードして演奏可能。
+- VST3のパラメータをブラウザ側のスライダーから操作可能。
+- VST3はブラウザ内へロードせず、**別プロセスのWindowsネイティブホスト**で実行。
+- GitHub ActionsでPython回帰テストに加えて、Windows上でVST3ホストの実ビルドも検証。
 
 ## 音源モデル
 
 | 要求する音 | Engine / Model | 主な特徴 |
 | --- | --- | --- |
-| Pad / Lead / 一般的なシンセ | `synth / generic` | 2 Oscillator + Filter + ADSR + LFO + Delay |
+| Pad / Lead / 一般シンセ | `synth / generic` | 2 Oscillator + Filter + ADSR + LFO + Delay |
 | フレットレスベース | `sampler / fretless_bass` | PCM + Finger/Release/Slide Noise + Mwah |
 | エレキギター | `sampler / electric_guitar` | PCM + Pick/Release + Amp Drive + Cabinet + Chorus |
 | グランドピアノ | `sampler / grand_piano` | PCM + Hammer + Damper + String/Body Resonance + Room |
 | 生ドラム系 | `drum / studio_drums` | PCM one-shot + Velocity差 + Tune / Decay / Room |
 | DX系エレピ | `fm / dx_ep` | FM Modulation + Operator Ratio + Chorus |
+| 外部音源 | Windows VST3 Instrument | Native VST3 Host経由 |
 
-すべて同一の `AudioContext` と次の演奏APIを共有します。
+ブラウザ内蔵音源は同一 `AudioContext` を共有し、演奏は次の境界へ統一しています。
 
 ```text
 setPatch(validatedPatch)
@@ -29,159 +32,156 @@ noteOn(midiNote, velocity, whenSeconds=0)
 noteOff(midiNote, whenSeconds=0)
 ```
 
+VST3ルーティングをONにすると、この最終 `noteOn / noteOff` 境界をVST3イベントへ変換します。そのため鍵盤、PCキー、Web MIDI、サンプル演奏、ギターストラム、鼻歌試聴を同じVST3へ送れます。
+
+## 鼻歌 → メロディー
+
+「🎤 鼻歌からメロディーを録音・自動補正」で録音開始し、単音でメロディーを歌います。マイクの生音声そのものは保存しません。ブラウザ内のYIN系解析で音程・開始時刻・長さ・Velocity相当だけを抽出します。
+
+### 音程の自動補正
+
+録音停止後、全ノートについて12音×Major / Natural Minorを評価します。長く歌った音と検出Confidenceの高い音を重く見てキーを推定し、スケール外の音だけ近いスケール音へ寄せます。
+
+例:
+
+```text
+Raw:       C4  D4  D#4  F4  G4  B3  C4
+推定:      C Major
+Corrected: C4  D4  E4   F4  G4  B3  C4
+```
+
+すでに推定スケール内の音は移動しません。自動補正が合わない場合は「キー／スケールを自動補正」をOFFにできます。
+
+### タイミングの自動クォンタイズ
+
+録音された開始位置・音の長さについて、BPM 60〜180と以下のグリッドを比較します。
+
+- 1/8音符
+- 1/16音符
+- 1/32音符
+
+最も誤差が小さいBPMとグリッドを自動採用します。BPMまたは量子化を手動変更した場合は、その結果について自動タイミング補正をOFFにして手動値を優先します。手動BPMは40〜240です。
+
+### 楽譜表示
+
+補正・量子化後のMIDIライクなノート列からSVG五線譜を生成します。
+
+- 音域からTreble / Bass clefを自動選択
+- 4/4表示
+- 小節線、音符、休符、シャープ表示
+- 推定キーとBPMを上部表示
+
+これは譜面確認用の簡易レンダラーで、MusicXMLの完全な浄書エンジンではありません。楽譜も生音声ではなく補正済みノートイベントから作成します。
+
+### 登録フレーズへの取り込み
+
+鼻歌結果は例えば次の形式になります。
+
+```text
+C4 | 0.5 | 0.82
+D4 | 0.5 | 0.78
+E4 | 1   | 0.84
+R  | 0.5 | 0.50
+G4 | 1   | 0.88
+```
+
+「登録フレーズへ取り込む」で、既存のユーザー登録Sample Performance欄へ転記できます。永続保存はユーザーが「登録」を押したときだけ `localStorage` に行います。
+
+## VST3 Instrument対応
+
+### 構成
+
+```text
+Browser UI
+  │
+  │ same-origin /api/vst3/*
+  ▼
+Python server.py (127.0.0.1 only)
+  │
+  │ JSON-line command over stdin/stdout
+  ▼
+nlss_vst3_host.exe
+  │
+  ├─ Steinberg VST3 SDK
+  ├─ VST3 Instrument
+  └─ miniaudio → Windows default audio output
+```
+
+`.vst3` バイナリをChrome/Edge内へロードすることはありません。プラグインが不安定でもブラウザのWeb Audio音源とは別プロセスです。
+
+### 初回だけ必要なVST3ホストのビルド
+
+VST3を利用する場合、Windowsへ以下が必要です。
+
+- Git
+- CMake
+- Visual Studio 2022 の **Desktop development with C++**
+
+リポジトリ直下で実行します。
+
+```bat
+build_vst3_host.cmd
+```
+
+初回は固定バージョンの依存ソースを取得してコンパイルします。
+
+- Steinberg VST3 SDK 3.8.1
+- miniaudio 0.11.25
+
+依存先はCMakeでcommit SHAまで固定しています。ビルド結果は通常ここです。
+
+```text
+native\vst3_host\build\Release\nlss_vst3_host.exe
+```
+
+### VST3を使う
+
+通常どおりアプリを起動します。
+
+```bat
+start_synth.cmd
+```
+
+画面の「🎛 VST3 Instrument」で、
+
+1. 「VST3を検索」
+2. プラグインを選択
+3. 「ロード」
+4. 必要ならVST3 Parameterを調整
+5. 「鍵盤・MIDI・サンプル演奏・鼻歌試聴をVST3へ送る」をON
+
+と操作します。
+
+標準ではWindowsのVST3標準配置先を検索します。追加フォルダーを使う場合は、起動前に `NLSS_VST3_PATHS` を設定できます（複数はWindowsの `;` 区切り）。ネイティブホストexeを別の場所に置く場合は `NLSS_VST3_HOST` にフルパスを設定できます。
+
+### 現在のVST3対応範囲
+
+v0.7.0では以下を対象にしています。
+
+- VST3 Instrumentの検索
+- 1プラグインのロード／解除
+- Note On / Note Off
+- Velocity
+- `whenSeconds` を維持したイベントスケジュール
+- パラメータ一覧取得
+- 正規化値0〜1でパラメータ変更
+- VST3音声をWindows標準出力へ再生
+
+プラグイン独自Editor Windowの埋め込み、複数VSTチェイン、Effect Insert、Preset Browser、Automation Laneなどは今後の拡張対象です。
+
 ## PCMグランドピアノ
 
-例:
+`グランドピアノ / concert grand / acoustic piano / piano` などは `sampler / grand_piano` へ振り分けます。Factory Piano PCMは外部録音を使わずブラウザ内で生成し、複数ルートからPlayback Rateで音程を合わせます。
 
-```text
-コンサートホールで弾くような豊かなグランドピアノ。
-ハンマーのアタックと響板の余韻が自然な音。
-```
+Patch Editorから Tone / Hammer / Resonance / Damper Noise / Softness / Sustain / Velocity Curve / Room / Master を変更できます。
 
-この場合は `engine_type=sampler` / `instrument_model=grand_piano` になります。DX-7やエレピの語を含む場合は従来どおりFMエレピへ振り分け、グランドピアノへ誤判定しません。
+## フレットレスベース
 
-Factory Piano PCMは外部のピアノ録音を使用せず、ブラウザ内で決定論的に生成します。複数のルート音を持ち、近いルートPCMを `AudioBufferSourceNode` で再生してPlayback Rateで音程を合わせます。倍音、わずかな複弦のうなり、ハンマーAttack、Damper Release、響板／Body Resonanceを分離して扱います。
+通常生成でもFinger Noiseを強め、`指弾き / fingerstyle / フィンガー` を明示するとさらにAttack/Finger Noiseを強化します。右側の `Finger Noise` / `Attack PCM` から調整できます。
 
-右側のPatch Editorでは以下を調整できます。
+## エレキギター + Amp
 
-- Tone
-- Hammer
-- Resonance
-- Damper Noise
-- Softness
-- Sustain
-- Velocity Curve
-- Room
-- Master
-
-グランドピアノの内蔵サンプル演奏:
-
-- クラシック・アルペジオ
-- ピアノ・バラード
-- ポップ・ピアノ
-- ジャズ・グランドピアノ
-- ブギウギ・ピアノ
-
-## フレットレスベースのFinger Noise強化
-
-フレットレス生成時のFinger Attack / Finger Noiseをv0.4.xより強めました。通常のフレットレスでもFinger Noiseを明瞭にし、`指弾き / fingerstyle / フィンガー` を明示した場合はさらに強くします。
-
-例:
-
-```text
-歌うフレットレスベース。
-指弾きのフィンガーノイズをしっかり聞かせて、スライド感も強めに。
-```
-
-右側の `Finger Noise` / `Attack PCM` から好みに合わせて調整できます。
-
-## ギターの高速ストローク
-
-これまではコードを構成する音がほぼ同時に鳴っていました。v0.5.0ではギターのサンプル演奏で和音が現れた場合、ピックが低音弦から高音弦、または高音弦から低音弦へ移動するイメージで発音タイミングをずらします。
-
-- Fusion: 約16ms / string
-- Rock: 約18ms / string
-- その他: 約21ms / string
-- Acoustic: 約28ms / string
-
-Down Strokeでは低い音から、Up Strokeでは高い音から発音します。これは新しい音源を作るのではなく、既存 `noteOn(..., whenSeconds)` / `noteOff(..., whenSeconds)` の時刻オフセットとして実装しています。
-
-## サンプル演奏ジャンル
-
-内蔵フレーズはすべて音色確認用の短いオリジナルパターンです。
-
-### Synth
-- メロディ
-- コード
-- ポップ
-- EDM
-- アンビエント
-- ジャズ
-
-### Fretless Bass
-- 歌うフレーズ
-- ファンク
-- フュージョン
-- バラード
-- ジャズ・ウォーキング
-
-### FM EP
-- FMエレピ・コード
-- シティポップ
-- フュージョン
-- バラード
-- ジャズ・4度堆積
-
-### Grand Piano
-- クラシック
-- バラード
-- ポップ
-- ジャズ
-- ブギウギ
-
-### Drums
-- ハーフタイム・シャッフル
-- ストレート
-- ロック
-- ファンク
-- フュージョン
-- ボサノバ
-- ジャズ・スウィング
-
-### Electric Guitar
-- ロック
-- フュージョン
-- アコースティック
-- ブルース
-- ファンク
-- ポップ
-- ボサノバ
-- ジャズ
-
-## 自分のサンプル演奏フレーズを登録
-
-SAMPLE欄の **「＋ 自分のサンプル演奏フレーズを登録」** を開くと、現在選択中の楽器用フレーズを登録できます。
-
-1行を1ステップとして以下の形式で入力します。
-
-```text
-C4,E4,G4 | 1 | 0.84
-A4        | 0.5 | 0.80
-R         | 0.5 | 0.80
-67,71,74  | 1 | 0.88
-```
-
-形式:
-
-```text
-音名またはMIDIノート | 拍数 | Velocity
-```
-
-- 和音: `C4,E4,G4` のようにカンマ区切り
-- MIDI番号も利用可能: `60,64,67`
-- `#` / `b` 対応: `F#4`, `Bb3`
-- 休符: `R`, `rest`, `休符`, `-`
-- BPM: 40〜240
-- 1ステップ: 0.125〜8拍
-- Velocity: 0.05〜1.0
-- MIDIノート: 0〜127
-- 最大50フレーズ
-- 1フレーズ最大128ステップ
-
-登録したフレーズは現在の楽器モデルに紐付きます。グランドピアノ用に登録したものはグランドピアノ時、ギター用はギター時だけ選択肢に表示されます。ギターで登録した和音も自動的に高速ストロークになります。
-
-登録データは `localStorage` にのみ保存され、GitHub、サーバー、生成アプリのソースコードへ送信・コピーしません。
-
-## PCMエレキギター + Amp
-
-例:
-
-```text
-ロック向けのエレキギター。
-アンプの歪みを強めにして、ピッキングのアタックが分かる音。
-```
-
-Factory Guitar PCMはブラウザ内の決定論的弦モデルから生成します。後段は以下です。
+Factory Guitar PCMの後段にAmp処理を持ちます。
 
 ```text
 PCM Guitar
@@ -201,45 +201,30 @@ Chorus
 Master
 ```
 
-Amp Model: `clean / crunch / high_gain / acoustic`。右側では Drive / Amp Tone / Presence / Cabinet / Body Tone / Pick Attack / Release Noise / Palm Mute / Sustain / Chorus / Master を編集できます。
+Amp Modelは `clean / crunch / high_gain / acoustic`。ギター和音のSample Performanceでは、ピック移動を表すため構成音をスタイル別に約16〜28msずつずらし、Down / Up strokeを表現します。
 
-## PCMドラム
+## Sample Performanceと自作フレーズ
 
-例:
+Synth / Fretless / FM EP / Grand Piano / Drums / Electric Guitarに、Pop / EDM / Ambient / Funk / Fusion / City Pop / Classical / Boogie / Blues / Bossa Nova / Jazzなどの短いオリジナルSample Performanceがあります。
 
-```text
-Toto のロザーナーでジェフ ポーカロさんのシャッフルで有名なドラムの音を生成してください。
-```
-
-この入力は `engine_type=drum` / `instrument_model=studio_drums` / `drum_style=half_time_shuffle` になります。ドラムPatchではピアノ鍵盤をドラムパッドへ切り替えます。
-
-## DX系FMエレピ
-
-例:
+自作フレーズは次の形式で登録できます。
 
 ```text
-80年代の DX-7 のような、きらびやかな FM エレピ
+C4,E4,G4 | 1 | 0.84
+A4        | 0.5 | 0.80
+R         | 0.5 | 0.80
+67,71,74  | 1 | 0.88
 ```
 
-`FM Index / Brightness / Modulator Ratio A/B / Decay / Release / Chorus` を編集できます。
+- BPM: 40〜240
+- 1ステップ: 0.125〜8拍
+- Velocity: 0.05〜1.0
+- MIDIノート: 0〜127
+- 最大50フレーズ
+- 1フレーズ最大128ステップ
+- 保存先: ブラウザ `localStorage` のみ
 
-## Factory PCMについて
-
-Factory PCMは、既存アーティストや市販音源の録音をコピーしていません。ブラウザ内で決定論的にPCMバッファを生成し、その後 `AudioBufferSourceNode` を使うサンプラーとして再生します。
-
-より高いリアリティが必要な場合は、将来的に使用許諾のある実録音マルチサンプルへFactory PCMを差し替える設計を想定しています。
-
-## グラフィカルPatch Editor
-
-画面右側から音源／楽器モデルに応じたパラメータを直接編集できます。
-
-- 数値: Slider + 円形メーター
-- 列挙値: Select
-- 操作中に即時反映
-- 全変更はValidation / Clampを通過
-- 「生成値へ戻す」で直前に生成／読込したPatchへ戻す
-
-## Windowsでの起動方法
+## Windowsでの起動
 
 ### 初回
 
@@ -258,6 +243,12 @@ start_synth.cmd
 http://127.0.0.1:8765
 ```
 
+VST3も使う場合だけ追加で:
+
+```bat
+build_vst3_host.cmd
+```
+
 ### 2回目以降
 
 ```bat
@@ -270,38 +261,18 @@ start_synth.cmd
 
 終了は `Ctrl + C` です。
 
-## PCキーボード
-
-鍵盤／ギター／ピアノ:
-
-```text
-A W S E D F T G Y H U J K
-```
-
-ドラム:
-
-```text
-A = Kick
-S = Snare
-D = Closed Hat
-F = Open Hat
-G = Low Tom
-H = Mid Tom
-J = High Tom
-K = Crash
-L = Ride
-```
-
 ## 安全設計とガードレール
 
-- 自然言語やユーザー登録フレーズをJavaScript/Pythonコードとして実行しない
+- 自然言語、鼻歌結果、ユーザー登録フレーズをコードとして実行しない
 - `eval()` / dynamic script injectionを使わない
-- 全音源でAudioContextを1つだけ共有
-- Master Gain / Polyphony / PCM / Guitar Amp / Piano / Drum / FMパラメータをClamp
-- グラフィカル編集も検証済みPatchを経由
-- ライブ、MIDI、内蔵サンプル、登録サンプル、将来シーケンサーで同じNote Event契約を利用
-- Factory PCMに第三者アーティスト録音を埋め込まない
-- 登録フレーズはローカル保存だけとし、値を境界チェックしてから演奏
+- ブラウザ内蔵音源はAudioContextを1つだけ共有
+- マイクの生音声を録音・保存・アップロードしない
+- Master Gain / Polyphony / PCM / Guitar Amp / Piano / Drum / FM値をClamp
+- VST3をブラウザプロセスへロードしない
+- VST3はスキャン済みローカルIDからのみロード
+- VST3 Note / Velocity / Parameter値をBridge側でもClamp
+- VST3 Bridgeは既存の `127.0.0.1` サーバー経由のみ
+- Factory PCMへ第三者アーティスト録音を埋め込まない
 - Output normalizationはMaster Gain上限を迂回しない
 
 ## 開発時の確認
@@ -317,14 +288,22 @@ python scripts/harness_check.py
 check_harness.cmd
 ```
 
+VST3ネイティブ側を変更した場合は:
+
+```bat
+build_vst3_host.cmd
+```
+
+GitHub ActionsでもLinux上のpytest/HarnessとWindows上のNative VST3 buildを両方実行します。
+
 ## 今後の方向性
 
-- 使用許諾のある実録音PCMマルチサンプルの読み込み
-- Velocity Layer / Round Robin
-- グランドピアノのPedal / Una Corda / Sympathetic Resonance強化
-- ギターのHammer-on / Pull-off / Bend / Harmonics / String選択
-- ギターアンプのIR Cabinet / Convolution
-- フレットレスのLegato / Harmonics / String選択
-- ドラムのRound Robin / Mic Position / Room IR
+- VST3プラグイン独自Editor Window
+- VST3 Preset / State保存
+- 複数VST3 Instrument / Effect chain
+- 鼻歌のクロマティック／ブルース／ペンタトニック等のスケール候補
+- MusicXML / Standard MIDI File Export
 - ピアノロール／ステップシーケンサー
-- サンプルフレーズのJSON Export/Import
+- 使用許諾のある実録音PCMのVelocity Layer / Round Robin
+- Grand Piano Pedal / Sympathetic Resonance
+- Guitar Hammer-on / Pull-off / Bend / Harmonics / Cabinet IR

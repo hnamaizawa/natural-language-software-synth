@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.7.0
+- 鼻歌録音後にMajor / Natural Minorの24候補からキー／スケールを自動推定する機能を追加。
+- キー推定はノート長とPitch Confidenceを重みとして評価し、スケール外の音だけを最大3半音以内の近傍スケール音へ補正。
+- 「キー／スケールを自動補正」をデフォルトONとし、必要に応じてユーザーがOFFにできるようにした。
+- 鼻歌の開始位置／長さからBPM 60〜180と1/8・1/16・1/32グリッドを比較して、自動テンポ／音符クォンタイズを追加。
+- BPMまたは量子化をユーザーが手動変更した場合は自動タイミング補正を解除し、明示値を優先。
+- 補正・量子化後のノートイベントからSVG五線譜を描画。音域に応じたTreble/Bass clef、4/4、小節線、休符、シャープ、推定キー／BPM表示を追加。
+- Windows Native VST3 Hostを追加。ブラウザは`.vst3`を直接ロードせず、既存Python loopback serverから別プロセスの`nlss_vst3_host.exe`を操作する構成とした。
+- Windows標準VST3パスと任意の`NLSS_VST3_PATHS`を検索し、ブラウザにはスキャン済みのopaque IDだけを公開。ロードはスキャン済みIDに限定。
+- VST3 Note On / Note Off / Velocity、パラメータ列挙、正規化0〜1パラメータ変更に対応。
+- `web/vst3_runtime.js`を最終Note Event境界へ追加し、鍵盤、PCキー、Web MIDI、サンプル演奏、ギターストラム、鼻歌試聴をVST3へルーティング可能にした。
+- VST3 routing OFF時は従来のWeb Audio音源経路をそのまま利用。
+- Steinberg VST3 SDK 3.8.1 (`3cdf9ca...`) と miniaudio 0.11.25 (`9634bed...`) をcommit SHA固定。
+- `build_vst3_host.cmd`を追加し、Visual Studio 2022 x64 + CMakeでNative Hostをビルド可能にした。
+- GitHub ActionsへWindows Native VST3 Hostの実ビルドジョブを追加し、Python pytest/Harnessと併せて回帰確認するようにした。
+- Humming Assist / Score / VST3用の回帰テスト、Blueprint、Harness、README、AGENTS、CURRENTを更新。
+
 ## v0.6.0
 - マイクへ歌った単音の鼻歌／口笛を、MIDIノート相当の音程データとして録音する機能を追加。
 - `navigator.mediaDevices.getUserMedia()` で取得したマイクを既存 `engine.ctx` の `MediaStreamSource` / `AnalyserNode` へ接続し、別AudioContextを作らない設計とした。

@@ -1,17 +1,18 @@
 # Development Harness
 
 ## Purpose
-This harness keeps the synth reproducible and safe to evolve through natural-language change requests.
+This harness keeps the synth reproducible and safe to evolve through natural-language change requests. v0.7.0 adds post-capture humming correction/notation and an explicitly separated Windows native VST3 host without weakening the browser audio/data boundaries.
 
 ## Canonical artifacts
 - `harness/app_blueprint.yaml`: capabilities, boundaries, required files, acceptance commands.
-- `scripts/harness_check.py`: validates project structure, forbidden execution paths, schema invariants, microphone capture boundaries, and tests.
-- `src/ai_synth/patch.py`: canonical patch data contract and clamps for synth, sampler, guitar amp, grand piano, drum, and FM modes.
-- `web/app.js`: base real-time multi-engine implementation behind the stable `noteOn` / `noteOff` boundary.
-- `web/guitar_runtime.js`: PCM electric-guitar model plus bounded amp/cabinet processing.
-- `web/piano_runtime.js`: locally generated PCM grand-piano model with hammer/damper articulation and resonance.
-- `web/performance_library_runtime.js`: expanded original demo library, guitar chord strum timing, and bounded local-only user phrase registration.
-- `web/humming_runtime.js`: local-only microphone pitch analysis that converts monophonic humming into bounded MIDI-like note events.
+- `scripts/harness_check.py`: validates project structure, forbidden execution paths, browser microphone/privacy boundaries, humming correction/score boundaries, VST3 host/bridge boundaries, and regression tests.
+- `src/ai_synth/patch.py`: canonical built-in patch data contract and clamps.
+- `web/app.js`: base Web Audio engine behind the stable `noteOn` / `noteOff` boundary.
+- `web/humming_runtime.js`: local-only microphone pitch analysis, automatic key/scale correction, timing quantization, and SVG staff notation.
+- `web/vst3_runtime.js`: browser-side adapter that wraps the final `noteOn` / `noteOff` boundary and sends bounded events to the local bridge only when VST3 routing is enabled.
+- `server.py`: loopback-only Python server plus scanned-ID-only VST3 bridge to the separate native host process.
+- `native/vst3_host/`: Windows VST3 host source. It loads the VST3 plug-in, converts note/parameter events to VST3 events, renders audio, and sends audio to the local device through miniaudio.
+- `build_vst3_host.cmd`: reproducible Windows x64 build entry point for the native host.
 
 ## Standard development loop
 1. Read `tasks/CURRENT.md` and the blueprint.
@@ -20,57 +21,63 @@ This harness keeps the synth reproducible and safe to evolve through natural-lan
 4. Do not weaken non-negotiable invariants.
 5. Run `python -m pytest tests/`.
 6. Run `python scripts/harness_check.py`.
-7. Update CHANGELOG and CURRENT.
-8. Open a PR and let the human review before merge.
+7. For VST3/native changes, build `nlss_vst3_host.exe` on Windows x64.
+8. Update CHANGELOG and CURRENT.
+9. Open a PR and wait for both the Python/harness job and native Windows build job to pass before review/merge.
 
-## Audio and data invariants
-- Generated natural-language output and registered phrase text are never executable code.
-- Every generated, imported, or graphically edited patch is validated and clamped.
-- Master output gain, polyphony, instrument trim, and engine-specific parameters are bounded.
-- AudioContext begins only from a user gesture; all instruments and microphone analysis share the single base AudioContext.
-- Live keyboard, drum pads, MIDI, built-in samples, registered samples, humming preview, and future sequencer use the same `noteOn()` / `noteOff()` contract.
-- Factory PCM buffers are generated locally or may later be replaced only with appropriately licensed samples; artist recordings are not embedded.
-- User-registered sample phrases remain browser-local (`localStorage`) and are never copied into source code or generated applications.
-- Registered phrase BPM, step count, beats, velocity, and MIDI notes are bounded before playback.
-- Microphone audio is analysis-only: no MediaRecorder, no upload, no raw-audio persistence, and MediaStream tracks are stopped when capture ends.
+## Browser audio and data invariants
+- Generated natural-language output, humming results, and registered phrase text are data only and never executable code.
+- Every generated, imported, or graphically edited built-in patch is validated and clamped.
+- Built-in browser instruments and microphone analysis share the one base `AudioContext`.
+- Live keyboard, PC keyboard, Web MIDI, built-in samples, registered samples, and humming preview all enter through the same `noteOn()` / `noteOff()` boundary.
+- Factory PCM buffers use generated or appropriately licensed content; third-party artist recordings are not embedded.
+- User-registered sample phrases remain browser-local (`localStorage`) and are bounded before playback.
+- Raw microphone audio is never recorded, encoded, uploaded, persisted, or copied into source code.
 
-## v0.6.0 checks
-- Humming capture begins only from the explicit Record button and calls `engine.init()` before requesting microphone access.
-- Microphone input uses `navigator.mediaDevices.getUserMedia()` plus the existing `engine.ctx.createMediaStreamSource()` and `createAnalyser()` path.
-- The microphone analyser is not connected to the master/destination, avoiding direct monitoring/feedback.
-- Humming pitch detection is monophonic and YIN-style, bounded to 75–1000 Hz with minimum confidence 0.72.
-- Capture is limited to 120 seconds and 512 detected notes; very short notes under 90 ms are discarded.
-- Detected pitch is converted to MIDI note numbers and note names, with hysteresis to reduce vibrato-induced note chatter.
-- Note lengths are quantized to 1/8, 1/16, or 1/32 beat units compatible with the existing custom-phrase bounds.
-- Humming preview uses only `engine.noteOn()` / `engine.noteOff()` and does not create a parallel audio engine.
-- Transfer to the custom phrase editor writes only note-event text into the existing UI; persistence occurs only if the user explicitly presses the existing Register button.
-- Raw microphone audio is never written to localStorage, server APIs, GitHub, files, blobs, or MediaRecorder.
+## v0.7.0 humming-assist checks
+- Capture remains monophonic YIN-style analysis on the existing `engine.ctx`, bounded to 75–1000 Hz, confidence >= 0.72, maximum 120 seconds / 512 notes.
+- Automatic key inference evaluates all 12 roots in Major and Natural Minor, weighted by detected-note duration and pitch confidence.
+- Automatic pitch correction snaps only scale-outside notes to the nearest inferred scale pitch, searching no farther than 3 semitones.
+- Users can disable automatic key correction; the raw detected pitch class is otherwise retained when already inside the inferred scale.
+- Automatic timing searches BPM 60–180 and the approved 1/8, 1/16, 1/32 grids, while manual BPM remains bounded to 40–240.
+- Manual BPM or quantize changes disable automatic timing for that result so the user's explicit edit wins.
+- The editable/registered result remains the existing bounded Custom Phrase note-event format.
+- SVG score rendering is based on corrected + quantized note events, not microphone samples. It chooses Treble/Bass clef from melody range and shows inferred key/BPM.
+- Humming preview continues to call only `engine.noteOn()` / `engine.noteOff()`.
 
-## v0.5.0 retained checks
-- Grand-piano prompts select `engine_type=sampler` and `instrument_model=grand_piano`; DX/FM electric-piano prompts remain `dx_ep`.
-- Grand Piano uses locally generated PCM root samples plus Hammer Attack, Damper Release, Soundboard/Body Resonance, Tone, Softness, Sustain, Velocity Curve, and Room controls.
-- `piano_runtime.js` must not create a new AudioContext or fetch `.wav` / `.mp3` assets.
-- Fretless generation defaults to stronger finger articulation; explicit finger-style prompts raise `finger_noise_mix` to at least 0.82 and attack mix to at least 0.60.
-- Multi-note electric-guitar sample steps use `whenSeconds` offsets so down/up strokes do not start every string simultaneously. Current style intervals remain between 16 and 28 ms.
-- Expanded genre samples use only the stable note-event contract.
-- Custom sample phrases are stored only in `localStorage`, limited to 50 phrases / 128 steps each, BPM 40–240, beats 0.125–8, velocity 0.05–1.0, MIDI notes 0–127.
+## v0.7.0 VST3 checks
+- Browser JavaScript never loads or parses `.vst3` binaries. `web/vst3_runtime.js` talks only to same-origin `/api/vst3/*` endpoints.
+- `server.py` remains bound to `127.0.0.1` and starts the native VST3 host as a separate child process.
+- Plug-ins are discovered only from local scan roots (Windows standard VST3 roots plus optional `NLSS_VST3_PATHS`). The browser receives opaque IDs; load requests are resolved only through the server-side scanned-ID map.
+- MIDI note is clamped to 0–127, velocity to 0–1, and VST parameter values to normalized 0–1 before reaching the native process.
+- VST routing wraps the final note-event boundary, so on-screen keyboard, PC keyboard, Web MIDI, sample performances, guitar strum offsets, and humming preview can all drive the loaded VST3 instrument.
+- When VST routing is disabled, the original built-in Web Audio path remains unchanged.
+- Steinberg VST3 SDK 3.8.1 and miniaudio 0.11.25 are pinned by commit SHA in CMake.
+- Native build outputs are ignored by Git and are produced locally/CI only.
+- GitHub Actions must successfully compile `native/vst3_host/build/Release/nlss_vst3_host.exe` on `windows-latest` before the PR is considered complete.
 
-## v0.4.x retained checks
-- Electric-guitar detection requires explicit `instrument_model=electric_guitar`; guitar defaults serialized on other patches must not reroute them.
-- Drum patches retain the drum surface and drum PC-key mapping.
-- Guitar Amp Drive uses bounded `WaveShaper` distortion followed by Tone / Presence / Cabinet processing.
-- Output-level normalization remains bounded (0.82–1.22 trim), uses the existing AudioContext, and does not add make-up gain beyond `master_gain`.
-- Jazz chord samples use four-note quartal voicing with adjacent perfect fourths (5 semitones).
+## Retained instrument checks
+- Grand Piano uses generated PCM roots plus hammer/damper/resonance layers and no second AudioContext.
+- Fretless explicit finger-style prompts keep enhanced Finger Noise / Attack PCM.
+- Electric Guitar amp parameters remain bounded; guitar chords retain 16–28 ms down/up strum offsets through `whenSeconds`.
+- Drum patches retain drum pads and drum PC-key mapping.
+- Output normalization stays bounded and never adds a make-up-gain stage beyond the master-gain safety clamp.
+- Jazz chord samples retain four-note quartal voicing with adjacent perfect fourths.
+- Custom sample phrases remain local-only, maximum 50 phrases / 128 steps, with bounded BPM / beats / velocity / MIDI note values.
 
-## VST3 boundary
-- Browser JavaScript must not directly load native VST binaries.
-- A future Windows native VST3 host/bridge may map this application's stable note-event contract to VST3 note events and expose plug-in selection/parameters back to the browser UI.
-- The bridge must be explicit, local, permissioned, and testable; it must not weaken the browser-side single-AudioContext invariants for the built-in engines.
-
-## Run
+## Run built-in synth
 ```bat
 setup_windows.cmd
 check_harness.cmd
 start_synth.cmd
 ```
 Then open `http://127.0.0.1:8765`.
+
+## Enable VST3 hosting on Windows
+One-time native build (requires Git, CMake, and Visual Studio 2022 Desktop development with C++):
+
+```bat
+build_vst3_host.cmd
+```
+
+Then start the normal app with `start_synth.cmd`, open the VST3 section, scan, select/load a plug-in, and enable VST3 routing.

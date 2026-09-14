@@ -4,3 +4,5 @@ __pycache__/
 .pytest_cache/
 .env
 .DS_Store
+native/vst3_host/build/
+native/vst3_host/out/

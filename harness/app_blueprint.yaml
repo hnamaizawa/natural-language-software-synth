@@ -1,14 +1,12 @@
 schema_version: '1.0'
 blueprint_name: natural-language-software-synth
-blueprint_version: 0.6.0
+blueprint_version: 0.7.0
 canonical_project: natural-language-software-synth
 purpose: >-
   Generate and play local-first multi-engine instrument patches from natural-language
-  descriptions. Support subtractive synthesis, PCM-style fretless bass, PCM-style electric
-  guitar with bounded amp/cabinet distortion and strum timing, PCM-style grand piano,
-  PCM-style drums, and FM electric piano while keeping every generated or edited patch
-  validated and bounded. Let users register bounded local-only sample phrases and capture
-  monophonic humming as local MIDI-like note-event data without storing microphone audio.
+  descriptions. Preserve all existing synth/sampler/drum/FM, performance, editing, output,
+  microphone and safety contracts while adding automatic humming key/timing correction,
+  staff notation, and a separately built Windows native VST3 instrument host.
 required_capabilities:
 - natural_language_patch_generation
 - deterministic_offline_prompt_fallback
@@ -50,6 +48,11 @@ required_capabilities:
 - humming_midi_like_note_event_capture
 - humming_note_duration_and_velocity_capture
 - humming_quantization
+- humming_key_scale_inference
+- humming_scale_snap_correction
+- humming_automatic_tempo_grid_estimation
+- humming_automatic_quantization
+- humming_staff_notation_svg
 - humming_preview_with_current_patch
 - humming_to_custom_phrase_transfer
 - fretless_sample_performance
@@ -72,6 +75,12 @@ required_capabilities:
 - stable_note_event_contract
 - future_sequencer_adapter_boundary
 - future_native_vst3_host_boundary
+- windows_native_vst3_host
+- vst3_standard_path_scan
+- vst3_instrument_load
+- vst3_note_event_routing
+- vst3_parameter_enumeration_and_editing
+- vst3_localhost_bridge
 - local_windows_setup
 - regression_test_harness
 non_negotiable_invariants:
@@ -81,11 +90,15 @@ non_negotiable_invariants:
 - graphical_slider_input_must_not_rebuild_control_during_drag
 - audio_context_must_start_only_after_user_gesture
 - all_engines_must_share_single_audio_context
+- all_web_audio_engines_must_share_single_audio_context
 - microphone_capture_must_use_existing_audio_context
 - microphone_audio_must_not_be_persisted_or_uploaded
 - humming_capture_must_be_monophonic_and_bounded
 - humming_preview_must_use_same_note_on_note_off_contract
 - humming_note_data_must_be_quantized_to_bounded_custom_phrase_values
+- humming_pitch_correction_must_snap_only_to_inferred_or_selected_scale
+- humming_timing_quantization_must_be_bounded
+- humming_score_must_be_derived_from_corrected_note_events
 - master_gain_must_be_hard_limited
 - output_level_normalization_must_not_bypass_master_gain_limit
 - output_level_runtime_must_use_existing_audio_context
@@ -114,6 +127,13 @@ non_negotiable_invariants:
 - pcm_and_fm_parameters_must_be_schema_validated_and_clamped
 - saved_user_patches_must_not_be_copied_into_generated_apps
 - external_llm_credentials_must_not_be_required_for_offline_mode
+- vst3_binary_must_never_be_loaded_in_browser_process
+- vst3_bridge_must_bind_through_existing_local_http_server
+- vst3_plugin_load_must_be_limited_to_scanned_local_plugin_ids
+- vst3_note_values_must_be_bounded
+- vst3_parameter_values_must_be_normalized_and_bounded
+- vst3_native_host_must_run_as_separate_process
+- vst3_dependencies_must_be_pinned
 - eval_and_dynamic_script_injection_forbidden
 required_files:
 - AGENTS.md
@@ -124,6 +144,7 @@ required_files:
 - setup_windows.cmd
 - start_synth.cmd
 - check_harness.cmd
+- build_vst3_host.cmd
 - harness/app_blueprint.yaml
 - scripts/harness_check.py
 - src/ai_synth/patch.py
@@ -137,8 +158,11 @@ required_files:
 - web/performance_library_runtime.js
 - web/output_level_runtime.js
 - web/humming_runtime.js
+- web/vst3_runtime.js
 - web/performance_editor.css
 - web/style.css
+- native/vst3_host/CMakeLists.txt
+- native/vst3_host/src/main.cpp
 runtime_state_exclusions:
 - .env
 - .venv
@@ -147,10 +171,13 @@ runtime_state_exclusions:
 - __pycache__
 - data/presets
 - generated
+- native/vst3_host/build
+- native/vst3_host/out
 acceptance_commands:
 - setup_windows.cmd
 - check_harness.cmd
 - start_synth.cmd
+- build_vst3_host.cmd
 ui_requirements:
   prompt_to_patch: true
   onscreen_keyboard: true
@@ -161,9 +188,18 @@ ui_requirements:
   microphone_humming_capture: true
   humming_live_pitch_display: true
   humming_record_start_stop: true
+  humming_auto_key_correction_default: true
+  humming_auto_timing_default: true
+  humming_key_result_display: true
+  humming_timing_result_display: true
+  humming_score_svg: true
   humming_preview: true
   humming_transfer_to_custom_phrase: true
   humming_quantize_values: [0.5, 0.25, 0.125]
+  vst3_scan: true
+  vst3_select_and_load: true
+  vst3_route_toggle: true
+  vst3_parameter_editor: true
   sample_performance: true
   instrument_model_specific_sample_performance: true
   expanded_sample_performance_genres: true
@@ -248,9 +284,49 @@ humming_capture_contract:
   maximum_notes: 512
   minimum_note_duration_ms: 90
   quantize_beats: [0.5, 0.25, 0.125]
+  pitch_assist:
+    modes: [major, natural_minor]
+    weighted_by: [duration, pitch_confidence]
+    correction: nearest_scale_pitch
+    maximum_search_semitones: 3
+  timing_assist:
+    bpm_search_min: 60
+    bpm_search_max: 180
+    allowed_quantize_beats: [0.5, 0.25, 0.125]
+    manual_bpm_bounds: [40, 240]
+  score:
+    format: browser_local_svg_staff
+    source: corrected_quantized_note_events
+    clefs: [treble, bass]
+    time_signature: 4/4
   output: [midi_note, duration_beats, velocity, rest]
   preview_api: noteOn_noteOff
   custom_phrase_transfer: true
+vst3_contract:
+  browser_native_loading: forbidden
+  bridge_server_bind: 127.0.0.1
+  bridge_transport: same_origin_http_to_python_then_stdio_to_native_host
+  native_host_process: separate_windows_executable
+  standard_scan_roots: [COMMONPROGRAMFILES/VST3, LOCALAPPDATA/Programs/Common/VST3]
+  optional_scan_roots_env: NLSS_VST3_PATHS
+  optional_host_path_env: NLSS_VST3_HOST
+  plugin_selection: scanned_plugin_id_only
+  note_min: 0
+  note_max: 127
+  velocity_min: 0.0
+  velocity_max: 1.0
+  parameter_normalized_min: 0.0
+  parameter_normalized_max: 1.0
+  maximum_parameter_controls_in_browser: 160
+  vst3_sdk:
+    repository: steinbergmedia/vst3sdk
+    version: 3.8.1
+    commit: 3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96
+  audio_backend:
+    library: miniaudio
+    version: 0.11.25
+    commit: 9634bedb5b5a2ca38c1ee7108a9358a4e233f14d
+  route_sources: [onscreen_keyboard, computer_keyboard, web_midi, sample_performance, humming_preview]
 drum_contract:
   canonical_notes:
     kick: 36
