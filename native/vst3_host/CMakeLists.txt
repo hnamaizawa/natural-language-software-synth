@@ -27,7 +27,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(miniaudio)
 
-add_executable(nlss_vst3_host src/main.cpp)
+# Steinberg's host examples link sdk_hosting and compile PlugProvider plus the
+# platform-specific Module implementation in the host executable itself.
+# sdk_hosting intentionally does not contain those two implementation units.
+add_executable(nlss_vst3_host
+  src/main.cpp
+  ${vst3sdk_SOURCE_DIR}/public.sdk/source/vst/hosting/plugprovider.cpp
+  ${vst3sdk_SOURCE_DIR}/public.sdk/source/vst/hosting/module_win32.cpp
+)
 target_compile_features(nlss_vst3_host PRIVATE cxx_std_17)
 target_compile_definitions(nlss_vst3_host PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_include_directories(nlss_vst3_host PRIVATE
