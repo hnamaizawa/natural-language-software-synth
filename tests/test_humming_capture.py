@@ -113,10 +113,10 @@ def test_humming_can_transfer_corrected_phrase_to_existing_editor():
         assert token in js
 
 
-def test_v070_version_is_visible():
+def test_v07_current_patch_version_is_visible_and_consistent():
     html = _html()
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     server = (ROOT / "server.py").read_text(encoding="utf-8")
-    assert "v0.7.0" in html
-    assert 'version = "0.7.0"' in pyproject
-    assert '"version": "0.7.0"' in server
+    assert "v0.7.1" in html
+    assert 'version = "0.7.1"' in pyproject
+    assert '"version": "0.7.1"' in server
