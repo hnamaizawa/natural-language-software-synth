@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from server import Vst3Bridge
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -56,6 +58,24 @@ def test_plugin_load_is_limited_to_scanned_ids_and_values_are_bounded():
     assert "velocity = max(0.0, min(1.0" in server
     assert "parameter_id = max(0, min(0x7FFFFFFF" in server
     assert "value = max(0.0, min(1.0" in server
+
+
+def test_vst3_control_decoder_accepts_clean_prefixed_and_noisy_json():
+    assert Vst3Bridge._decode_control_line('{"ok":true,"loaded":true}') == {"ok": True, "loaded": True}
+    assert Vst3Bridge._decode_control_line('NLSS_JSON\t{"ok":true,"pong":true}') == {"ok": True, "pong": True}
+    assert Vst3Bridge._decode_control_line('OB-Xf diagnostic: init {"ok":true,"name":"OB-Xf"}') == {
+        "ok": True,
+        "name": "OB-Xf",
+    }
+    assert Vst3Bridge._decode_control_line("OB-Xf diagnostic only") is None
+
+
+def test_python_bridge_skips_plugin_stdout_until_control_json():
+    server = (ROOT / "server.py").read_text(encoding="utf-8")
+    assert "MAX_PROTOCOL_LINES = 64" in server
+    assert "_read_host_response" in server
+    assert "ignored non-protocol stdout" in server
+    assert "json.JSONDecoder()" in server
 
 
 def test_native_vst3_dependencies_are_pinned():

@@ -28,6 +28,8 @@ class Vst3Bridge:
     """Local-only bridge to the separately built native VST3 host process."""
 
     MAX_PLUGINS = 256
+    MAX_PROTOCOL_LINES = 64
+    CONTROL_PREFIX = "NLSS_JSON\t"
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
@@ -91,6 +93,57 @@ class Vst3Bridge:
     def _plugin_id(path: Path) -> str:
         key = os.path.normcase(str(path)).encode("utf-8", errors="surrogatepass")
         return hashlib.sha256(key).hexdigest()[:16]
+
+    @classmethod
+    def _decode_control_line(cls, line: str) -> dict | None:
+        """Extract one JSON control object even when a VST3 plug-in writes stdout noise."""
+        text = line.strip()
+        if not text:
+            return None
+        if text.startswith(cls.CONTROL_PREFIX):
+            text = text[len(cls.CONTROL_PREFIX):].lstrip()
+
+        decoder = json.JSONDecoder()
+        candidates = [0]
+        candidates.extend(index for index, char in enumerate(text) if char == "{" and index != 0)
+        for start in candidates:
+            try:
+                value, _ = decoder.raw_decode(text[start:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, dict):
+                return value
+        return None
+
+    def _read_host_response(self, process: subprocess.Popen[str], phase: str) -> dict:
+        if not process.stdout:
+            return {"ok": False, "error": "VST3 host stdout is unavailable."}
+
+        ignored = 0
+        for _ in range(self.MAX_PROTOCOL_LINES):
+            line = process.stdout.readline()
+            if line == "":
+                code = process.poll()
+                self._process = None
+                return {
+                    "ok": False,
+                    "error": f"VST3 host closed the control channel during {phase} (code={code}).",
+                }
+
+            response = self._decode_control_line(line)
+            if response is not None:
+                return response
+
+            if line.strip():
+                ignored += 1
+                preview = line.strip().replace("\r", " ").replace("\n", " ")[:240]
+                print(f"[vst3] ignored non-protocol stdout during {phase}: {preview}")
+
+        self.shutdown()
+        return {
+            "ok": False,
+            "error": f"VST3 host produced too much non-protocol output during {phase} ({ignored} lines).",
+        }
 
     def scan(self) -> dict:
         found: dict[str, Path] = {}
@@ -162,17 +215,9 @@ class Vst3Bridge:
             except OSError as exc:
                 self._process = None
                 return {"ok": False, "error": f"Could not start VST3 host: {exc}"}
-            assert self._process.stdout is not None
-            line = self._process.stdout.readline().strip()
-            if not line:
-                code = self._process.poll()
-                self._process = None
-                return {"ok": False, "error": f"VST3 host exited before ready (code={code})."}
-            try:
-                response = json.loads(line)
-            except json.JSONDecodeError:
-                self.shutdown()
-                return {"ok": False, "error": "VST3 host returned an invalid startup response."}
+            process = self._process
+            assert process is not None
+            response = self._read_host_response(process, "startup")
             if not response.get("ok"):
                 self.shutdown()
             return response
@@ -188,17 +233,11 @@ class Vst3Bridge:
             try:
                 process.stdin.write(command + "\n")
                 process.stdin.flush()
-                line = process.stdout.readline().strip()
             except (BrokenPipeError, OSError) as exc:
                 self._process = None
                 return {"ok": False, "error": f"VST3 bridge communication failed: {exc}"}
-            if not line:
-                self._process = None
-                return {"ok": False, "error": "VST3 host closed the command channel."}
-            try:
-                return json.loads(line)
-            except json.JSONDecodeError:
-                return {"ok": False, "error": "VST3 host returned invalid JSON."}
+            phase = command.split("\t", 1)[0].lower()
+            return self._read_host_response(process, phase)
 
     def load(self, plugin_id: str) -> dict:
         if not self._plugins:
@@ -277,7 +316,7 @@ atexit.register(VST3.shutdown)
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "NaturalLanguageSynth/0.7"
+    server_version = "NaturalLanguageSynth/0.7.1"
 
     def _json(self, payload, status=HTTPStatus.OK):
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
@@ -303,7 +342,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
-            return self._json({"ok": True, "version": "0.7.0"})
+            return self._json({"ok": True, "version": "0.7.1"})
         if parsed.path == "/api/vst3/status":
             return self._json(VST3.status())
         if parsed.path == "/api/vst3/plugins":
@@ -367,7 +406,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    print("Natural Language Software Synth v0.7.0")
+    print("Natural Language Software Synth v0.7.1")
     print(f"Open http://{HOST}:{PORT}")
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
 
