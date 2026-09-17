@@ -9,7 +9,7 @@ def test_vst3_ui_and_router_are_loaded_last():
     html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
     for control_id in [
         "vst3ScanBtn", "vst3PluginSelect", "vst3LoadBtn", "vst3UnloadBtn",
-        "vst3RouteEnabled", "vst3Parameters", "vst3Status",
+        "vst3TestToneBtn", "vst3DiagBtn", "vst3RouteEnabled", "vst3Parameters", "vst3Status",
     ]:
         assert f'id="{control_id}"' in html
     assert 'src="/vst3_runtime.js"' in html
@@ -23,9 +23,10 @@ def test_browser_never_loads_vst3_binary_directly():
     assert "fetch(path,options)" in js
     for endpoint in [
         "/api/vst3/scan", "/api/vst3/load", "/api/vst3/note-on", "/api/vst3/note-off",
-        "/api/vst3/parameters", "/api/vst3/parameter", "/api/vst3/unload",
+        "/api/vst3/parameters", "/api/vst3/parameter", "/api/vst3/test-tone", "/api/vst3/diagnostics",
+        "/api/vst3/unload",
     ]:
-        assert endpoint in js
+        assert endpoint in js or endpoint in (ROOT / "server.py").read_text(encoding="utf-8")
 
 
 def test_vst3_router_wraps_final_note_contract_and_preserves_scheduling():
@@ -78,12 +79,25 @@ def test_python_bridge_skips_plugin_stdout_until_control_json():
     assert "json.JSONDecoder()" in server
 
 
+def test_vst3_audio_diagnostics_and_native_output_test_are_exposed():
+    server = (ROOT / "server.py").read_text(encoding="utf-8")
+    js = (ROOT / "web" / "vst3_runtime.js").read_text(encoding="utf-8")
+    for token in ["DIAGNOSTICS", "TEST_TONE", '"/api/vst3/diagnostics"', '"/api/vst3/test-tone"']:
+        assert token in server
+    assert 'api("/api/vst3/test-tone",{})' in js
+    assert 'api("/api/vst3/diagnostics")' in js
+    assert "max_output_peak" in js
+    assert "process_failures" in js
+    assert "note_on_queued" in js
+
+
 def test_native_vst3_dependencies_are_pinned():
     cmake = (ROOT / "native" / "vst3_host" / "CMakeLists.txt").read_text(encoding="utf-8")
     assert "3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96" in cmake
     assert "9634bedb5b5a2ca38c1ee7108a9358a4e233f14d" in cmake
     assert "sdk_hosting" in cmake
     assert "cxx_std_17" in cmake
+    assert "VERSION 0.7.2" in cmake
 
 
 def test_native_host_uses_vst3_processing_events_parameters_and_audio_device():
@@ -95,6 +109,21 @@ def test_native_host_uses_vst3_processing_events_parameters_and_audio_device():
         'parts[0] == "LOAD"', 'parts[0] == "NOTE_ON"', 'parts[0] == "NOTE_OFF"', 'parts[0] == "PARAMS"',
     ]:
         assert token in cpp
+
+
+def test_native_host_negotiates_bus_arrangements_before_activation_and_marks_live_notes():
+    cpp = (ROOT / "native" / "vst3_host" / "src" / "main.cpp").read_text(encoding="utf-8")
+    for token in [
+        "configureBusArrangements ();", "processor_->setBusArrangements", "chooseBus (kAudio, kOutput, true)",
+        "chooseBus (kEvent, kInput, true)", "activateBuses (kEvent, kInput, mainEventInputBus_)",
+        "processData_.prepare", "processor_->setupProcessing", "component_->setActive (true)",
+        "processor_->setProcessing (true)", "event.busIndex = mainEventInputBus_", "Event::kIsLive",
+        "mainOutputBus_", "clearProcessOutputs", "copyOutputs", "maxOutputPeak_", "processFailures_",
+    ]:
+        assert token in cpp
+    assert cpp.index("processData_.prepare") < cpp.index("processor_->setupProcessing")
+    assert cpp.index("processor_->setupProcessing") < cpp.index("component_->setActive (true)")
+    assert cpp.index("component_->setActive (true)") < cpp.index("processor_->setProcessing (true)")
 
 
 def test_vst3_build_helper_exists_and_uses_release_binary_path():
