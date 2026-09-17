@@ -9,7 +9,7 @@
   const route=document.getElementById("vst3RouteEnabled"),params=document.getElementById("vst3Parameters"),status=document.getElementById("vst3Status");
   if(!scanBtn||!select||!loadBtn||!route||!status)return;
 
-  let loaded=false,scheduledTimers=new Set();
+  let loaded=false,scheduledTimers=new Set(),routedVisualNotes=new Set();
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
 
   async function api(path,payload=null){
@@ -17,20 +17,43 @@
     const response=await fetch(path,options);const data=await response.json();if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);return data;
   }
   function show(message){status.textContent=message;}
-  function cancelScheduled(){for(const id of scheduledTimers)clearTimeout(id);scheduledTimers.clear();}
-  function scheduleNative(path,payload,whenSeconds=0){
+  function setRoutedVisual(note,on){
+    const bounded=Math.round(clamp(note,0,127));
+    if(typeof setPerformanceActive==="function")setPerformanceActive(bounded,on);
+    if(on)routedVisualNotes.add(bounded);else routedVisualNotes.delete(bounded);
+  }
+  function clearRoutedVisuals(){
+    for(const note of routedVisualNotes){if(typeof setPerformanceActive==="function")setPerformanceActive(note,false);}
+    routedVisualNotes.clear();
+  }
+  function cancelScheduled(){for(const id of scheduledTimers)clearTimeout(id);scheduledTimers.clear();clearRoutedVisuals();}
+  function scheduleNative(path,payload,whenSeconds=0,onFire=null,onFailure=null){
     const delay=Math.max(0,Number(whenSeconds)||0)*1000;
-    const fire=()=>{api(path,payload).then(data=>{if(!data.ok)throw new Error(data.error||"VST3イベント送信失敗");}).catch(err=>{show(`VST3イベント送信エラー: ${err.message}`);route.checked=false;});};
+    const fire=()=>{
+      if(onFire)onFire();
+      api(path,payload).then(data=>{if(!data.ok)throw new Error(data.error||"VST3イベント送信失敗");}).catch(err=>{
+        if(onFailure)onFailure();
+        show(`VST3イベント送信エラー: ${err.message}`);route.checked=false;clearRoutedVisuals();
+      });
+    };
     if(delay<2){fire();return;}const id=setTimeout(()=>{scheduledTimers.delete(id);fire();},delay);scheduledTimers.add(id);
   }
 
   const baseNoteOn=engine.noteOn.bind(engine),baseNoteOff=engine.noteOff.bind(engine);
   engine.noteOn=function(midiNote,velocity,whenSeconds=0){
-    if(route.checked&&loaded){scheduleNative("/api/vst3/note-on",{note:Math.round(clamp(midiNote,0,127)),velocity:clamp(velocity,.001,1)},whenSeconds);return null;}
+    if(route.checked&&loaded){
+      const note=Math.round(clamp(midiNote,0,127));
+      scheduleNative("/api/vst3/note-on",{note,velocity:clamp(velocity,.001,1)},whenSeconds,()=>setRoutedVisual(note,true),()=>setRoutedVisual(note,false));
+      return null;
+    }
     return baseNoteOn(midiNote,velocity,whenSeconds);
   };
   engine.noteOff=function(midiNote,whenSeconds=0){
-    if(route.checked&&loaded){scheduleNative("/api/vst3/note-off",{note:Math.round(clamp(midiNote,0,127))},whenSeconds);return;}
+    if(route.checked&&loaded){
+      const note=Math.round(clamp(midiNote,0,127));
+      scheduleNative("/api/vst3/note-off",{note},whenSeconds,()=>setRoutedVisual(note,false));
+      return;
+    }
     return baseNoteOff(midiNote,whenSeconds);
   };
 
@@ -44,7 +67,7 @@
     }catch(err){show(`VST3検索エラー: ${err.message}`);}finally{scanBtn.disabled=false;loadBtn.disabled=!select.value;}
   }
 
-  async function load(){if(!select.value)return;show("VST3をロード中…");loadBtn.disabled=true;route.checked=false;
+  async function load(){if(!select.value)return;show("VST3をロード中…");loadBtn.disabled=true;route.checked=false;clearRoutedVisuals();
     try{
       const data=await api("/api/vst3/load",{plugin_id:select.value});if(!data.ok)throw new Error(data.error||"ロード失敗");
       loaded=true;route.disabled=false;unloadBtn.disabled=false;
@@ -81,7 +104,7 @@
 
   select.addEventListener("change",()=>{loadBtn.disabled=!select.value;});scanBtn.addEventListener("click",scan);loadBtn.addEventListener("click",load);unloadBtn.addEventListener("click",unload);
   if(testToneBtn)testToneBtn.addEventListener("click",testTone);if(diagBtn)diagBtn.addEventListener("click",diagnostics);
-  route.addEventListener("change",()=>show(route.checked?"VST3ルーティング有効: 鍵盤・MIDI・サンプル・鼻歌試聴をVST3へ送ります。音が出ない場合は鍵盤を数回押してから「VST3診断」を実行してください。":"Web Audio音源へ戻しました。"));
+  route.addEventListener("change",()=>{if(!route.checked)clearRoutedVisuals();show(route.checked?"VST3ルーティング有効: 鍵盤・MIDI・サンプル・鼻歌試聴をVST3へ送ります。音が出ない場合は鍵盤を数回押してから「VST3診断」を実行してください。":"Web Audio音源へ戻しました。");});
   window.addEventListener("beforeunload",cancelScheduled);
 
   api("/api/vst3/status").then(data=>{show(data.native_host_available?"VST3ネイティブホストを利用できます。「VST3を検索」を押してください。":"VST3を使う場合は build_vst3_host.cmd を一度実行してください。");}).catch(()=>show("VST3状態を確認できませんでした。"));
