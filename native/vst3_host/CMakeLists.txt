@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(nlss_vst3_host VERSION 0.7.0 LANGUAGES C CXX)
+project(nlss_vst3_host VERSION 0.7.2 LANGUAGES C CXX)
 
 include(FetchContent)
 
