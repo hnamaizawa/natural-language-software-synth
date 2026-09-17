@@ -9,6 +9,7 @@
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include "pluginterfaces/vst/ivstcomponent.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
+#include "pluginterfaces/vst/ivstspeaker.h"
 #include "pluginterfaces/vst/vsttypes.h"
 
 #define MINIAUDIO_IMPLEMENTATION
@@ -17,6 +18,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <iostream>
 #include <memory>
@@ -37,6 +39,7 @@ using namespace Steinberg::Vst;
 constexpr uint32_t kChannels = 2;
 constexpr uint32_t kBlockSize = 256;
 constexpr uint32_t kPreferredSampleRate = 48000;
+constexpr double kTwoPi = 6.283185307179586476925286766559;
 
 std::string jsonEscape (const std::string& value)
 {
@@ -142,6 +145,7 @@ public:
     {
         std::lock_guard<std::mutex> stateLock (stateMutex_);
         unloadUnlocked ();
+        resetDiagnostics ();
 
         module_ = VST3::Hosting::Module::create (path, error);
         if (!module_)
@@ -189,13 +193,58 @@ public:
             unloadUnlocked ();
             return false;
         }
+        if (processor_->canProcessSampleSize (kSample32) != kResultTrue)
+        {
+            error = "This VST3 does not support 32-bit realtime audio processing.";
+            unloadUnlocked ();
+            return false;
+        }
 
-        for (int32 i = 0; i < component_->getBusCount (kAudio, kOutput); ++i)
-            component_->activateBus (kAudio, kOutput, i, true);
-        for (int32 i = 0; i < component_->getBusCount (kAudio, kInput); ++i)
-            component_->activateBus (kAudio, kInput, i, true);
-        for (int32 i = 0; i < component_->getBusCount (kEvent, kInput); ++i)
-            component_->activateBus (kEvent, kInput, i, true);
+        configureBusArrangements ();
+        mainOutputBus_ = chooseBus (kAudio, kOutput, true);
+        mainEventInputBus_ = chooseBus (kEvent, kInput, true);
+        activateBuses (kAudio, kOutput, mainOutputBus_);
+        activateBuses (kAudio, kInput, -1);
+        activateBuses (kEvent, kInput, mainEventInputBus_);
+
+        if (mainOutputBus_ < 0)
+        {
+            error = "The VST3 exposes no usable audio output bus.";
+            unloadUnlocked ();
+            return false;
+        }
+        if (mainEventInputBus_ < 0)
+        {
+            error = "The VST3 exposes no event input bus for notes.";
+            unloadUnlocked ();
+            return false;
+        }
+
+        processData_.unprepare ();
+        if (!processData_.prepare (*component_, static_cast<int32> (kBlockSize), kSample32))
+        {
+            error = "Could not allocate VST3 process buffers.";
+            unloadUnlocked ();
+            return false;
+        }
+        if (mainOutputBus_ >= processData_.numOutputs || !processData_.outputs ||
+            processData_.outputs[mainOutputBus_].numChannels <= 0)
+        {
+            error = "The active VST3 audio output bus has no channels.";
+            unloadUnlocked ();
+            return false;
+        }
+
+        processData_.inputEvents = &events_;
+        processData_.inputParameterChanges = &parameterChanges_;
+        processData_.processContext = &processContext_;
+        processContext_ = {};
+        processContext_.sampleRate = static_cast<SampleRate> (sampleRate_);
+        processContext_.tempo = 120.0;
+        processContext_.timeSigNumerator = 4;
+        processContext_.timeSigDenominator = 4;
+        processContext_.state = ProcessContext::kPlaying | ProcessContext::kTempoValid |
+                                ProcessContext::kTimeSigValid;
 
         ProcessSetup setup {};
         setup.processMode = kRealtime;
@@ -208,29 +257,19 @@ public:
             unloadUnlocked ();
             return false;
         }
-        if (component_->setActive (true) != kResultOk || processor_->setProcessing (true) != kResultOk)
+        if (component_->setActive (true) != kResultOk)
         {
-            error = "VST3 activation failed.";
+            error = "VST3 component activation failed.";
             unloadUnlocked ();
             return false;
         }
-
-        processData_.unprepare ();
-        if (!processData_.prepare (*component_, static_cast<int32> (kBlockSize), kSample32))
+        if (processor_->setProcessing (true) != kResultOk)
         {
-            error = "Could not allocate VST3 process buffers.";
+            component_->setActive (false);
+            error = "VST3 processing activation failed.";
             unloadUnlocked ();
             return false;
         }
-        processData_.inputEvents = &events_;
-        processData_.inputParameterChanges = &parameterChanges_;
-        processData_.processContext = &processContext_;
-        processContext_ = {};
-        processContext_.sampleRate = static_cast<SampleRate> (sampleRate_);
-        processContext_.tempo = 120.0;
-        processContext_.timeSigNumerator = 4;
-        processContext_.timeSigDenominator = 4;
-        processContext_.state = ProcessContext::kTempoValid | ProcessContext::kTimeSigValid;
 
         pluginName_ = chosen.name ();
         pluginSubcategory_ = chosen.subCategoriesString ();
@@ -249,6 +288,10 @@ public:
     {
         pitch = std::max (0, std::min (127, pitch));
         velocity = std::max (0.0f, std::min (1.0f, velocity));
+        if (on)
+            noteOnQueued_.fetch_add (1);
+        else
+            noteOffQueued_.fetch_add (1);
         std::lock_guard<std::mutex> lock (queueMutex_);
         pendingNotes_.push_back ({on, pitch, velocity});
         if (pendingNotes_.size () > 1024)
@@ -268,6 +311,11 @@ public:
         return true;
     }
 
+    void startTestTone ()
+    {
+        testToneFramesRemaining_.store (static_cast<int64_t> (sampleRate_ / 2));
+    }
+
     std::string pluginJson () const
     {
         std::lock_guard<std::mutex> lock (stateMutex_);
@@ -277,6 +325,10 @@ public:
             << ",\"subcategory\":\"" << jsonEscape (pluginSubcategory_) << "\""
             << ",\"path\":\"" << jsonEscape (pluginPath_) << "\""
             << ",\"sample_rate\":" << sampleRate_
+            << ",\"main_output_bus\":" << mainOutputBus_
+            << ",\"main_output_channels\":" << mainOutputChannelsUnlocked ()
+            << ",\"main_event_input_bus\":" << mainEventInputBus_
+            << ",\"bus_arrangement_accepted\":" << (busArrangementAccepted_ ? "true" : "false")
             << ",\"parameter_count\":" << (controller_ ? controller_->getParameterCount () : 0) << "}";
         return out.str ();
     }
@@ -314,6 +366,34 @@ public:
         return out.str ();
     }
 
+    std::string diagnosticsJson () const
+    {
+        std::lock_guard<std::mutex> lock (stateMutex_);
+        std::ostringstream out;
+        out << "{\"ok\":true"
+            << ",\"audio_started\":" << (audioStarted_ ? "true" : "false")
+            << ",\"loaded\":" << (loaded_.load () ? "true" : "false")
+            << ",\"sample_rate\":" << sampleRate_
+            << ",\"audio_output_buses\":" << (component_ ? component_->getBusCount (kAudio, kOutput) : 0)
+            << ",\"event_input_buses\":" << (component_ ? component_->getBusCount (kEvent, kInput) : 0)
+            << ",\"main_output_bus\":" << mainOutputBus_
+            << ",\"main_output_channels\":" << mainOutputChannelsUnlocked ()
+            << ",\"main_event_input_bus\":" << mainEventInputBus_
+            << ",\"bus_arrangement_accepted\":" << (busArrangementAccepted_ ? "true" : "false")
+            << ",\"note_on_queued\":" << noteOnQueued_.load ()
+            << ",\"note_off_queued\":" << noteOffQueued_.load ()
+            << ",\"events_delivered\":" << eventsDelivered_.load ()
+            << ",\"event_add_failures\":" << eventAddFailures_.load ()
+            << ",\"process_calls\":" << processCalls_.load ()
+            << ",\"process_failures\":" << processFailures_.load ()
+            << ",\"last_process_result\":" << lastProcessResult_.load ()
+            << ",\"last_output_peak\":" << lastOutputPeak_.load ()
+            << ",\"max_output_peak\":" << maxOutputPeak_.load ()
+            << ",\"test_tone_active\":" << (testToneFramesRemaining_.load () > 0 ? "true" : "false")
+            << "}";
+        return out.str ();
+    }
+
 private:
     static void dataCallback (ma_device* device, void* output, const void*, ma_uint32 frameCount)
     {
@@ -321,31 +401,125 @@ private:
         self->render (static_cast<float*> (output), frameCount);
     }
 
+    static SpeakerArrangement fallbackArrangement (int32 channels)
+    {
+        if (channels == 1)
+            return SpeakerArr::kMono;
+        if (channels == 2)
+            return SpeakerArr::kStereo;
+        return 0;
+    }
+
+    void configureBusArrangements ()
+    {
+        const int32 inputCount = component_->getBusCount (kAudio, kInput);
+        const int32 outputCount = component_->getBusCount (kAudio, kOutput);
+        std::vector<SpeakerArrangement> inputs (static_cast<size_t> (std::max<int32> (0, inputCount)), 0);
+        std::vector<SpeakerArrangement> outputs (static_cast<size_t> (std::max<int32> (0, outputCount)), 0);
+        bool complete = true;
+
+        auto resolve = [this, &complete] (BusDirection dir, int32 index, SpeakerArrangement& arrangement) {
+            if (processor_->getBusArrangement (dir, index, arrangement) == kResultTrue &&
+                SpeakerArr::getChannelCount (arrangement) > 0)
+                return;
+            BusInfo info {};
+            if (component_->getBusInfo (kAudio, dir, index, info) != kResultTrue)
+            {
+                complete = false;
+                return;
+            }
+            arrangement = fallbackArrangement (info.channelCount);
+            if (arrangement == 0 && info.channelCount > 0)
+                complete = false;
+        };
+
+        for (int32 i = 0; i < inputCount; ++i)
+            resolve (kInput, i, inputs[static_cast<size_t> (i)]);
+        for (int32 i = 0; i < outputCount; ++i)
+            resolve (kOutput, i, outputs[static_cast<size_t> (i)]);
+
+        busArrangementAccepted_ = false;
+        if (complete && outputCount > 0)
+        {
+            const auto result = processor_->setBusArrangements (
+                inputs.empty () ? nullptr : inputs.data (), inputCount,
+                outputs.empty () ? nullptr : outputs.data (), outputCount);
+            busArrangementAccepted_ = result == kResultTrue;
+        }
+    }
+
+    int32 chooseBus (MediaType mediaType, BusDirection direction, bool forceFirstMain) const
+    {
+        const int32 count = component_->getBusCount (mediaType, direction);
+        int32 firstMain = -1;
+        int32 firstDefault = -1;
+        for (int32 i = 0; i < count; ++i)
+        {
+            BusInfo info {};
+            if (component_->getBusInfo (mediaType, direction, i, info) != kResultTrue)
+                continue;
+            if (firstDefault < 0 && (info.flags & BusInfo::kDefaultActive))
+                firstDefault = i;
+            if (firstMain < 0 && info.busType == kMain)
+                firstMain = i;
+        }
+        if (forceFirstMain && firstMain >= 0)
+            return firstMain;
+        if (firstDefault >= 0)
+            return firstDefault;
+        if (firstMain >= 0)
+            return firstMain;
+        return count > 0 ? 0 : -1;
+    }
+
+    void activateBuses (MediaType mediaType, BusDirection direction, int32 forcedBus)
+    {
+        const int32 count = component_->getBusCount (mediaType, direction);
+        for (int32 i = 0; i < count; ++i)
+        {
+            BusInfo info {};
+            bool active = i == forcedBus;
+            if (component_->getBusInfo (mediaType, direction, i, info) == kResultTrue)
+                active = active || ((info.flags & BusInfo::kDefaultActive) != 0);
+            component_->activateBus (mediaType, direction, i, active);
+        }
+    }
+
     void render (float* output, ma_uint32 frameCount)
     {
         std::fill (output, output + static_cast<size_t> (frameCount) * kChannels, 0.0f);
-        if (!loaded_.load ())
-            return;
 
-        std::lock_guard<std::mutex> stateLock (stateMutex_);
-        if (!processor_ || !component_)
-            return;
-
-        ma_uint32 rendered = 0;
-        while (rendered < frameCount)
+        if (loaded_.load ())
         {
-            const int32 chunk = static_cast<int32> (std::min<ma_uint32> (kBlockSize, frameCount - rendered));
-            events_.clear ();
-            parameterChanges_.clearQueue ();
-            drainPendingChanges ();
-            clearProcessInputs (chunk);
-            processData_.numSamples = chunk;
-            processContext_.projectTimeSamples += chunk;
+            std::lock_guard<std::mutex> stateLock (stateMutex_);
+            if (processor_ && component_)
+            {
+                ma_uint32 rendered = 0;
+                while (rendered < frameCount)
+                {
+                    const int32 chunk = static_cast<int32> (std::min<ma_uint32> (kBlockSize, frameCount - rendered));
+                    events_.clear ();
+                    parameterChanges_.clearQueue ();
+                    drainPendingChanges ();
+                    clearProcessInputs (chunk);
+                    clearProcessOutputs (chunk);
+                    processData_.numSamples = chunk;
+                    processContext_.projectTimeSamples = processedSamples_;
 
-            if (processor_->process (processData_) == kResultOk)
-                copyOutputs (output + static_cast<size_t> (rendered) * kChannels, chunk);
-            rendered += static_cast<ma_uint32> (chunk);
+                    const auto result = processor_->process (processData_);
+                    processCalls_.fetch_add (1);
+                    lastProcessResult_.store (static_cast<int32_t> (result));
+                    if (result == kResultOk)
+                        copyOutputs (output + static_cast<size_t> (rendered) * kChannels, chunk);
+                    else
+                        processFailures_.fetch_add (1);
+                    processedSamples_ += chunk;
+                    rendered += static_cast<ma_uint32> (chunk);
+                }
+            }
         }
+
+        addTestTone (output, frameCount);
     }
 
     void drainPendingChanges ()
@@ -360,9 +534,10 @@ private:
         for (const auto& note : notes)
         {
             Event event {};
-            event.busIndex = 0;
+            event.busIndex = mainEventInputBus_ >= 0 ? mainEventInputBus_ : 0;
             event.sampleOffset = 0;
             event.ppqPosition = 0.0;
+            event.flags = Event::kIsLive;
             if (note.on)
             {
                 event.type = Event::kNoteOnEvent;
@@ -382,7 +557,10 @@ private:
                 event.noteOff.velocity = note.velocity;
                 event.noteOff.noteId = -1;
             }
-            events_.addEvent (event);
+            if (events_.addEvent (event) == kResultOk)
+                eventsDelivered_.fetch_add (1);
+            else
+                eventAddFailures_.fetch_add (1);
         }
         for (const auto& param : params)
         {
@@ -410,11 +588,34 @@ private:
         }
     }
 
+    void clearProcessOutputs (int32 frames)
+    {
+        for (int32 bus = 0; bus < processData_.numOutputs; ++bus)
+        {
+            auto& b = processData_.outputs[bus];
+            for (int32 channel = 0; channel < b.numChannels; ++channel)
+            {
+                if (b.channelBuffers32 && b.channelBuffers32[channel])
+                    std::fill (b.channelBuffers32[channel], b.channelBuffers32[channel] + frames, 0.0f);
+            }
+            b.silenceFlags = 0;
+        }
+    }
+
+    void updateMaxPeak (float peak)
+    {
+        auto current = maxOutputPeak_.load ();
+        while (peak > current && !maxOutputPeak_.compare_exchange_weak (current, peak))
+        {
+        }
+    }
+
     void copyOutputs (float* destination, int32 frames)
     {
-        if (processData_.numOutputs <= 0 || !processData_.outputs)
+        if (mainOutputBus_ < 0 || mainOutputBus_ >= processData_.numOutputs || !processData_.outputs)
             return;
-        auto& bus = processData_.outputs[0];
+        auto& bus = processData_.outputs[mainOutputBus_];
+        float peak = 0.0f;
         for (int32 frame = 0; frame < frames; ++frame)
         {
             float left = 0.0f;
@@ -427,7 +628,50 @@ private:
                 right = left;
             destination[static_cast<size_t> (frame) * 2] = left;
             destination[static_cast<size_t> (frame) * 2 + 1] = right;
+            peak = std::max (peak, std::max (std::abs (left), std::abs (right)));
         }
+        lastOutputPeak_.store (peak);
+        updateMaxPeak (peak);
+    }
+
+    void addTestTone (float* output, ma_uint32 frameCount)
+    {
+        auto remaining = testToneFramesRemaining_.load ();
+        if (remaining <= 0)
+            return;
+        const auto frames = static_cast<ma_uint32> (std::min<int64_t> (remaining, frameCount));
+        const double phaseStep = kTwoPi * 440.0 / static_cast<double> (sampleRate_);
+        for (ma_uint32 frame = 0; frame < frames; ++frame)
+        {
+            const float sample = static_cast<float> (std::sin (testTonePhase_) * 0.12);
+            testTonePhase_ += phaseStep;
+            if (testTonePhase_ >= kTwoPi)
+                testTonePhase_ -= kTwoPi;
+            output[static_cast<size_t> (frame) * 2] += sample;
+            output[static_cast<size_t> (frame) * 2 + 1] += sample;
+        }
+        testToneFramesRemaining_.fetch_sub (static_cast<int64_t> (frames));
+    }
+
+    int32 mainOutputChannelsUnlocked () const
+    {
+        if (mainOutputBus_ < 0 || mainOutputBus_ >= processData_.numOutputs || !processData_.outputs)
+            return 0;
+        return processData_.outputs[mainOutputBus_].numChannels;
+    }
+
+    void resetDiagnostics ()
+    {
+        noteOnQueued_.store (0);
+        noteOffQueued_.store (0);
+        eventsDelivered_.store (0);
+        eventAddFailures_.store (0);
+        processCalls_.store (0);
+        processFailures_.store (0);
+        lastProcessResult_.store (0);
+        lastOutputPeak_.store (0.0f);
+        maxOutputPeak_.store (0.0f);
+        processedSamples_ = 0;
     }
 
     void unloadUnlocked ()
@@ -448,6 +692,9 @@ private:
         component_ = nullptr;
         provider_ = nullptr;
         module_.reset ();
+        mainOutputBus_ = -1;
+        mainEventInputBus_ = -1;
+        busArrangementAccepted_ = false;
         pluginName_.clear ();
         pluginSubcategory_.clear ();
         pluginPath_.clear ();
@@ -473,6 +720,23 @@ private:
     ParameterChanges parameterChanges_;
     ProcessContext processContext_ {};
 
+    int32 mainOutputBus_ {-1};
+    int32 mainEventInputBus_ {-1};
+    bool busArrangementAccepted_ {false};
+    int64 processedSamples_ {0};
+
+    std::atomic<uint64_t> noteOnQueued_ {0};
+    std::atomic<uint64_t> noteOffQueued_ {0};
+    std::atomic<uint64_t> eventsDelivered_ {0};
+    std::atomic<uint64_t> eventAddFailures_ {0};
+    std::atomic<uint64_t> processCalls_ {0};
+    std::atomic<uint64_t> processFailures_ {0};
+    std::atomic<int32_t> lastProcessResult_ {0};
+    std::atomic<float> lastOutputPeak_ {0.0f};
+    std::atomic<float> maxOutputPeak_ {0.0f};
+    std::atomic<int64_t> testToneFramesRemaining_ {0};
+    double testTonePhase_ {0.0};
+
     std::string pluginName_;
     std::string pluginSubcategory_;
     std::string pluginPath_;
@@ -494,7 +758,7 @@ int main ()
         return 2;
     }
 
-    std::cout << "{\"ok\":true,\"ready\":true,\"protocol\":1}" << std::endl;
+    std::cout << "{\"ok\":true,\"ready\":true,\"protocol\":2}" << std::endl;
     std::string line;
     while (std::getline (std::cin, line))
     {
@@ -515,6 +779,13 @@ int main ()
             }
             else if (parts[0] == "STATUS")
                 std::cout << host.pluginJson () << std::endl;
+            else if (parts[0] == "DIAGNOSTICS")
+                std::cout << host.diagnosticsJson () << std::endl;
+            else if (parts[0] == "TEST_TONE")
+            {
+                host.startTestTone ();
+                std::cout << "{\"ok\":true,\"test_tone\":true}" << std::endl;
+            }
             else if (parts[0] == "PARAMS")
                 std::cout << host.parametersJson () << std::endl;
             else if (parts[0] == "PARAM" && parts.size () >= 3)
