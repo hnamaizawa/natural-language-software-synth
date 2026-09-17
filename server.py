@@ -268,6 +268,12 @@ class Vst3Bridge:
         value = max(0.0, min(1.0, float(value)))
         return self._command(f"PARAM\t{parameter_id}\t{value:.8f}")
 
+    def diagnostics(self) -> dict:
+        return self._command("DIAGNOSTICS")
+
+    def test_tone(self) -> dict:
+        return self._command("TEST_TONE")
+
     def unload(self) -> dict:
         with self._lock:
             if not self._process or self._process.poll() is not None:
@@ -316,7 +322,7 @@ atexit.register(VST3.shutdown)
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "NaturalLanguageSynth/0.7.1"
+    server_version = "NaturalLanguageSynth/0.7.2"
 
     def _json(self, payload, status=HTTPStatus.OK):
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
@@ -342,11 +348,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
-            return self._json({"ok": True, "version": "0.7.1"})
+            return self._json({"ok": True, "version": "0.7.2"})
         if parsed.path == "/api/vst3/status":
             return self._json(VST3.status())
         if parsed.path == "/api/vst3/plugins":
             return self._json(VST3.plugins_response())
+        if parsed.path == "/api/vst3/diagnostics":
+            return self._json(VST3.diagnostics())
 
         rel = unquote(parsed.path.lstrip("/")) or "index.html"
         target = (WEB / rel).resolve()
@@ -394,6 +402,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(VST3.parameters())
             if parsed.path == "/api/vst3/parameter":
                 return self._json(VST3.set_parameter(int(payload.get("id", 0)), float(payload.get("value", 0.0))))
+            if parsed.path == "/api/vst3/test-tone":
+                return self._json(VST3.test_tone())
             if parsed.path == "/api/vst3/unload":
                 return self._json(VST3.unload())
         except (TypeError, ValueError) as exc:
@@ -406,7 +416,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    print("Natural Language Software Synth v0.7.1")
+    print("Natural Language Software Synth v0.7.2")
     print(f"Open http://{HOST}:{PORT}")
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
 
