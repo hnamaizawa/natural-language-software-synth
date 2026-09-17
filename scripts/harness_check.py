@@ -67,12 +67,16 @@ def main() -> None:
         "vst3_parameter_values_must_be_normalized_and_bounded",
         "vst3_native_host_must_run_as_separate_process",
         "vst3_dependencies_must_be_pinned",
+        "vst3_bus_configuration_must_complete_before_processing_activation",
+        "vst3_live_note_events_must_use_active_event_bus",
+        "vst3_audio_output_must_use_active_main_output_bus",
+        "vst3_render_failures_and_output_peak_must_be_observable",
         "eval_and_dynamic_script_injection_forbidden",
     ]
     require_tokens(blueprint, invariants, "blueprint invariant")
-    if "blueprint_version: 0.7.0" not in blueprint:
-        fail("blueprint version is not 0.7.0")
-    ok("v0.7.0 non-negotiable invariants")
+    if "blueprint_version: 0.7.2" not in blueprint:
+        fail("blueprint version is not 0.7.2")
+    ok("v0.7.2 non-negotiable invariants")
 
     patch_py = (ROOT / "src/ai_synth/patch.py").read_text(encoding="utf-8")
     require_tokens(
@@ -157,7 +161,10 @@ def main() -> None:
     require_tokens(output_js, ["LEVEL_TRIMS", "createDynamicsCompressor()", "clamp(trim,.82,1.22)"], "output normalization")
     ok("existing routing, strum, quartal jazz, and output normalization retained")
 
-    vst_controls = ["vst3ScanBtn", "vst3PluginSelect", "vst3LoadBtn", "vst3UnloadBtn", "vst3RouteEnabled", "vst3Parameters", "vst3Status"]
+    vst_controls = [
+        "vst3ScanBtn", "vst3PluginSelect", "vst3LoadBtn", "vst3UnloadBtn", "vst3TestToneBtn", "vst3DiagBtn",
+        "vst3RouteEnabled", "vst3Parameters", "vst3Status",
+    ]
     for control in vst_controls:
         if f'id="{control}"' not in html:
             fail(f"VST3 UI control missing: {control}")
@@ -167,14 +174,15 @@ def main() -> None:
         vst3_js,
         [
             'fetch(path,options)', '"/api/vst3/scan"', '"/api/vst3/load"', '"/api/vst3/note-on"', '"/api/vst3/note-off"',
-            '"/api/vst3/parameters"', '"/api/vst3/parameter"', "const baseNoteOn=engine.noteOn.bind(engine)",
-            "if(route.checked&&loaded)", "scheduleNative", "whenSeconds",
+            '"/api/vst3/parameters"', '"/api/vst3/parameter"', '"/api/vst3/test-tone"', '"/api/vst3/diagnostics"',
+            "const baseNoteOn=engine.noteOn.bind(engine)", "if(route.checked&&loaded)", "scheduleNative", "whenSeconds",
+            "max_output_peak", "process_failures", "note_on_queued",
         ],
         "browser VST3 routing",
     )
     if ".vst3" in vst3_js.lower() or "WebAssembly" in vst3_js:
         fail("browser runtime must not load VST3 binaries directly")
-    ok("VST3 browser adapter reuses the final note event boundary")
+    ok("VST3 browser adapter reuses the final note event boundary and exposes diagnostics")
 
     require_tokens(
         server_py,
@@ -184,6 +192,7 @@ def main() -> None:
             'subprocess.Popen(', 'creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)',
             "midi_note = max(0, min(127", "velocity = max(0.0, min(1.0", "value = max(0.0, min(1.0",
             '"/api/vst3/scan"', '"/api/vst3/load"', '"/api/vst3/note-on"', '"/api/vst3/parameter"',
+            '"/api/vst3/diagnostics"', '"/api/vst3/test-tone"', "DIAGNOSTICS", "TEST_TONE",
         ],
         "Python VST3 bridge",
     )
@@ -194,20 +203,25 @@ def main() -> None:
         [
             "3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96",
             "9634bedb5b5a2ca38c1ee7108a9358a4e233f14d",
-            "sdk_hosting", "cxx_std_17",
+            "sdk_hosting", "cxx_std_17", "VERSION 0.7.2",
         ],
         "pinned native dependencies",
     )
     require_tokens(
         native_cpp,
         [
-            "VST3::Hosting::Module::create", "PlugProvider", "IAudioProcessor", "setupProcessing", "setProcessing (true)",
-            "Event::kNoteOnEvent", "Event::kNoteOffEvent", "ParameterChanges", "getParameterCount", "setParamNormalized",
-            "ma_device_init", "ma_device_start", "NOTE_ON", "NOTE_OFF", "PARAMS", "LOAD",
+            "VST3::Hosting::Module::create", "PlugProvider", "IAudioProcessor", "configureBusArrangements ();",
+            "processor_->setBusArrangements", "chooseBus (kAudio, kOutput, true)", "chooseBus (kEvent, kInput, true)",
+            "processData_.prepare", "setupProcessing", "setActive (true)", "setProcessing (true)", "Event::kIsLive",
+            "event.busIndex = mainEventInputBus_", "Event::kNoteOnEvent", "Event::kNoteOffEvent", "ParameterChanges",
+            "mainOutputBus_", "clearProcessOutputs", "maxOutputPeak_", "processFailures_", "diagnosticsJson",
+            "startTestTone", "ma_device_init", "ma_device_start", "NOTE_ON", "NOTE_OFF", "PARAMS", "LOAD",
         ],
         "native VST3 host",
     )
-    ok("separate native VST3 process source and pinned SDK/audio backend")
+    if not (native_cpp.index("processData_.prepare") < native_cpp.index("processor_->setupProcessing") < native_cpp.index("component_->setActive (true)") < native_cpp.index("processor_->setProcessing (true)")):
+        fail("VST3 bus/buffer setup must complete before realtime activation")
+    ok("VST3 realtime bus routing, live events, audio diagnostics, and native output test")
 
     css = (ROOT / "web/performance_editor.css").read_text(encoding="utf-8")
     require_tokens(css, [".humming-score", ".vst3-parameters", ".vst3-param", ".toggle-label"], "v0.7 UI styling")
