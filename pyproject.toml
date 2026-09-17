@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "natural-language-software-synth"
-version = "0.7.1"
-description = "Local-first multi-engine software synthesizer with automatic humming key/rhythm correction, SVG score rendering, Windows VST3 hosting, PCM instruments, FM EP, custom performances, and graphical patch editing."
+version = "0.7.2"
+description = "Local-first multi-engine software synthesizer with automatic humming correction, SVG score rendering, diagnosable Windows VST3 hosting, PCM instruments, FM EP, custom performances, and graphical patch editing."
 requires-python = ">=3.11"
 dependencies = []
 
