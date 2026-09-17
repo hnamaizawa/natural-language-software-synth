@@ -1,12 +1,12 @@
 schema_version: '1.0'
 blueprint_name: natural-language-software-synth
-blueprint_version: 0.7.0
+blueprint_version: 0.7.2
 canonical_project: natural-language-software-synth
 purpose: >-
   Generate and play local-first multi-engine instrument patches from natural-language
   descriptions. Preserve all existing synth/sampler/drum/FM, performance, editing, output,
-  microphone and safety contracts while adding automatic humming key/timing correction,
-  staff notation, and a separately built Windows native VST3 instrument host.
+  microphone and safety contracts while supporting automatic humming key/timing correction,
+  staff notation, and a diagnosable Windows native VST3 instrument host.
 required_capabilities:
 - natural_language_patch_generation
 - deterministic_offline_prompt_fallback
@@ -81,6 +81,9 @@ required_capabilities:
 - vst3_note_event_routing
 - vst3_parameter_enumeration_and_editing
 - vst3_localhost_bridge
+- vst3_bus_arrangement_negotiation
+- vst3_realtime_audio_diagnostics
+- vst3_native_audio_test_tone
 - local_windows_setup
 - regression_test_harness
 non_negotiable_invariants:
@@ -134,6 +137,10 @@ non_negotiable_invariants:
 - vst3_parameter_values_must_be_normalized_and_bounded
 - vst3_native_host_must_run_as_separate_process
 - vst3_dependencies_must_be_pinned
+- vst3_bus_configuration_must_complete_before_processing_activation
+- vst3_live_note_events_must_use_active_event_bus
+- vst3_audio_output_must_use_active_main_output_bus
+- vst3_render_failures_and_output_peak_must_be_observable
 - eval_and_dynamic_script_injection_forbidden
 required_files:
 - AGENTS.md
@@ -200,6 +207,8 @@ ui_requirements:
   vst3_select_and_load: true
   vst3_route_toggle: true
   vst3_parameter_editor: true
+  vst3_audio_output_test: true
+  vst3_diagnostics: true
   sample_performance: true
   instrument_model_specific_sample_performance: true
   expanded_sample_performance_genres: true
@@ -318,6 +327,12 @@ vst3_contract:
   parameter_normalized_min: 0.0
   parameter_normalized_max: 1.0
   maximum_parameter_controls_in_browser: 160
+  processing_order: [configure_bus_arrangements, select_and_activate_main_buses, prepare_process_buffers, setup_processing, set_active, set_processing]
+  live_note_event_flag: kIsLive
+  output_bus: active_main_output_bus
+  event_input_bus: active_main_event_input_bus
+  diagnostics: [note_on_queued, note_off_queued, events_delivered, process_calls, process_failures, last_output_peak, max_output_peak]
+  native_audio_test_tone_hz: 440
   vst3_sdk:
     repository: steinbergmedia/vst3sdk
     version: 3.8.1

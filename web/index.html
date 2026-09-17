@@ -11,7 +11,7 @@
   <main>
     <header>
       <div>
-        <p class="eyebrow">v0.7.1 · humming assist · VST3 host</p>
+        <p class="eyebrow">v0.7.2 · humming assist · VST3 host</p>
         <h1>Natural Language Software Synth</h1>
         <p class="lead">自然言語で音色を作り、鼻歌はキー／リズムを自動補正してMIDIライクなデータと楽譜へ変換。Windowsでは一般的なVST3 Instrumentも利用できます。</p>
       </div>
@@ -82,8 +82,9 @@
         <details class="vst3-host" open>
           <summary>🎛 VST3 Instrument</summary>
           <div class="vst3-grid">
-            <p class="humming-help custom-wide">WindowsのVST3をネイティブホストで読み込みます。初回のみ <code>build_vst3_host.cmd</code> でホストをビルドしてください。</p>
+            <p class="humming-help custom-wide">WindowsのVST3をネイティブホストで読み込みます。初回またはNative Host更新後は <code>build_vst3_host.cmd</code> でホストをビルドしてください。</p>
             <div class="custom-wide vst3-actions"><button id="vst3ScanBtn">VST3を検索</button><select id="vst3PluginSelect"><option value="">VST3を検索してください</option></select><button id="vst3LoadBtn" class="primary" disabled>ロード</button><button id="vst3UnloadBtn" disabled>解除</button></div>
+            <div class="custom-wide vst3-actions"><button id="vst3TestToneBtn">PC音声出力テスト</button><button id="vst3DiagBtn">VST3診断</button></div>
             <label class="toggle-label custom-wide"><input id="vst3RouteEnabled" type="checkbox" disabled /> 鍵盤・MIDI・サンプル演奏・鼻歌試聴をVST3へ送る（Web Audio音源の代わりに使用）</label>
             <div class="custom-wide"><span class="kicker">VST3 PARAMETERS</span><div id="vst3Parameters" class="vst3-parameters"></div></div>
             <p id="vst3Status" class="humming-status custom-wide">VST3ホスト未確認。</p>

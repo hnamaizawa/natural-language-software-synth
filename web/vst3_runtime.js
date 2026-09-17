@@ -5,6 +5,7 @@
 (() => {
   const scanBtn=document.getElementById("vst3ScanBtn"),select=document.getElementById("vst3PluginSelect");
   const loadBtn=document.getElementById("vst3LoadBtn"),unloadBtn=document.getElementById("vst3UnloadBtn");
+  const testToneBtn=document.getElementById("vst3TestToneBtn"),diagBtn=document.getElementById("vst3DiagBtn");
   const route=document.getElementById("vst3RouteEnabled"),params=document.getElementById("vst3Parameters"),status=document.getElementById("vst3Status");
   if(!scanBtn||!select||!loadBtn||!route||!status)return;
 
@@ -19,7 +20,7 @@
   function cancelScheduled(){for(const id of scheduledTimers)clearTimeout(id);scheduledTimers.clear();}
   function scheduleNative(path,payload,whenSeconds=0){
     const delay=Math.max(0,Number(whenSeconds)||0)*1000;
-    const fire=()=>{api(path,payload).catch(err=>{show(`VST3イベント送信エラー: ${err.message}`);route.checked=false;});};
+    const fire=()=>{api(path,payload).then(data=>{if(!data.ok)throw new Error(data.error||"VST3イベント送信失敗");}).catch(err=>{show(`VST3イベント送信エラー: ${err.message}`);route.checked=false;});};
     if(delay<2){fire();return;}const id=setTimeout(()=>{scheduledTimers.delete(id);fire();},delay);scheduledTimers.add(id);
   }
 
@@ -44,7 +45,13 @@
   }
 
   async function load(){if(!select.value)return;show("VST3をロード中…");loadBtn.disabled=true;route.checked=false;
-    try{const data=await api("/api/vst3/load",{plugin_id:select.value});if(!data.ok)throw new Error(data.error||"ロード失敗");loaded=true;route.disabled=false;unloadBtn.disabled=false;show(`VST3: ${data.name||select.selectedOptions[0]?.text||"loaded"} をロードしました。`);await refreshParameters();}
+    try{
+      const data=await api("/api/vst3/load",{plugin_id:select.value});if(!data.ok)throw new Error(data.error||"ロード失敗");
+      loaded=true;route.disabled=false;unloadBtn.disabled=false;
+      const channels=Number(data.main_output_channels||0),eventBus=Number(data.main_event_input_bus??-1);
+      show(`VST3: ${data.name||select.selectedOptions[0]?.text||"loaded"} をロードしました。出力 ${channels}ch / Event Bus ${eventBus}。`);
+      await refreshParameters();
+    }
     catch(err){loaded=false;route.disabled=true;show(`VST3ロードエラー: ${err.message}`);}finally{loadBtn.disabled=!select.value;}}
   async function unload(){cancelScheduled();route.checked=false;route.disabled=true;try{await api("/api/vst3/unload",{});}catch(_){}loaded=false;unloadBtn.disabled=true;params.innerHTML="";show("VST3を解除しました。");}
 
@@ -55,10 +62,28 @@
     if((data.parameters||[]).length>visible.length){const note=document.createElement("p");note.className="param-help";note.textContent=`先頭${visible.length}項目を表示（全${data.parameters.length}項目）。`;params.append(note);}
   }
 
+  async function testTone(){
+    show("PC音声出力テスト中… 440Hzが約0.5秒鳴ればNative Host→Windows音声出力は正常です。");
+    try{const data=await api("/api/vst3/test-tone",{});if(!data.ok)throw new Error(data.error||"音声出力テスト失敗");}
+    catch(err){show(`PC音声出力テストエラー: ${err.message}`);}
+  }
+
+  async function diagnostics(){
+    show("VST3診断を取得中…");
+    try{
+      const d=await api("/api/vst3/diagnostics");if(!d.ok)throw new Error(d.error||"診断失敗");
+      const peak=Number(d.max_output_peak||0).toFixed(6);
+      const failures=Number(d.process_failures||0);
+      const routeState=route.checked?"ON":"OFF";
+      show(`VST3診断: Route ${routeState} / NoteOn ${d.note_on_queued||0} / Event ${d.events_delivered||0} / process ${d.process_calls||0} (失敗 ${failures}) / peak ${peak} / output ${d.main_output_channels||0}ch / Event Bus ${d.main_event_input_bus??-1}`);
+    }catch(err){show(`VST3診断エラー: ${err.message}`);}
+  }
+
   select.addEventListener("change",()=>{loadBtn.disabled=!select.value;});scanBtn.addEventListener("click",scan);loadBtn.addEventListener("click",load);unloadBtn.addEventListener("click",unload);
-  route.addEventListener("change",()=>show(route.checked?"VST3ルーティング有効: 鍵盤・MIDI・サンプル・鼻歌試聴をVST3へ送ります。":"Web Audio音源へ戻しました。"));
+  if(testToneBtn)testToneBtn.addEventListener("click",testTone);if(diagBtn)diagBtn.addEventListener("click",diagnostics);
+  route.addEventListener("change",()=>show(route.checked?"VST3ルーティング有効: 鍵盤・MIDI・サンプル・鼻歌試聴をVST3へ送ります。音が出ない場合は鍵盤を数回押してから「VST3診断」を実行してください。":"Web Audio音源へ戻しました。"));
   window.addEventListener("beforeunload",cancelScheduled);
 
   api("/api/vst3/status").then(data=>{show(data.native_host_available?"VST3ネイティブホストを利用できます。「VST3を検索」を押してください。":"VST3を使う場合は build_vst3_host.cmd を一度実行してください。");}).catch(()=>show("VST3状態を確認できませんでした。"));
-  window["vst3Router"]={scan,load,unload,refreshParameters,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked};
+  window["vst3Router"]={scan,load,unload,refreshParameters,testTone,diagnostics,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked};
 })();
