@@ -6,6 +6,7 @@
   <title>Natural Language Software Synth</title>
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/performance_editor.css" />
+  <link rel="stylesheet" href="/keyboard_performance.css" />
 </head>
 <body>
   <main>
@@ -84,6 +85,10 @@
           <div class="vst3-grid">
             <p class="humming-help custom-wide">WindowsのVST3をネイティブホストで読み込みます。初回またはNative Host更新後は <code>build_vst3_host.cmd</code> でホストをビルドしてください。</p>
             <div class="custom-wide vst3-actions"><button id="vst3ScanBtn">VST3を検索</button><select id="vst3PluginSelect"><option value="">VST3を検索してください</option></select><button id="vst3LoadBtn" class="primary" disabled>ロード</button><button id="vst3UnloadBtn" disabled>解除</button></div>
+            <div class="custom-wide vst3-program-panel">
+              <div class="vst3-program-copy"><span class="kicker">VST3 PROGRAM / PRESET</span><strong>VST3音色を切り替え</strong><span id="vst3ProgramStatus">VST3をロードすると、公開されているProgram/Presetを表示します。</span></div>
+              <div class="vst3-program-actions"><button id="vst3ProgramPrevBtn" disabled>◀</button><select id="vst3ProgramSelect" disabled><option value="">Program/Presetなし</option></select><button id="vst3ProgramNextBtn" disabled>▶</button></div>
+            </div>
             <div class="custom-wide vst3-actions"><button id="vst3TestToneBtn">PC音声出力テスト</button><button id="vst3DiagBtn">VST3診断</button></div>
             <label class="toggle-label custom-wide"><input id="vst3RouteEnabled" type="checkbox" disabled /> 鍵盤・MIDI・サンプル演奏・鼻歌試聴をVST3へ送る（Web Audio音源の代わりに使用）</label>
             <div class="custom-wide"><span class="kicker">VST3 PARAMETERS</span><div id="vst3Parameters" class="vst3-parameters"></div></div>
@@ -91,7 +96,16 @@
           </div>
         </details>
 
-        <div id="keyboardWrap"><div id="keyboard" class="keyboard" aria-label="piano keyboard"></div><div class="keyboard-help">PCキー: A W S E D F T G Y H U J K / MIDIキーボード対応</div></div>
+        <div id="keyboardWrap" class="keyboard-stage">
+          <div class="keyboard-stage-head"><div><span class="kicker">LIVE KEYBOARD</span><strong>ピアノ鍵盤</strong></div><span class="keyboard-stage-sub">マウス / PCキー / MIDI / VST3 に連動</span></div>
+          <div id="keyboard" class="keyboard" aria-label="piano keyboard"></div>
+          <div class="keyboard-help">PCキー: A=ド(C4) / W=ド♯ / S=レ / E=レ♯ / D=ミ / F=ファ / T=ファ♯ / G=ソ / Y=ソ♯ / H=ラ / U=ラ♯ / J=シ / K=ド(C5) / MIDIキーボード対応</div>
+          <div class="keyboard-recorder">
+            <div class="keyboard-recorder-head"><div class="keyboard-recorder-title"><span class="kicker">RECORDER</span><strong>PCキーボード演奏を録音</strong></div><div class="keyboard-recorder-actions"><button id="keyboardRecordBtn" class="record-button">録音開始</button><button id="keyboardRecordStopBtn" disabled>■ 停止</button><button id="keyboardRecordPlayBtn" disabled>▶ 再生</button><button id="keyboardRecordClearBtn" disabled>クリア</button></div></div>
+            <p id="keyboardRecordStatus" class="keyboard-record-status">PCキー A/W/S/E/D… の演奏をノートイベントとして録音できます。</p>
+            <div id="keyboardRecordingRoll" class="recording-roll empty" aria-label="recorded piano roll"></div>
+          </div>
+        </div>
         <div id="drumKitWrap" hidden><div id="drumKit" class="drum-kit" aria-label="drum kit pads"></div><div class="keyboard-help">A=Kick / S=Snare / D=Closed Hat / F=Open Hat / G/H/J=Toms / K=Crash / L=Ride</div></div>
         <div class="meter-wrap"><span>Output</span><div class="meter"><div id="meterBar"></div></div></div>
       </div>
@@ -99,7 +113,7 @@
       <aside class="panel params-panel"><div class="section-title compact"><div><span class="kicker">PATCH EDITOR</span><h2>音色をグラフィカルに調整</h2></div><button id="resetParamsBtn" class="small-btn">生成値へ戻す</button></div><p class="param-help">スライダーを動かすと即座に現在の音へ反映されます。</p><div id="params" class="params-editor"></div></aside>
     </section>
 
-    <section class="panel future-panel"><span class="kicker">ENGINE CONTRACT</span><h2>Web Audio / 鼻歌 / VST3で同じNote Event境界</h2><p>既存の <code>noteOn / noteOff</code> をVST3ルーターが最終段で包むため、鍵盤、MIDI、サンプル演奏、鼻歌試聴のすべてを同じ演奏イベントとして扱います。</p></section>
+    <section class="panel future-panel"><span class="kicker">ENGINE CONTRACT</span><h2>Web Audio / 鼻歌 / VST3で同じNote Event境界</h2><p>既存の <code>noteOn / noteOff</code> をVST3ルーターが最終段で包むため、鍵盤、PCキー録音、MIDI、サンプル演奏、鼻歌試聴のすべてを同じ演奏イベントとして扱います。</p></section>
   </main>
   <script src="/app.js"></script>
   <script src="/patch_editor_runtime.js"></script>
@@ -109,6 +123,7 @@
   <script src="/performance_library_runtime.js"></script>
   <script src="/output_level_runtime.js"></script>
   <script src="/humming_runtime.js"></script>
+  <script src="/keyboard_performance_runtime.js"></script>
   <script src="/vst3_runtime.js"></script>
 </body>
 </html>
