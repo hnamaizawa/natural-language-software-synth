@@ -19,3 +19,4 @@
 17. Any VST3 change must pass the Windows native-host build job in addition to Python pytest/Harness.
 18. Run `python -m pytest tests/` and `python scripts/harness_check.py` before proposing a PR.
 19. Update CHANGELOG.md and tasks/CURRENT.md with every user-visible change.
+20. Before merging a PR with user-visible changes, confirm README.md documents the new behavior and usage. If it does not, update README.md in the same PR, rerun the required CI checks, and only then merge.
