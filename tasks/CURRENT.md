@@ -1,5 +1,21 @@
 # CURRENT
 
+## Unreleased - Keyboard / VST3 Program / Recording UX
+
+- [x] VST3ルーティングON後にPCキー A/W/S/E/D… が無反応になるフォーカス問題を改善
+- [x] VST3パラメータ操作後もPCキーボード演奏へ戻りやすいようrange controlのフォーカスを解放
+- [x] VST3の離散Program/Preset相当パラメータを検出
+- [x] VST3音色セレクターと前後Programボタンを追加
+- [x] VST3 Program変更は既存のbounded `/api/vst3/parameter` 経路を利用
+- [x] オンスクリーン鍵盤を白鍵／黒鍵の立体表示、ノート名、PCキー表示、発音ハイライトへ改善
+- [x] PCキーボード演奏のノートイベント録音を追加
+- [x] 録音は最大120秒／512ノートに制限
+- [x] 録音データの再生／クリアを追加
+- [x] 録音内容をブラウザ内ピアノロールで可視化
+- [x] 録音再生も既存 `noteOn()` / `noteOff()` 契約を利用し、VST3ルーティングに対応
+- [x] 録音機能は追加AudioContext／音声録音／アップロード／永続化を行わない
+- [x] 回帰テスト追加
+
 ## v0.7.0 Humming Assist + Score + Native VST3 Host
 
 - [x] 鼻歌全体からMajor / Natural Minorのキー／スケールを自動推定
