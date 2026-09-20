@@ -1,5 +1,22 @@
 # CURRENT
 
+## v0.9.1 SOUND DESIGN Library + Semantic Timbre Model
+
+- [x] Step 1 SOUND DESIGNの固定11音色を7グループ・45音色へ拡張
+- [x] 音色グループのカテゴリ選択を追加
+- [x] 音色名／説明文を対象とする検索を追加
+- [x] ライブラリ候補も自由入力と同じ自然言語生成経路を利用
+- [x] 自然言語を明暗・暖冷・硬軟・Attack・長さ・空間・広がり・Air/Noise・Metal/Wood・Organic/Digital・Rough/Clean・Thickness等の複数軸へ分解
+- [x] Bell + Pad等の複合カテゴリで副カテゴリの特性を保持
+- [x] 「ピアノのようなPad」「ギター弦を混ぜたBell」で実楽器名をPCM参照元ヒントとして扱う
+- [x] 明示的なGrand Piano / Electric Guitar / Fretless Bass / Drums / DX EPの専用音源ルーティングを維持
+- [x] 氷 / 鋼 / ガラス / 木質 / 煙 / 霧 / 風などの比喩語をboundedな意味軸へ反映
+- [x] v0.9.1専用回帰テストを追加
+- [x] READMEへ `v0.9.1 の主な変更` とSOUND DESIGN操作方法を追記
+- [x] CHANGELOGへv0.9.1を追記
+- [x] 既存Blueprint non-negotiable invariantsを維持
+- [x] `python -m pytest tests/` / Harness / Windows Native VST3 build 最終確認
+
 ## v0.8.1 Workflow UI + Unified Recording Studio
 
 - [x] 画面を「音色を作る → 音源を選ぶ → 演奏・試聴 → 録音する」の順へ再構成
