@@ -1,3 +1,4 @@
+#include "plugin_editor_win32.h"
 #include "public.sdk/source/vst/hosting/eventlist.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
 #include "public.sdk/source/vst/hosting/module.h"
@@ -16,14 +17,17 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cctype>
+#include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdint>
+#include <deque>
 #include <iostream>
 #include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -65,13 +69,18 @@ std::string jsonEscape (const std::string& value)
     return out.str ();
 }
 
+std::string errorJson (const std::string& message)
+{
+    return "{\"ok\":false,\"error\":\"" + jsonEscape (message) + "\"}";
+}
+
 std::vector<std::string> splitTabs (const std::string& line)
 {
     std::vector<std::string> parts;
     size_t start = 0;
     while (start <= line.size ())
     {
-        auto pos = line.find ('\t', start);
+        const auto pos = line.find ('\t', start);
         if (pos == std::string::npos)
         {
             parts.emplace_back (line.substr (start));
@@ -149,7 +158,6 @@ public:
         module_ = VST3::Hosting::Module::create (path, error);
         if (!module_)
             return false;
-
         auto factory = module_->getFactory ();
         VST3::Hosting::ClassInfo chosen;
         bool found = false;
@@ -182,7 +190,6 @@ public:
             unloadUnlocked ();
             return false;
         }
-
         component_ = provider_->getComponentPtr ();
         controller_ = provider_->getControllerPtr ();
         processor_ = FUnknownPtr<IAudioProcessor> (component_);
@@ -205,7 +212,6 @@ public:
         activateBuses (kAudio, kOutput, mainOutputBus_);
         activateBuses (kAudio, kInput, -1);
         activateBuses (kEvent, kInput, mainEventInputBus_);
-
         if (mainOutputBus_ < 0)
         {
             error = "The VST3 exposes no usable audio output bus.";
@@ -273,6 +279,10 @@ public:
         pluginName_ = chosen.name ();
         pluginSubcategory_ = chosen.subCategoriesString ();
         pluginPath_ = path;
+        editor_.bind (
+            controller_,
+            [this] (ParamID id, ParamValue value) { queueProcessorParameter (id, value); },
+            [this] (int32 flags) { onEditorRestart (flags); });
         loaded_.store (true);
         return true;
     }
@@ -303,12 +313,28 @@ public:
             return false;
         value = std::max (0.0, std::min (1.0, value));
         controller_->setParamNormalized (static_cast<ParamID> (id), value);
-        std::lock_guard<std::mutex> lock (queueMutex_);
-        pendingParams_.push_back ({static_cast<ParamID> (id), value});
-        if (pendingParams_.size () > 1024)
-            pendingParams_.erase (pendingParams_.begin (), pendingParams_.begin () + 512);
+        queueProcessorParameter (static_cast<ParamID> (id), value);
         return true;
     }
+
+    bool openEditor (std::string& error)
+    {
+        std::lock_guard<std::mutex> stateLock (stateMutex_);
+        if (!loaded_.load () || !controller_)
+        {
+            error = "No loaded VST3 is available for editing.";
+            return false;
+        }
+        return editor_.open (pluginName_, error);
+    }
+
+    void closeEditor ()
+    {
+        std::lock_guard<std::mutex> stateLock (stateMutex_);
+        editor_.close ();
+    }
+
+    void pumpEditorMessages () { editor_.pumpMessages (); }
 
     void startTestTone ()
     {
@@ -327,6 +353,7 @@ public:
             << ",\"main_output_bus\":" << mainOutputBus_
             << ",\"main_output_channels\":" << mainOutputChannelsUnlocked ()
             << ",\"main_event_input_bus\":" << mainEventInputBus_
+            << ",\"editor_open\":" << (editor_.isOpen () ? "true" : "false")
             << ",\"bus_arrangement_accepted\":" << (busArrangementAccepted_ ? "true" : "false")
             << ",\"parameter_count\":" << (controller_ ? controller_->getParameterCount () : 0) << "}";
         return out.str ();
@@ -344,9 +371,7 @@ public:
         for (int32 i = 0; i < count; ++i)
         {
             ParameterInfo info {};
-            if (controller_->getParameterInfo (i, info) != kResultOk)
-                continue;
-            if (info.flags & ParameterInfo::kIsHidden)
+            if (controller_->getParameterInfo (i, info) != kResultOk || (info.flags & ParameterInfo::kIsHidden))
                 continue;
             if (!first) out << ',';
             first = false;
@@ -358,6 +383,7 @@ public:
                 << ",\"value\":" << controller_->getParamNormalized (info.id)
                 << ",\"default\":" << info.defaultNormalizedValue
                 << ",\"step_count\":" << info.stepCount
+                << ",\"program_change\":" << ((info.flags & ParameterInfo::kIsProgramChange) ? "true" : "false")
                 << ",\"automatable\":" << ((info.flags & ParameterInfo::kCanAutomate) ? "true" : "false")
                 << '}';
         }
@@ -372,6 +398,7 @@ public:
         out << "{\"ok\":true"
             << ",\"audio_started\":" << (audioStarted_ ? "true" : "false")
             << ",\"loaded\":" << (loaded_.load () ? "true" : "false")
+            << ",\"editor_open\":" << (editor_.isOpen () ? "true" : "false")
             << ",\"sample_rate\":" << sampleRate_
             << ",\"audio_output_buses\":" << (component_ ? component_->getBusCount (kAudio, kOutput) : 0)
             << ",\"event_input_buses\":" << (component_ ? component_->getBusCount (kEvent, kInput) : 0)
@@ -400,12 +427,38 @@ private:
         self->render (static_cast<float*> (output), frameCount);
     }
 
+    void queueProcessorParameter (ParamID id, ParamValue value)
+    {
+        value = std::max<ParamValue> (0.0, std::min<ParamValue> (1.0, value));
+        std::lock_guard<std::mutex> lock (queueMutex_);
+        pendingParams_.push_back ({id, value});
+        if (pendingParams_.size () > 1024)
+            pendingParams_.erase (pendingParams_.begin (), pendingParams_.begin () + 512);
+    }
+
+    void syncControllerParameters ()
+    {
+        if (!controller_)
+            return;
+        const int32 count = controller_->getParameterCount ();
+        for (int32 i = 0; i < count; ++i)
+        {
+            ParameterInfo info {};
+            if (controller_->getParameterInfo (i, info) == kResultOk)
+                queueProcessorParameter (info.id, controller_->getParamNormalized (info.id));
+        }
+    }
+
+    void onEditorRestart (int32 flags)
+    {
+        if ((flags & kParamValuesChanged) != 0)
+            syncControllerParameters ();
+    }
+
     static SpeakerArrangement fallbackArrangement (int32 channels)
     {
-        if (channels == 1)
-            return SpeakerArr::kMono;
-        if (channels == 2)
-            return SpeakerArr::kStereo;
+        if (channels == 1) return SpeakerArr::kMono;
+        if (channels == 2) return SpeakerArr::kStereo;
         return 0;
     }
 
@@ -416,7 +469,6 @@ private:
         std::vector<SpeakerArrangement> inputs (static_cast<size_t> (std::max<int32> (0, inputCount)), 0);
         std::vector<SpeakerArrangement> outputs (static_cast<size_t> (std::max<int32> (0, outputCount)), 0);
         bool complete = true;
-
         auto resolve = [this, &complete] (BusDirection dir, int32 index, SpeakerArrangement& arrangement) {
             if (processor_->getBusArrangement (dir, index, arrangement) == kResultTrue &&
                 SpeakerArr::getChannelCount (arrangement) > 0)
@@ -431,12 +483,8 @@ private:
             if (arrangement == 0 && info.channelCount > 0)
                 complete = false;
         };
-
-        for (int32 i = 0; i < inputCount; ++i)
-            resolve (kInput, i, inputs[static_cast<size_t> (i)]);
-        for (int32 i = 0; i < outputCount; ++i)
-            resolve (kOutput, i, outputs[static_cast<size_t> (i)]);
-
+        for (int32 i = 0; i < inputCount; ++i) resolve (kInput, i, inputs[static_cast<size_t> (i)]);
+        for (int32 i = 0; i < outputCount; ++i) resolve (kOutput, i, outputs[static_cast<size_t> (i)]);
         busArrangementAccepted_ = false;
         if (complete && outputCount > 0)
         {
@@ -457,17 +505,12 @@ private:
             BusInfo info {};
             if (component_->getBusInfo (mediaType, direction, i, info) != kResultTrue)
                 continue;
-            if (firstDefault < 0 && (info.flags & BusInfo::kDefaultActive))
-                firstDefault = i;
-            if (firstMain < 0 && info.busType == kMain)
-                firstMain = i;
+            if (firstDefault < 0 && (info.flags & BusInfo::kDefaultActive)) firstDefault = i;
+            if (firstMain < 0 && info.busType == kMain) firstMain = i;
         }
-        if (forceFirstMain && firstMain >= 0)
-            return firstMain;
-        if (firstDefault >= 0)
-            return firstDefault;
-        if (firstMain >= 0)
-            return firstMain;
+        if (forceFirstMain && firstMain >= 0) return firstMain;
+        if (firstDefault >= 0) return firstDefault;
+        if (firstMain >= 0) return firstMain;
         return count > 0 ? 0 : -1;
     }
 
@@ -487,7 +530,6 @@ private:
     void render (float* output, ma_uint32 frameCount)
     {
         std::fill (output, output + static_cast<size_t> (frameCount) * kChannels, 0.0f);
-
         if (loaded_.load ())
         {
             std::lock_guard<std::mutex> stateLock (stateMutex_);
@@ -504,7 +546,6 @@ private:
                     clearProcessOutputs (chunk);
                     processData_.numSamples = chunk;
                     processContext_.projectTimeSamples = processedSamples_;
-
                     const auto result = processor_->process (processData_);
                     processCalls_.fetch_add (1);
                     lastProcessResult_.store (static_cast<int32_t> (result));
@@ -517,7 +558,6 @@ private:
                 }
             }
         }
-
         addTestTone (output, frameCount);
     }
 
@@ -556,10 +596,8 @@ private:
                 event.noteOff.velocity = note.velocity;
                 event.noteOff.noteId = -1;
             }
-            if (events_.addEvent (event) == kResultOk)
-                eventsDelivered_.fetch_add (1);
-            else
-                eventAddFailures_.fetch_add (1);
+            if (events_.addEvent (event) == kResultOk) eventsDelivered_.fetch_add (1);
+            else eventAddFailures_.fetch_add (1);
         }
         for (const auto& param : params)
         {
@@ -579,10 +617,8 @@ private:
         {
             auto& b = processData_.inputs[bus];
             for (int32 channel = 0; channel < b.numChannels; ++channel)
-            {
                 if (b.channelBuffers32 && b.channelBuffers32[channel])
                     std::fill (b.channelBuffers32[channel], b.channelBuffers32[channel] + frames, 0.0f);
-            }
             b.silenceFlags = HostProcessData::kAllChannelsSilent;
         }
     }
@@ -593,10 +629,8 @@ private:
         {
             auto& b = processData_.outputs[bus];
             for (int32 channel = 0; channel < b.numChannels; ++channel)
-            {
                 if (b.channelBuffers32 && b.channelBuffers32[channel])
                     std::fill (b.channelBuffers32[channel], b.channelBuffers32[channel] + frames, 0.0f);
-            }
             b.silenceFlags = 0;
         }
     }
@@ -604,9 +638,7 @@ private:
     void updateMaxPeak (float peak)
     {
         auto current = maxOutputPeak_.load ();
-        while (peak > current && !maxOutputPeak_.compare_exchange_weak (current, peak))
-        {
-        }
+        while (peak > current && !maxOutputPeak_.compare_exchange_weak (current, peak)) {}
     }
 
     void copyOutputs (float* destination, int32 frames)
@@ -619,12 +651,9 @@ private:
         {
             float left = 0.0f;
             float right = 0.0f;
-            if (bus.numChannels > 0 && bus.channelBuffers32 && bus.channelBuffers32[0])
-                left = bus.channelBuffers32[0][frame];
-            if (bus.numChannels > 1 && bus.channelBuffers32 && bus.channelBuffers32[1])
-                right = bus.channelBuffers32[1][frame];
-            else
-                right = left;
+            if (bus.numChannels > 0 && bus.channelBuffers32 && bus.channelBuffers32[0]) left = bus.channelBuffers32[0][frame];
+            if (bus.numChannels > 1 && bus.channelBuffers32 && bus.channelBuffers32[1]) right = bus.channelBuffers32[1][frame];
+            else right = left;
             destination[static_cast<size_t> (frame) * 2] = left;
             destination[static_cast<size_t> (frame) * 2 + 1] = right;
             peak = std::max (peak, std::max (std::abs (left), std::abs (right)));
@@ -636,16 +665,14 @@ private:
     void addTestTone (float* output, ma_uint32 frameCount)
     {
         auto remaining = testToneFramesRemaining_.load ();
-        if (remaining <= 0)
-            return;
+        if (remaining <= 0) return;
         const auto frames = static_cast<ma_uint32> (std::min<int64_t> (remaining, frameCount));
         const double phaseStep = kTwoPi * 440.0 / static_cast<double> (sampleRate_);
         for (ma_uint32 frame = 0; frame < frames; ++frame)
         {
             const float sample = static_cast<float> (std::sin (testTonePhase_) * 0.12);
             testTonePhase_ += phaseStep;
-            if (testTonePhase_ >= kTwoPi)
-                testTonePhase_ -= kTwoPi;
+            if (testTonePhase_ >= kTwoPi) testTonePhase_ -= kTwoPi;
             output[static_cast<size_t> (frame) * 2] += sample;
             output[static_cast<size_t> (frame) * 2 + 1] += sample;
         }
@@ -654,37 +681,28 @@ private:
 
     int32 mainOutputChannelsUnlocked () const
     {
-        if (mainOutputBus_ < 0 || mainOutputBus_ >= processData_.numOutputs || !processData_.outputs)
-            return 0;
+        if (mainOutputBus_ < 0 || mainOutputBus_ >= processData_.numOutputs || !processData_.outputs) return 0;
         return processData_.outputs[mainOutputBus_].numChannels;
     }
 
     void resetDiagnostics ()
     {
-        noteOnQueued_.store (0);
-        noteOffQueued_.store (0);
-        eventsDelivered_.store (0);
-        eventAddFailures_.store (0);
-        processCalls_.store (0);
-        processFailures_.store (0);
-        lastProcessResult_.store (0);
-        lastOutputPeak_.store (0.0f);
-        maxOutputPeak_.store (0.0f);
-        processedSamples_ = 0;
+        noteOnQueued_.store (0); noteOffQueued_.store (0); eventsDelivered_.store (0); eventAddFailures_.store (0);
+        processCalls_.store (0); processFailures_.store (0); lastProcessResult_.store (0);
+        lastOutputPeak_.store (0.0f); maxOutputPeak_.store (0.0f); processedSamples_ = 0;
     }
 
     void unloadUnlocked ()
     {
         loaded_.store (false);
+        editor_.unbind ();
         {
             std::lock_guard<std::mutex> lock (queueMutex_);
             pendingNotes_.clear ();
             pendingParams_.clear ();
         }
-        if (processor_)
-            processor_->setProcessing (false);
-        if (component_)
-            component_->setActive (false);
+        if (processor_) processor_->setProcessing (false);
+        if (component_) component_->setActive (false);
         processData_.unprepare ();
         processor_ = nullptr;
         controller_ = nullptr;
@@ -703,12 +721,10 @@ private:
     std::mutex queueMutex_;
     std::vector<PendingNote> pendingNotes_;
     std::vector<PendingParam> pendingParams_;
-
     ma_device device_ {};
     bool audioStarted_ {false};
     uint32_t sampleRate_ {kPreferredSampleRate};
     std::atomic<bool> loaded_ {false};
-
     VST3::Hosting::Module::Ptr module_;
     IPtr<PlugProvider> provider_;
     IPtr<IComponent> component_;
@@ -718,12 +734,11 @@ private:
     EventList events_;
     ParameterChanges parameterChanges_;
     ProcessContext processContext_ {};
-
+    PluginEditorWin32 editor_;
     int32 mainOutputBus_ {-1};
     int32 mainEventInputBus_ {-1};
     bool busArrangementAccepted_ {false};
     int64 processedSamples_ {0};
-
     std::atomic<uint64_t> noteOnQueued_ {0};
     std::atomic<uint64_t> noteOffQueued_ {0};
     std::atomic<uint64_t> eventsDelivered_ {0};
@@ -735,15 +750,76 @@ private:
     std::atomic<float> maxOutputPeak_ {0.0f};
     std::atomic<int64_t> testToneFramesRemaining_ {0};
     double testTonePhase_ {0.0};
-
     std::string pluginName_;
     std::string pluginSubcategory_;
     std::string pluginPath_;
 };
 
-std::string errorJson (const std::string& message)
+bool processCommand (NativeVst3Host& host, const std::string& line)
 {
-    return "{\"ok\":false,\"error\":\"" + jsonEscape (message) + "\"}";
+    const auto parts = splitTabs (line);
+    if (parts.empty ()) return true;
+    try
+    {
+        if (parts[0] == "PING")
+            std::cout << "{\"ok\":true,\"pong\":true}" << std::endl;
+        else if (parts[0] == "LOAD" && parts.size () >= 2)
+        {
+            std::string error;
+            std::cout << (host.load (parts[1], error) ? host.pluginJson () : errorJson (error)) << std::endl;
+        }
+        else if (parts[0] == "STATUS") std::cout << host.pluginJson () << std::endl;
+        else if (parts[0] == "DIAGNOSTICS") std::cout << host.diagnosticsJson () << std::endl;
+        else if (parts[0] == "TEST_TONE")
+        {
+            host.startTestTone ();
+            std::cout << "{\"ok\":true,\"test_tone\":true}" << std::endl;
+        }
+        else if (parts[0] == "EDITOR_OPEN")
+        {
+            std::string error;
+            if (host.openEditor (error)) std::cout << "{\"ok\":true,\"editor_open\":true}" << std::endl;
+            else std::cout << errorJson (error) << std::endl;
+        }
+        else if (parts[0] == "EDITOR_CLOSE")
+        {
+            host.closeEditor ();
+            std::cout << "{\"ok\":true,\"editor_open\":false}" << std::endl;
+        }
+        else if (parts[0] == "PARAMS") std::cout << host.parametersJson () << std::endl;
+        else if (parts[0] == "PARAM" && parts.size () >= 3)
+        {
+            const auto id = static_cast<uint32_t> (std::stoul (parts[1]));
+            const auto value = std::stod (parts[2]);
+            std::cout << (host.queueParameter (id, value) ? "{\"ok\":true}" : errorJson ("No controller loaded")) << std::endl;
+        }
+        else if (parts[0] == "NOTE_ON" && parts.size () >= 3)
+        {
+            host.queueNote (true, std::stoi (parts[1]), static_cast<float> (std::stod (parts[2])));
+            std::cout << "{\"ok\":true}" << std::endl;
+        }
+        else if (parts[0] == "NOTE_OFF" && parts.size () >= 2)
+        {
+            host.queueNote (false, std::stoi (parts[1]), 0.0f);
+            std::cout << "{\"ok\":true}" << std::endl;
+        }
+        else if (parts[0] == "UNLOAD")
+        {
+            host.unload ();
+            std::cout << "{\"ok\":true}" << std::endl;
+        }
+        else if (parts[0] == "QUIT")
+        {
+            std::cout << "{\"ok\":true,\"bye\":true}" << std::endl;
+            return false;
+        }
+        else std::cout << errorJson ("Unknown or malformed command") << std::endl;
+    }
+    catch (const std::exception& exc)
+    {
+        std::cout << errorJson (exc.what ()) << std::endl;
+    }
+    return true;
 }
 
 } // namespace
@@ -757,69 +833,52 @@ int main ()
         return 2;
     }
 
-    std::cout << "{\"ok\":true,\"ready\":true,\"protocol\":2}" << std::endl;
-    std::string line;
-    while (std::getline (std::cin, line))
+    std::mutex commandMutex;
+    std::condition_variable commandCv;
+    std::deque<std::string> commands;
+    std::atomic<bool> inputClosed {false};
+    std::thread reader ([&] {
+        std::string line;
+        while (std::getline (std::cin, line))
+        {
+            {
+                std::lock_guard<std::mutex> lock (commandMutex);
+                commands.push_back (std::move (line));
+            }
+            commandCv.notify_one ();
+        }
+        inputClosed.store (true);
+        commandCv.notify_one ();
+    });
+
+    std::cout << "{\"ok\":true,\"ready\":true,\"protocol\":3}" << std::endl;
+    bool running = true;
+    while (running)
     {
-        const auto parts = splitTabs (line);
-        if (parts.empty ())
-            continue;
-        try
+        host.pumpEditorMessages ();
+        std::string line;
         {
-            if (parts[0] == "PING")
-                std::cout << "{\"ok\":true,\"pong\":true}" << std::endl;
-            else if (parts[0] == "LOAD" && parts.size () >= 2)
+            std::unique_lock<std::mutex> lock (commandMutex);
+            commandCv.wait_for (lock, std::chrono::milliseconds (8), [&] {
+                return !commands.empty () || inputClosed.load ();
+            });
+            if (!commands.empty ())
             {
-                std::string error;
-                if (host.load (parts[1], error))
-                    std::cout << host.pluginJson () << std::endl;
-                else
-                    std::cout << errorJson (error) << std::endl;
+                line = std::move (commands.front ());
+                commands.pop_front ();
             }
-            else if (parts[0] == "STATUS")
-                std::cout << host.pluginJson () << std::endl;
-            else if (parts[0] == "DIAGNOSTICS")
-                std::cout << host.diagnosticsJson () << std::endl;
-            else if (parts[0] == "TEST_TONE")
-            {
-                host.startTestTone ();
-                std::cout << "{\"ok\":true,\"test_tone\":true}" << std::endl;
-            }
-            else if (parts[0] == "PARAMS")
-                std::cout << host.parametersJson () << std::endl;
-            else if (parts[0] == "PARAM" && parts.size () >= 3)
-            {
-                const auto id = static_cast<uint32_t> (std::stoul (parts[1]));
-                const auto value = std::stod (parts[2]);
-                std::cout << (host.queueParameter (id, value) ? "{\"ok\":true}" : errorJson ("No controller loaded")) << std::endl;
-            }
-            else if (parts[0] == "NOTE_ON" && parts.size () >= 3)
-            {
-                host.queueNote (true, std::stoi (parts[1]), static_cast<float> (std::stod (parts[2])));
-                std::cout << "{\"ok\":true}" << std::endl;
-            }
-            else if (parts[0] == "NOTE_OFF" && parts.size () >= 2)
-            {
-                host.queueNote (false, std::stoi (parts[1]), 0.0f);
-                std::cout << "{\"ok\":true}" << std::endl;
-            }
-            else if (parts[0] == "UNLOAD")
-            {
-                host.unload ();
-                std::cout << "{\"ok\":true}" << std::endl;
-            }
-            else if (parts[0] == "QUIT")
-            {
-                std::cout << "{\"ok\":true,\"bye\":true}" << std::endl;
+            else if (inputClosed.load ())
                 break;
-            }
-            else
-                std::cout << errorJson ("Unknown or malformed command") << std::endl;
         }
-        catch (const std::exception& exc)
-        {
-            std::cout << errorJson (exc.what ()) << std::endl;
-        }
+        if (!line.empty ())
+            running = processCommand (host, line);
+    }
+
+    if (reader.joinable ())
+    {
+        if (!inputClosed.load ())
+            CancelSynchronousIo (reader.native_handle ());
+        reader.join ();
     }
     return 0;
 }
