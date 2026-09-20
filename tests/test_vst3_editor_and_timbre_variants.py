@@ -46,7 +46,7 @@ def test_same_instance_native_vst3_editor_is_exposed_only_through_native_host():
     assert ".vst3" not in js.lower()
 
 
-def test_new_natural_language_timbre_archetypes_are_distinct_and_bounded():
+def test_new_natural_language_timbre_archetypes_use_distinct_pcm_resynthesis_profiles():
     cases = {
         "広がりのあるシンセストリングス": "String Ensemble",
         "パンチのあるシンセブラス": "Synth Brass",
@@ -58,15 +58,29 @@ def test_new_natural_language_timbre_archetypes_are_distinct_and_bounded():
     seen = set()
     for prompt, expected_name in cases.items():
         patch = generate_patch(prompt)
-        assert patch.engine_type == "synth"
+        assert patch.engine_type == "sampler"
+        assert patch.instrument_model == "spectral_resynth"
         assert expected_name in patch.name
-        assert 80 <= patch.filter_cutoff_hz <= 18000
-        assert 0.1 <= patch.filter_q <= 18
-        assert 0.001 <= patch.attack_s <= 8
-        assert 0.01 <= patch.release_s <= 10
+        assert patch.resynth_source_a in {"piano", "guitar", "fretless"}
+        assert patch.resynth_source_b in {"piano", "guitar", "fretless"}
+        assert 4 <= patch.resynth_harmonics <= 32
+        assert 0 <= patch.resynth_brightness <= 1
+        assert 0 <= patch.resynth_pcm_mix <= 0.65
+        assert 0 <= patch.resynth_transient_mix <= 1
+        assert 0.001 <= patch.resynth_attack_s <= 8
+        assert 0.01 <= patch.resynth_release_s <= 10
         assert 0.02 <= patch.master_gain <= 0.35
-        seen.add((patch.osc1_wave, patch.osc2_wave, round(patch.filter_cutoff_hz), round(patch.attack_s, 3)))
-    assert len(seen) >= 5
+        seen.add(
+            (
+                patch.resynth_source_a,
+                patch.resynth_source_b,
+                round(patch.resynth_morph, 2),
+                patch.resynth_harmonics,
+                round(patch.resynth_transient_mix, 2),
+                round(patch.resynth_attack_s, 3),
+            )
+        )
+    assert len(seen) == len(cases)
 
 
 def test_existing_prompt_routes_still_fall_back_to_legacy_generator():
@@ -74,3 +88,5 @@ def test_existing_prompt_routes_still_fall_back_to_legacy_generator():
     assert patch.instrument_model == "grand_piano"
     patch = generate_patch("ジャコのような歌うフレットレスベース")
     assert patch.instrument_model == "fretless_bass"
+    patch = generate_patch("80年代の DX-7 のようなきらびやかな FM エレピ")
+    assert patch.instrument_model == "dx_ep"
