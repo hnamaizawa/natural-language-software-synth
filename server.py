@@ -274,6 +274,12 @@ class Vst3Bridge:
     def test_tone(self) -> dict:
         return self._command("TEST_TONE")
 
+    def open_editor(self) -> dict:
+        return self._command("EDITOR_OPEN")
+
+    def close_editor(self) -> dict:
+        return self._command("EDITOR_CLOSE")
+
     def unload(self) -> dict:
         with self._lock:
             if not self._process or self._process.poll() is not None:
@@ -404,6 +410,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(VST3.set_parameter(int(payload.get("id", 0)), float(payload.get("value", 0.0))))
             if parsed.path == "/api/vst3/test-tone":
                 return self._json(VST3.test_tone())
+            if parsed.path == "/api/vst3/editor/open":
+                return self._json(VST3.open_editor())
+            if parsed.path == "/api/vst3/editor/close":
+                return self._json(VST3.close_editor())
             if parsed.path == "/api/vst3/unload":
                 return self._json(VST3.unload())
         except (TypeError, ValueError) as exc:
