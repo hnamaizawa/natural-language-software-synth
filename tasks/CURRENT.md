@@ -1,5 +1,21 @@
 # CURRENT
 
+## v0.8.1 Workflow UI + Unified Recording Studio
+
+- [x] 画面を「音色を作る → 音源を選ぶ → 演奏・試聴 → 録音する」の順へ再構成
+- [x] 画面上部に4ステップの操作ガイドを追加
+- [x] VST3設定を「音源を選ぶ」へ移動
+- [x] Sample Performance / ライブ鍵盤 / ドラムを「演奏・試聴」へ集約
+- [x] PCキーボード録音と鼻歌録音を1つの RECORDING STUDIO へ統合
+- [x] RECORDING STUDIOにPCキーボード／鼻歌の2タブを追加
+- [x] 既存のPCキー録音上限・ピアノロール・VST3再生経路を維持
+- [x] 既存の鼻歌キー補正・タイミング補正・楽譜・フレーズ転送を維持
+- [x] タブ切替runtimeはAudioContext・Note Event・マイク・ネットワーク経路を追加しない
+- [x] VST3本体EditorボタンをHTMLへ明示配置
+- [x] READMEへ `v0.8.1 の主な変更` と基本操作を追記
+- [x] UI構成／録音統合用の回帰テストを追加
+- [x] `python -m pytest tests/` / Harness / Windows Native VST3 build 最終確認
+
 ## Unreleased - VST3 Reload / Native Editor / Timbre Variations
 
 - [x] VST3再ロード後、診断ボタンを押さなくてもPCキー A/W/S/E/D… で演奏へ戻れるよう非同期ロード後のフォーカスを解放
@@ -14,8 +30,8 @@
 - [x] 外部Preset／第三者録音／実行コード／ランタイムのネットワーク取得を音色生成へ持ち込まない
 - [x] 既存Grand Piano / Fretless / Guitar / Drum / FM等は従来prompt engineへフォールバック
 - [x] VST3 reload / native editor / timbre variationの回帰テスト追加
-- [ ] README / Changelog / Blueprint / Harness更新
-- [ ] `python -m pytest tests/` / Harness / Windows Native VST3 build 最終確認
+- [x] README / Changelog / Blueprint / Harness更新
+- [x] `python -m pytest tests/` / Harness / Windows Native VST3 build 最終確認
 
 ## Unreleased - Keyboard / VST3 Program / Recording UX
 
@@ -141,7 +157,7 @@
 - [x] Pick Attack / Release Noise
 - [x] Palm Mute / Sustain / Body Tone
 - [x] Clean / Crunch / High Gain / Acoustic アンプモデル
-- [x] `WaveShaper` によるアンプDrive / Distortion
+- [x] `WaveShaper` によるAmp Drive / Distortion
 - [x] Amp Tone / Presence / Cabinet / Chorus
 - [x] ギター／アンプ用グラフィカルPatch Editor
 - [x] ロック / フュージョン / アコースティックのサンプル演奏

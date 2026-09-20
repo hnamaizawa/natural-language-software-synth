@@ -12,8 +12,9 @@ REQUIRED = [
     "src/ai_synth/patch.py", "src/ai_synth/prompt_engine.py", "src/ai_synth/timbre_variants.py",
     "web/index.html", "web/app.js", "web/patch_editor_runtime.js", "web/guitar_runtime.js",
     "web/piano_runtime.js", "web/instrument_performance_runtime.js", "web/performance_library_runtime.js",
-    "web/output_level_runtime.js", "web/humming_runtime.js", "web/vst3_runtime.js",
-    "web/performance_editor.css", "web/style.css",
+    "web/output_level_runtime.js", "web/humming_runtime.js", "web/keyboard_performance_runtime.js",
+    "web/recording_workspace_runtime.js", "web/vst3_runtime.js", "web/performance_editor.css",
+    "web/keyboard_performance.css", "web/style.css",
     "native/vst3_host/CMakeLists.txt", "native/vst3_host/src/main.cpp",
     "native/vst3_host/src/plugin_editor_win32.h", "native/vst3_host/src/plugin_editor_win32.cpp",
 ]
@@ -48,6 +49,7 @@ def main() -> None:
         "expanded_timbre_recipes_must_not_fetch_or_copy_third_party_presets",
         "graphical_parameter_edits_must_be_validated_and_clamped",
         "all_web_audio_engines_must_share_single_audio_context",
+        "recording_workspace_ui_must_not_create_parallel_audio_or_network_path",
         "microphone_capture_must_use_existing_audio_context",
         "microphone_audio_must_not_be_persisted_or_uploaded",
         "humming_capture_must_be_monophonic_and_bounded",
@@ -117,6 +119,8 @@ def main() -> None:
     library_js = (ROOT / "web/performance_library_runtime.js").read_text(encoding="utf-8")
     output_js = (ROOT / "web/output_level_runtime.js").read_text(encoding="utf-8")
     humming_js = (ROOT / "web/humming_runtime.js").read_text(encoding="utf-8")
+    keyboard_recording_js = (ROOT / "web/keyboard_performance_runtime.js").read_text(encoding="utf-8")
+    recording_workspace_js = (ROOT / "web/recording_workspace_runtime.js").read_text(encoding="utf-8")
     vst3_js = (ROOT / "web/vst3_runtime.js").read_text(encoding="utf-8")
     server_py = (ROOT / "server.py").read_text(encoding="utf-8")
     native_cpp = (ROOT / "native/vst3_host/src/main.cpp").read_text(encoding="utf-8")
@@ -126,7 +130,8 @@ def main() -> None:
     html = (ROOT / "web/index.html").read_text(encoding="utf-8")
 
     all_browser_and_python = "\n".join([
-        server_py, app_js, runtime_js, guitar_js, piano_js, instrument_js, library_js, output_js, humming_js, vst3_js, timbre_py,
+        server_py, app_js, runtime_js, guitar_js, piano_js, instrument_js, library_js, output_js, humming_js,
+        keyboard_recording_js, recording_workspace_js, vst3_js, timbre_py,
     ])
     for token in ["eval(", "new Function(", "exec("]:
         if token in all_browser_and_python:
@@ -139,11 +144,44 @@ def main() -> None:
         fail("base engine must contain exactly one browser AudioContext creation path")
     for name, source in [
         ("guitar", guitar_js), ("piano", piano_js), ("performance", instrument_js),
-        ("library", library_js), ("output", output_js), ("humming", humming_js), ("vst3 router", vst3_js),
+        ("library", library_js), ("output", output_js), ("humming", humming_js),
+        ("keyboard recorder", keyboard_recording_js), ("recording workspace", recording_workspace_js),
+        ("vst3 router", vst3_js),
     ]:
         if "new AudioContext" in source or "new (window.AudioContext" in source:
             fail(f"{name} runtime must not create another browser AudioContext")
     ok("single browser AudioContext and stable note event contract")
+
+    recording_controls = [
+        "recordingStudio", "recordingKeyboardTab", "recordingHummingTab", "recordingKeyboardPane", "recordingHummingPane",
+        "keyboardRecordBtn", "keyboardRecordStopBtn", "keyboardRecordPlayBtn", "keyboardRecordClearBtn", "keyboardRecordingRoll",
+    ]
+    for control in recording_controls:
+        if f'id="{control}"' not in html:
+            fail(f"recording workspace control missing: {control}")
+    workflow_ids = ['id="soundDesign"', 'id="soundSource"', 'id="performance"', 'id="recordingStudio"']
+    if not all(token in html for token in workflow_ids):
+        fail("workflow guide sections are incomplete")
+    if not (html.index(workflow_ids[0]) < html.index(workflow_ids[1]) < html.index(workflow_ids[2]) < html.index(workflow_ids[3])):
+        fail("workflow sections must remain sound design -> sound source -> performance -> recording")
+    require_tokens(
+        recording_workspace_js,
+        [
+            'document.getElementById("recordingStudio")', 'document.getElementById("recordingKeyboardTab")',
+            'document.getElementById("recordingHummingTab")', "function setMode(mode", "pane.hidden=!active",
+            'tab.setAttribute("aria-selected"', 'event.key!=="ArrowLeft"', 'event.key!=="ArrowRight"',
+            "window.recordingWorkspace={setMode}",
+        ],
+        "unified recording workspace",
+    )
+    for forbidden in ["new AudioContext", "new (window.AudioContext", "MediaRecorder", "getUserMedia", "fetch(", "localStorage", "engine.noteOn", "engine.noteOff"]:
+        if forbidden in recording_workspace_js:
+            fail(f"recording workspace must remain UI-only: {forbidden}")
+    if html.index('/keyboard_performance_runtime.js') > html.index('/recording_workspace_runtime.js'):
+        fail("recording workspace must load after keyboard recording runtime")
+    if html.index('/recording_workspace_runtime.js') > html.index('/vst3_runtime.js'):
+        fail("VST3 router must remain the final note-event wrapper")
+    ok("workflow-guided UI and unified recording workspace retained without a parallel audio/network path")
 
     humming_controls = [
         "hummingAutoKey", "hummingKeyDisplay", "hummingAutoTiming", "hummingTimingDisplay", "hummingBpm",
@@ -184,7 +222,7 @@ def main() -> None:
     ok("existing routing, strum, quartal jazz, and output normalization retained")
 
     vst_controls = [
-        "vst3ScanBtn", "vst3PluginSelect", "vst3LoadBtn", "vst3UnloadBtn", "vst3TestToneBtn", "vst3DiagBtn",
+        "vst3ScanBtn", "vst3PluginSelect", "vst3LoadBtn", "vst3UnloadBtn", "vst3EditorBtn", "vst3TestToneBtn", "vst3DiagBtn",
         "vst3RouteEnabled", "vst3Parameters", "vst3Status",
     ]
     for control in vst_controls:
@@ -258,9 +296,9 @@ def main() -> None:
     ok("VST3 realtime bus routing, live events, native editor, audio diagnostics, and native output test")
 
     css = (ROOT / "web/performance_editor.css").read_text(encoding="utf-8")
-    require_tokens(css, [".humming-score", ".vst3-parameters", ".vst3-param", ".toggle-label"], "v0.7 UI styling")
+    require_tokens(css, [".humming-score", ".vst3-parameters", ".vst3-param", ".toggle-label", ".workflow-guide", ".recording-studio", ".recording-mode-tab"], "v0.8 UI styling")
     require_tokens(runtime_js, ["engine.setPatchWithRender", "this.patch=validatePatch(raw)"], "validated graphical editing")
-    ok("graphical editors and new v0.7 surfaces present")
+    ok("graphical editors and new workflow/recording surfaces present")
 
     print("\nRunning pytest...")
     result = subprocess.run([sys.executable, "-m", "pytest", "tests/"], cwd=ROOT)

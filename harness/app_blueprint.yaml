@@ -7,13 +7,17 @@ purpose: >-
   descriptions. Preserve all existing synth/sampler/drum/FM, performance, editing, output,
   microphone and safety contracts while supporting automatic humming key/timing correction,
   staff notation, a diagnosable Windows native VST3 instrument host, same-instance native
-  VST3 editor windows, and bounded expanded natural-language timbre archetypes.
+  VST3 editor windows, bounded expanded natural-language timbre archetypes, and a workflow-
+  guided UI with one unified recording workspace for computer-keyboard and humming capture.
 required_capabilities:
 - natural_language_patch_generation
 - deterministic_offline_prompt_fallback
 - expanded_natural_language_timbre_archetypes
 - validated_patch_schema
 - browser_web_audio_polyphonic_engine
+- workflow_guided_ui
+- unified_recording_workspace
+- recording_mode_tabs
 - pcm_fretless_bass_engine
 - pcm_fretless_articulation_layers
 - enhanced_fretless_finger_noise
@@ -101,6 +105,7 @@ non_negotiable_invariants:
 - audio_context_must_start_only_after_user_gesture
 - all_engines_must_share_single_audio_context
 - all_web_audio_engines_must_share_single_audio_context
+- recording_workspace_ui_must_not_create_parallel_audio_or_network_path
 - microphone_capture_must_use_existing_audio_context
 - microphone_audio_must_not_be_persisted_or_uploaded
 - humming_capture_must_be_monophonic_and_bounded
@@ -176,8 +181,11 @@ required_files:
 - web/performance_library_runtime.js
 - web/output_level_runtime.js
 - web/humming_runtime.js
+- web/keyboard_performance_runtime.js
+- web/recording_workspace_runtime.js
 - web/vst3_runtime.js
 - web/performance_editor.css
+- web/keyboard_performance.css
 - web/style.css
 - native/vst3_host/CMakeLists.txt
 - native/vst3_host/src/main.cpp
@@ -199,12 +207,15 @@ acceptance_commands:
 - start_synth.cmd
 - build_vst3_host.cmd
 ui_requirements:
+  workflow_guide_steps: [sound_design, sound_source, play_preview, recording]
   prompt_to_patch: true
   onscreen_keyboard: true
   onscreen_drum_pads: true
   adaptive_instrument_surface: true
   computer_keyboard: true
   midi_input_optional: true
+  unified_recording_workspace: true
+  recording_mode_tabs: [computer_keyboard, humming]
   microphone_humming_capture: true
   humming_live_pitch_display: true
   humming_record_start_stop: true
@@ -293,6 +304,16 @@ custom_sample_contract:
   velocity_max: 1.0
   accepted_note_forms: [midi_0_to_127, scientific_pitch_name, rest]
   executable_user_text: forbidden
+recording_workspace_contract:
+  modes: [computer_keyboard, humming]
+  default_mode: computer_keyboard
+  tab_switching: ui_only
+  new_audio_context: forbidden
+  new_network_transport: forbidden
+  computer_keyboard_recording_limits:
+    maximum_recording_seconds: 120
+    maximum_notes: 512
+  humming_runtime: existing_humming_capture_contract
 humming_capture_contract:
   microphone_source: navigator_media_devices_get_user_media
   microphone_audio_storage: forbidden
@@ -364,7 +385,7 @@ vst3_contract:
     library: miniaudio
     version: 0.11.25
     commit: 9634bedb5b5a2ca38c1ee7108a9358a4e233f14d
-  route_sources: [onscreen_keyboard, computer_keyboard, web_midi, sample_performance, humming_preview]
+  route_sources: [onscreen_keyboard, computer_keyboard, computer_keyboard_recording_playback, web_midi, sample_performance, humming_preview]
 timbre_variation_contract:
   runtime_network_fetch: forbidden
   third_party_preset_copy: forbidden
