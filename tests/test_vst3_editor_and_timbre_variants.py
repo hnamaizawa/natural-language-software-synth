@@ -8,9 +8,10 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_vst3_reload_restores_performance_keyboard_focus_without_diagnostics():
     js = (ROOT / "web" / "vst3_runtime.js").read_text(encoding="utf-8")
     for token in [
+        "function isHostControl(active)",
         "function restorePerformanceFocus()",
         "function restorePerformanceFocusSoon()",
-        'active.closest?.(".vst3-host")',
+        "params?.contains(active)",
         "await refreshParameters();",
         "restorePerformanceFocusSoon();",
         "requestAnimationFrame",
