@@ -11,10 +11,10 @@ REQUIRED = [
     "harness/app_blueprint.yaml", "scripts/harness_check.py",
     "src/ai_synth/patch.py", "src/ai_synth/prompt_engine.py", "src/ai_synth/timbre_variants.py",
     "web/index.html", "web/app.js", "web/patch_editor_runtime.js", "web/guitar_runtime.js",
-    "web/piano_runtime.js", "web/instrument_performance_runtime.js", "web/performance_library_runtime.js",
-    "web/output_level_runtime.js", "web/humming_runtime.js", "web/keyboard_performance_runtime.js",
-    "web/recording_workspace_runtime.js", "web/vst3_runtime.js", "web/performance_editor.css",
-    "web/keyboard_performance.css", "web/style.css",
+    "web/piano_runtime.js", "web/resynthesis_runtime.js", "web/instrument_performance_runtime.js",
+    "web/performance_library_runtime.js", "web/output_level_runtime.js", "web/humming_runtime.js",
+    "web/keyboard_performance_runtime.js", "web/recording_workspace_runtime.js", "web/vst3_runtime.js",
+    "web/performance_editor.css", "web/keyboard_performance.css", "web/style.css",
     "native/vst3_host/CMakeLists.txt", "native/vst3_host/src/main.cpp",
     "native/vst3_host/src/plugin_editor_win32.h", "native/vst3_host/src/plugin_editor_win32.cpp",
 ]
@@ -47,6 +47,12 @@ def main() -> None:
         "generated_patch_must_be_schema_validated_and_clamped",
         "expanded_timbre_recipes_must_be_validated_and_clamped",
         "expanded_timbre_recipes_must_not_fetch_or_copy_third_party_presets",
+        "pcm_resynthesis_parameters_must_be_schema_validated_and_clamped",
+        "pcm_resynthesis_must_use_locally_generated_factory_pcm_only",
+        "pcm_resynthesis_must_use_existing_audio_context",
+        "pcm_resynthesis_must_not_fetch_network_or_load_third_party_samples",
+        "pcm_resynthesis_playback_must_use_same_note_on_note_off_contract",
+        "vst3_router_must_remain_final_note_event_wrapper",
         "graphical_parameter_edits_must_be_validated_and_clamped",
         "all_web_audio_engines_must_share_single_audio_context",
         "recording_workspace_ui_must_not_create_parallel_audio_or_network_path",
@@ -84,7 +90,7 @@ def main() -> None:
     require_tokens(blueprint, invariants, "blueprint invariant")
     if "blueprint_version: 0.7.2" not in blueprint:
         fail("blueprint version is not 0.7.2")
-    ok("v0.7.2 non-negotiable invariants")
+    ok("v0.7.2 baseline and v0.9.0 non-negotiable invariants")
 
     patch_py = (ROOT / "src/ai_synth/patch.py").read_text(encoding="utf-8")
     timbre_py = (ROOT / "src/ai_synth/timbre_variants.py").read_text(encoding="utf-8")
@@ -92,29 +98,33 @@ def main() -> None:
         patch_py,
         [
             'ENGINE_TYPES = {"synth", "sampler", "drum", "fm"}', '"electric_guitar"', '"grand_piano"',
+            '"spectral_resynth"', "RESYNTH_SOURCES", "resynth_source_a", "resynth_source_b",
+            "resynth_morph", "resynth_harmonics", "resynth_pcm_mix", "resynth_transient_mix",
             "finger_noise_mix", "guitar_amp_drive", "piano_hammer_mix", "kick_tune_hz", "fm_mod_index", "0.35", "min(16",
         ],
-        "multi-engine patch schema",
+        "multi-engine and PCM-resynthesis patch schema",
     )
     require_tokens(
         timbre_py,
         [
-            "generate_legacy_patch", "validate_patch(p)", 'archetype = "String Ensemble"',
-            'archetype = "Synth Brass"', 'archetype = "Airy Choir Pad"',
+            "generate_legacy_patch", "validate_patch(p)", 'instrument_model="spectral_resynth"',
+            'archetype = "String Ensemble"', 'archetype = "Synth Brass"', 'archetype = "Airy Choir Pad"',
             'archetype = "Retro Polysynth"', 'archetype = "Resonant Acid Bass"',
-            'archetype = "Analog Synth Keys"', "_apply_common_descriptors",
+            'archetype = "Analog Synth Keys"', 'archetype = "PCM Resynth Bell"',
+            'archetype = "PCM Resynth Pluck"', "_apply_common_descriptors", "_dedicated_engine_request",
         ],
-        "expanded natural-language timbre recipes",
+        "expanded PCM-resynthesis natural-language timbre recipes",
     )
     for forbidden in ["requests.", "urllib", "http://", "https://", "subprocess", "eval(", "exec("]:
         if forbidden in timbre_py:
             fail(f"timbre recipe must remain offline validated data only: {forbidden}")
-    ok("existing instrument parameter bounds and expanded timbre bounds retained")
+    ok("existing instrument parameter bounds and PCM-resynthesis timbre bounds retained")
 
     app_js = (ROOT / "web/app.js").read_text(encoding="utf-8")
     runtime_js = (ROOT / "web/patch_editor_runtime.js").read_text(encoding="utf-8")
     guitar_js = (ROOT / "web/guitar_runtime.js").read_text(encoding="utf-8")
     piano_js = (ROOT / "web/piano_runtime.js").read_text(encoding="utf-8")
+    resynth_js = (ROOT / "web/resynthesis_runtime.js").read_text(encoding="utf-8")
     instrument_js = (ROOT / "web/instrument_performance_runtime.js").read_text(encoding="utf-8")
     library_js = (ROOT / "web/performance_library_runtime.js").read_text(encoding="utf-8")
     output_js = (ROOT / "web/output_level_runtime.js").read_text(encoding="utf-8")
@@ -130,7 +140,7 @@ def main() -> None:
     html = (ROOT / "web/index.html").read_text(encoding="utf-8")
 
     all_browser_and_python = "\n".join([
-        server_py, app_js, runtime_js, guitar_js, piano_js, instrument_js, library_js, output_js, humming_js,
+        server_py, app_js, runtime_js, guitar_js, piano_js, resynth_js, instrument_js, library_js, output_js, humming_js,
         keyboard_recording_js, recording_workspace_js, vst3_js, timbre_py,
     ])
     for token in ["eval(", "new Function(", "exec("]:
@@ -143,7 +153,7 @@ def main() -> None:
     if app_js.count(audio_context_token) != 1:
         fail("base engine must contain exactly one browser AudioContext creation path")
     for name, source in [
-        ("guitar", guitar_js), ("piano", piano_js), ("performance", instrument_js),
+        ("guitar", guitar_js), ("piano", piano_js), ("resynthesis", resynth_js), ("performance", instrument_js),
         ("library", library_js), ("output", output_js), ("humming", humming_js),
         ("keyboard recorder", keyboard_recording_js), ("recording workspace", recording_workspace_js),
         ("vst3 router", vst3_js),
@@ -151,6 +161,24 @@ def main() -> None:
         if "new AudioContext" in source or "new (window.AudioContext" in source:
             fail(f"{name} runtime must not create another browser AudioContext")
     ok("single browser AudioContext and stable note event contract")
+
+    require_tokens(
+        resynth_js,
+        [
+            'engine.sampleBuffers.get("piano_60")', 'engine.sampleBuffers.get("guitar_64")',
+            'engine.sampleBuffers.get("fretless")', "function harmonicTemplate(name,harmonics)",
+            "Math.hypot(re,im)", "createPeriodicWave", "function playPcmLayer", "engine.playSpectralResynth",
+            'kind:"resynth"', "resynth_source_a", "resynth_source_b", "resynth_morph", "resynth_harmonics",
+            "const baseNoteOn=engine.noteOn.bind(engine)", "const baseNoteOff=engine.noteOff.bind(engine)",
+        ],
+        "PCM spectral resynthesis runtime",
+    )
+    for forbidden in ["new AudioContext", "new (window.AudioContext", "fetch(", "XMLHttpRequest", "WebAssembly", "eval("]:
+        if forbidden in resynth_js:
+            fail(f"PCM spectral resynthesis must remain local PCM/DSP only: {forbidden}")
+    if not (html.index('/piano_runtime.js') < html.index('/resynthesis_runtime.js') < html.index('/instrument_performance_runtime.js') < html.index('/vst3_runtime.js')):
+        fail("PCM resynthesis must load after PCM source runtimes and before the final VST3 note wrapper")
+    ok("PCM-derived harmonic analysis, source morphing, transient layering, and VST3 boundary retained")
 
     recording_controls = [
         "recordingStudio", "recordingKeyboardTab", "recordingHummingTab", "recordingKeyboardPane", "recordingHummingPane",
@@ -298,7 +326,7 @@ def main() -> None:
     css = (ROOT / "web/performance_editor.css").read_text(encoding="utf-8")
     require_tokens(css, [".humming-score", ".vst3-parameters", ".vst3-param", ".toggle-label", ".workflow-guide", ".recording-studio", ".recording-mode-tab"], "v0.8 UI styling")
     require_tokens(runtime_js, ["engine.setPatchWithRender", "this.patch=validatePatch(raw)"], "validated graphical editing")
-    ok("graphical editors and new workflow/recording surfaces present")
+    ok("graphical editors, PCM-resynthesis controls, and workflow/recording surfaces present")
 
     print("\nRunning pytest...")
     result = subprocess.run([sys.executable, "-m", "pytest", "tests/"], cwd=ROOT)
