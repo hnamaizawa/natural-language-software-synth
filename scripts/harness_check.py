@@ -9,12 +9,13 @@ REQUIRED = [
     "AGENTS.md", "HARNESS.md", "README.md", "server.py", "pyproject.toml",
     "setup_windows.cmd", "start_synth.cmd", "check_harness.cmd", "build_vst3_host.cmd",
     "harness/app_blueprint.yaml", "scripts/harness_check.py",
-    "src/ai_synth/patch.py", "src/ai_synth/prompt_engine.py",
+    "src/ai_synth/patch.py", "src/ai_synth/prompt_engine.py", "src/ai_synth/timbre_variants.py",
     "web/index.html", "web/app.js", "web/patch_editor_runtime.js", "web/guitar_runtime.js",
     "web/piano_runtime.js", "web/instrument_performance_runtime.js", "web/performance_library_runtime.js",
     "web/output_level_runtime.js", "web/humming_runtime.js", "web/vst3_runtime.js",
     "web/performance_editor.css", "web/style.css",
     "native/vst3_host/CMakeLists.txt", "native/vst3_host/src/main.cpp",
+    "native/vst3_host/src/plugin_editor_win32.h", "native/vst3_host/src/plugin_editor_win32.cpp",
 ]
 
 
@@ -43,6 +44,8 @@ def main() -> None:
     invariants = [
         "generated_text_must_never_be_executed_as_code",
         "generated_patch_must_be_schema_validated_and_clamped",
+        "expanded_timbre_recipes_must_be_validated_and_clamped",
+        "expanded_timbre_recipes_must_not_fetch_or_copy_third_party_presets",
         "graphical_parameter_edits_must_be_validated_and_clamped",
         "all_web_audio_engines_must_share_single_audio_context",
         "microphone_capture_must_use_existing_audio_context",
@@ -71,6 +74,9 @@ def main() -> None:
         "vst3_live_note_events_must_use_active_event_bus",
         "vst3_audio_output_must_use_active_main_output_bus",
         "vst3_render_failures_and_output_peak_must_be_observable",
+        "vst3_reload_must_restore_computer_keyboard_focus",
+        "vst3_custom_editor_must_run_in_native_host_same_plugin_instance",
+        "vst3_editor_parameter_changes_must_reach_loaded_processor",
         "eval_and_dynamic_script_injection_forbidden",
     ]
     require_tokens(blueprint, invariants, "blueprint invariant")
@@ -79,6 +85,7 @@ def main() -> None:
     ok("v0.7.2 non-negotiable invariants")
 
     patch_py = (ROOT / "src/ai_synth/patch.py").read_text(encoding="utf-8")
+    timbre_py = (ROOT / "src/ai_synth/timbre_variants.py").read_text(encoding="utf-8")
     require_tokens(
         patch_py,
         [
@@ -87,7 +94,20 @@ def main() -> None:
         ],
         "multi-engine patch schema",
     )
-    ok("existing instrument parameter bounds retained")
+    require_tokens(
+        timbre_py,
+        [
+            "generate_legacy_patch", "validate_patch(p)", 'archetype = "String Ensemble"',
+            'archetype = "Synth Brass"', 'archetype = "Airy Choir Pad"',
+            'archetype = "Retro Polysynth"', 'archetype = "Resonant Acid Bass"',
+            'archetype = "Analog Synth Keys"', "_apply_common_descriptors",
+        ],
+        "expanded natural-language timbre recipes",
+    )
+    for forbidden in ["requests.", "urllib", "http://", "https://", "subprocess", "eval(", "exec("]:
+        if forbidden in timbre_py:
+            fail(f"timbre recipe must remain offline validated data only: {forbidden}")
+    ok("existing instrument parameter bounds and expanded timbre bounds retained")
 
     app_js = (ROOT / "web/app.js").read_text(encoding="utf-8")
     runtime_js = (ROOT / "web/patch_editor_runtime.js").read_text(encoding="utf-8")
@@ -100,11 +120,13 @@ def main() -> None:
     vst3_js = (ROOT / "web/vst3_runtime.js").read_text(encoding="utf-8")
     server_py = (ROOT / "server.py").read_text(encoding="utf-8")
     native_cpp = (ROOT / "native/vst3_host/src/main.cpp").read_text(encoding="utf-8")
+    native_editor_h = (ROOT / "native/vst3_host/src/plugin_editor_win32.h").read_text(encoding="utf-8")
+    native_editor_cpp = (ROOT / "native/vst3_host/src/plugin_editor_win32.cpp").read_text(encoding="utf-8")
     native_cmake = (ROOT / "native/vst3_host/CMakeLists.txt").read_text(encoding="utf-8")
     html = (ROOT / "web/index.html").read_text(encoding="utf-8")
 
     all_browser_and_python = "\n".join([
-        server_py, app_js, runtime_js, guitar_js, piano_js, instrument_js, library_js, output_js, humming_js, vst3_js,
+        server_py, app_js, runtime_js, guitar_js, piano_js, instrument_js, library_js, output_js, humming_js, vst3_js, timbre_py,
     ])
     for token in ["eval(", "new Function(", "exec("]:
         if token in all_browser_and_python:
@@ -175,14 +197,15 @@ def main() -> None:
         [
             'fetch(path,options)', '"/api/vst3/scan"', '"/api/vst3/load"', '"/api/vst3/note-on"', '"/api/vst3/note-off"',
             '"/api/vst3/parameters"', '"/api/vst3/parameter"', '"/api/vst3/test-tone"', '"/api/vst3/diagnostics"',
-            "const baseNoteOn=engine.noteOn.bind(engine)", "if(route.checked&&loaded)", "scheduleNative", "whenSeconds",
-            "max_output_peak", "process_failures", "note_on_queued",
+            '"/api/vst3/editor/open"', "function isHostControl(active)", "function restorePerformanceFocusSoon()",
+            "requestAnimationFrame", "await refreshParameters();", "const baseNoteOn=engine.noteOn.bind(engine)",
+            "if(route.checked&&loaded)", "scheduleNative", "whenSeconds", "max_output_peak", "process_failures", "note_on_queued",
         ],
         "browser VST3 routing",
     )
     if ".vst3" in vst3_js.lower() or "WebAssembly" in vst3_js:
         fail("browser runtime must not load VST3 binaries directly")
-    ok("VST3 browser adapter reuses the final note event boundary and exposes diagnostics")
+    ok("VST3 browser adapter restores keyboard focus, reuses final note boundary, and exposes diagnostics/editor control")
 
     require_tokens(
         server_py,
@@ -192,7 +215,9 @@ def main() -> None:
             'subprocess.Popen(', 'creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)',
             "midi_note = max(0, min(127", "velocity = max(0.0, min(1.0", "value = max(0.0, min(1.0",
             '"/api/vst3/scan"', '"/api/vst3/load"', '"/api/vst3/note-on"', '"/api/vst3/parameter"',
-            '"/api/vst3/diagnostics"', '"/api/vst3/test-tone"', "DIAGNOSTICS", "TEST_TONE",
+            '"/api/vst3/diagnostics"', '"/api/vst3/test-tone"', '"/api/vst3/editor/open"',
+            "DIAGNOSTICS", "TEST_TONE", 'self._command("EDITOR_OPEN")',
+            "from ai_synth.timbre_variants import generate_patch",
         ],
         "Python VST3 bridge",
     )
@@ -203,7 +228,7 @@ def main() -> None:
         [
             "3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96",
             "9634bedb5b5a2ca38c1ee7108a9358a4e233f14d",
-            "sdk_hosting", "cxx_std_17", "VERSION 0.7.2",
+            "src/plugin_editor_win32.cpp", "sdk_hosting", "user32", "cxx_std_17", "VERSION 0.7.2",
         ],
         "pinned native dependencies",
     )
@@ -216,12 +241,21 @@ def main() -> None:
             "event.busIndex = mainEventInputBus_", "Event::kNoteOnEvent", "Event::kNoteOffEvent", "ParameterChanges",
             "mainOutputBus_", "clearProcessOutputs", "maxOutputPeak_", "processFailures_", "diagnosticsJson",
             "startTestTone", "ma_device_init", "ma_device_start", "NOTE_ON", "NOTE_OFF", "PARAMS", "LOAD",
+            'parts[0] == "EDITOR_OPEN"', "editor_.bind", "queueProcessorParameter", "kParamValuesChanged",
         ],
         "native VST3 host",
     )
+    require_tokens(
+        native_editor_h + "\n" + native_editor_cpp,
+        [
+            "IPlugFrame", "IComponentHandler", "createView (Steinberg::Vst::ViewType::kEditor)",
+            "Steinberg::kPlatformTypeHWND", "view_->attached", "performEdit", "restartComponent",
+        ],
+        "same-instance native VST3 editor",
+    )
     if not (native_cpp.index("processData_.prepare") < native_cpp.index("processor_->setupProcessing") < native_cpp.index("component_->setActive (true)") < native_cpp.index("processor_->setProcessing (true)")):
         fail("VST3 bus/buffer setup must complete before realtime activation")
-    ok("VST3 realtime bus routing, live events, audio diagnostics, and native output test")
+    ok("VST3 realtime bus routing, live events, native editor, audio diagnostics, and native output test")
 
     css = (ROOT / "web/performance_editor.css").read_text(encoding="utf-8")
     require_tokens(css, [".humming-score", ".vst3-parameters", ".vst3-param", ".toggle-label"], "v0.7 UI styling")
