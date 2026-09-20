@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.9.1
+- Step 1 SOUND DESIGNの固定11音色を、7グループ・45音色のカテゴリ選択／検索可能なライブラリへ拡張。
+- ライブラリ候補は専用の別音源経路を作らず、自由入力と同じ自然言語生成経路を利用。
+- 自然言語解析を単一カテゴリ中心から、明暗・暖冷・硬軟・Attack・長さ・空間・広がり・Air/Noise・Metal/Wood・Organic/Digital・Rough/Clean・Thickness等の連続的な音色軸へ拡張。
+- Bell + Padなど複数カテゴリを含む文章では、副カテゴリのAttack / Sustain / Transient等も保持するよう改善。
+- 「ピアノのようなPad」「ギター弦を混ぜたBell」などでは実楽器名をPCM参照元ヒントとして解釈し、明示的なGrand Piano / Guitar / Fretless / Drums / DX EPは従来の専用音源を維持。
+- 氷 / 鋼 / ガラス / 木質 / 煙 / 霧 / 風などの比喩語をboundedな音色軸へマッピング。
+- v0.9.1のSOUND DESIGNライブラリ／自然言語意味軸／専用音源ルーティング互換性の回帰テストを追加。
+- READMEへ `v0.9.1 の主な変更` と新しいSOUND DESIGN操作方法を追記。
+
 ## Unreleased
 - 画面を「音色を作る → 音源を選ぶ → 演奏・試聴 → 録音する」の操作順へ再構成し、上部に4ステップのガイドを追加。
 - VST3設定を「音源を選ぶ」、Sample Performanceとライブ鍵盤／ドラムを「演奏・試聴」へ整理。
