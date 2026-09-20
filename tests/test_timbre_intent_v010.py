@@ -81,8 +81,8 @@ def test_manual_intent_edit_and_delta_refinement_preserve_unmentioned_axes():
     assert 'data-intent-path="${path}"' in RUNTIME
     assert "setPath(state.intent,path,Number(input.value))" in RUNTIME
     assert "function refineIntent(current,instruction)" in RUNTIME
-    assert "const next=deepCopy(current)" in RUNTIME
-    assert "const mentioned=mentionedPaths(instruction)" in RUNTIME
+    assert "next=deepCopy(current)" in RUNTIME
+    assert "mentioned=mentionedPaths(instruction)" in RUNTIME
     assert "for(const axis of mentioned)" in RUNTIME
     assert 'next.prompt=current.prompt' in RUNTIME
 
