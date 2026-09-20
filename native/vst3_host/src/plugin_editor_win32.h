@@ -3,11 +3,13 @@
 #include "pluginterfaces/gui/iplugview.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
 #include <functional>
 #include <string>
-
-struct HWND__;
-using HWND = HWND__*;
 
 class PluginEditorWin32 final : public Steinberg::IPlugFrame, public Steinberg::Vst::IComponentHandler
 {
@@ -40,9 +42,8 @@ public:
     Steinberg::uint32 PLUGIN_API release () override { return 1000; }
 
 private:
-    static long long __stdcall windowProc (HWND hwnd, unsigned int message, unsigned long long wParam,
-                                            long long lParam);
-    long long handleWindowMessage (unsigned int message, unsigned long long wParam, long long lParam);
+    static LRESULT CALLBACK windowProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+    LRESULT handleWindowMessage (UINT message, WPARAM wParam, LPARAM lParam);
     bool registerWindowClass (std::string& error);
     void detachView ();
 
