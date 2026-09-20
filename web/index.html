@@ -12,14 +12,22 @@
   <main>
     <header>
       <div>
-        <p class="eyebrow">v0.7.2 · humming assist · VST3 host</p>
+        <p class="eyebrow">v0.8.1 · workflow UI · unified recording studio</p>
         <h1>Natural Language Software Synth</h1>
-        <p class="lead">自然言語で音色を作り、鼻歌はキー／リズムを自動補正してMIDIライクなデータと楽譜へ変換。Windowsでは一般的なVST3 Instrumentも利用できます。</p>
+        <p class="lead">自然言語で音色を作り、演奏・録音までをひとつの流れで操作。鼻歌とPCキーボード演奏は共通の録音画面から選べます。</p>
       </div>
       <button id="audioBtn" class="primary">音源を有効化</button>
     </header>
 
-    <section class="panel prompt-panel">
+    <nav class="workflow-guide" aria-label="基本操作の流れ">
+      <a href="#soundDesign"><span>1</span><strong>音色を作る</strong><small>自然言語から生成</small></a>
+      <a href="#soundSource"><span>2</span><strong>音源を選ぶ</strong><small>内蔵 / VST3</small></a>
+      <a href="#performance"><span>3</span><strong>演奏・試聴</strong><small>鍵盤 / MIDI / Sample</small></a>
+      <a href="#recordingStudio"><span>4</span><strong>録音する</strong><small>PCキー / 鼻歌</small></a>
+    </nav>
+
+    <section id="soundDesign" class="panel prompt-panel workflow-section">
+      <div class="workflow-section-label"><span>STEP 1</span> SOUND DESIGN</div>
       <label for="prompt">どんな音が欲しいですか？</label>
       <div class="prompt-row">
         <textarea id="prompt" rows="3">コンサートホールで弾くような豊かなグランドピアノ。ハンマーのアタックと響板の余韻が自然な音。</textarea>
@@ -41,79 +49,95 @@
     <section class="workspace">
       <div class="panel instrument-panel">
         <div class="section-title">
-          <div><span class="kicker">PLAY · <span id="engineBadge">SYNTH</span></span><h2 id="patchName">Init Patch</h2><div id="engineDetail" class="engine-detail">Subtractive Synth</div></div>
+          <div><span class="kicker">CURRENT SOUND · <span id="engineBadge">SYNTH</span></span><h2 id="patchName">Init Patch</h2><div id="engineDetail" class="engine-detail">Subtractive Synth</div></div>
           <div class="toolbar"><button id="exportBtn">JSON保存</button><label class="file-btn">JSON読込<input id="importInput" type="file" accept="application/json,.json" /></label></div>
         </div>
 
-        <div class="sample-player">
-          <div class="sample-copy"><span class="kicker">SAMPLE</span><strong>現在の音色でサンプル演奏</strong><span id="sampleDescription">生成した音色を短いフレーズで確認できます。</span></div>
-          <div class="sample-controls"><label for="sampleSelect">演奏タイプ</label><select id="sampleSelect"></select><button id="samplePlayBtn" class="primary">▶ サンプル演奏</button><button id="sampleStopBtn" disabled>■ 停止</button></div>
-          <details class="custom-sample-editor">
-            <summary>＋ 自分のサンプル演奏フレーズを登録</summary>
-            <div class="custom-sample-grid">
-              <label>登録先の楽器<span id="customSampleInstrument" class="custom-instrument-badge">シンセ</span></label>
-              <label>BPM<input id="customSampleBpm" type="number" min="40" max="240" value="100" /></label>
-              <label class="custom-wide">フレーズ名<input id="customSampleName" maxlength="40" placeholder="例: 自分のフュージョンフレーズ" /></label>
-              <label class="custom-wide">フレーズ<textarea id="customSampleSteps" rows="6" placeholder="C4,E4,G4 | 1 | 0.84&#10;A4 | 0.5 | 0.80&#10;R | 0.5 | 0.80"></textarea></label>
-              <p class="custom-sample-help">1行=1ステップ。「音名またはMIDIノート | 拍数 | Velocity」。和音はカンマ区切り、休符は R。</p>
-              <div class="custom-sample-actions"><button id="customSampleSaveBtn" class="primary">登録</button><button id="customSampleDeleteBtn" disabled>選択中の登録フレーズを削除</button></div>
-              <p id="customSampleStatus" class="custom-sample-status"></p>
-            </div>
-          </details>
-        </div>
-
-        <details class="humming-recorder" open>
-          <summary>🎤 鼻歌からメロディーを録音・自動補正</summary>
-          <div class="humming-grid">
-            <p class="humming-help">マイク音声そのものは保存しません。停止後、推定キー／スケールへ音程を寄せ、BPMと音符グリッドも自動推定してクォンタイズします。</p>
-            <label class="toggle-label"><input id="hummingAutoKey" type="checkbox" checked /> キー／スケールを自動補正</label>
-            <div class="humming-analysis"><span class="kicker">KEY</span><strong id="hummingKeyDisplay">—</strong></div>
-            <label class="toggle-label"><input id="hummingAutoTiming" type="checkbox" checked /> BPM／音符を自動クォンタイズ</label>
-            <div class="humming-analysis"><span class="kicker">TIMING</span><strong id="hummingTimingDisplay">—</strong></div>
-            <label>BPM<input id="hummingBpm" type="number" min="40" max="240" value="100" /></label>
-            <label>量子化<select id="hummingQuantize"><option value="0.5">1/8音符</option><option value="0.25" selected>1/16音符</option><option value="0.125">1/32音符</option></select></label>
-            <div class="humming-live custom-wide"><span class="kicker">LIVE PITCH</span><strong id="hummingLivePitch">—</strong><span id="hummingConfidence"></span></div>
-            <div class="humming-actions custom-wide"><button id="hummingStartBtn" class="primary">● 録音開始</button><button id="hummingStopBtn" disabled>■ 録音停止</button><button id="hummingPlayBtn" disabled>▶ 補正後を試聴</button><button id="hummingTransferBtn" disabled>登録フレーズへ取り込む</button><button id="hummingClearBtn" disabled>クリア</button></div>
-            <label class="custom-wide">補正済みMIDI相当データ<textarea id="hummingResult" rows="7" readonly placeholder="録音後に C4 | 0.5 | 0.82 のようなノート列を表示します。"></textarea></label>
-            <div class="custom-wide score-wrap"><div class="score-title"><span class="kicker">SCORE</span><strong>鼻歌メロディー楽譜</strong></div><svg id="hummingScore" class="humming-score" viewBox="0 0 900 120" role="img" aria-label="鼻歌から生成した楽譜"></svg></div>
-            <p id="hummingStatus" class="humming-status custom-wide">マイク待機中。Chrome / Edge でマイク利用を許可してから録音してください。</p>
-          </div>
-        </details>
-
-        <details class="vst3-host" open>
-          <summary>🎛 VST3 Instrument</summary>
+        <details id="soundSource" class="vst3-host workflow-block">
+          <summary><span class="workflow-summary-step">STEP 2</span> 🎛 音源を選ぶ / VST3 Instrument <small>任意</small></summary>
           <div class="vst3-grid">
-            <p class="humming-help custom-wide">WindowsのVST3をネイティブホストで読み込みます。初回またはNative Host更新後は <code>build_vst3_host.cmd</code> でホストをビルドしてください。</p>
+            <p class="humming-help custom-wide">通常は生成した内蔵音源を使います。外部VST3を使う場合だけ、ここで検索・ロードしてVST3ルーティングをONにします。</p>
             <div class="custom-wide vst3-actions"><button id="vst3ScanBtn">VST3を検索</button><select id="vst3PluginSelect"><option value="">VST3を検索してください</option></select><button id="vst3LoadBtn" class="primary" disabled>ロード</button><button id="vst3UnloadBtn" disabled>解除</button></div>
             <div class="custom-wide vst3-program-panel">
               <div class="vst3-program-copy"><span class="kicker">VST3 PROGRAM / PRESET</span><strong>VST3音色を切り替え</strong><span id="vst3ProgramStatus">VST3をロードすると、公開されているProgram/Presetを表示します。</span></div>
               <div class="vst3-program-actions"><button id="vst3ProgramPrevBtn" disabled>◀</button><select id="vst3ProgramSelect" disabled><option value="">Program/Presetなし</option></select><button id="vst3ProgramNextBtn" disabled>▶</button></div>
             </div>
-            <div class="custom-wide vst3-actions"><button id="vst3TestToneBtn">PC音声出力テスト</button><button id="vst3DiagBtn">VST3診断</button></div>
-            <label class="toggle-label custom-wide"><input id="vst3RouteEnabled" type="checkbox" disabled /> 鍵盤・MIDI・サンプル演奏・鼻歌試聴をVST3へ送る（Web Audio音源の代わりに使用）</label>
+            <div class="custom-wide vst3-actions"><button id="vst3EditorBtn" disabled>VST3本体画面を開く</button><button id="vst3TestToneBtn">PC音声出力テスト</button><button id="vst3DiagBtn">VST3診断</button></div>
+            <label class="toggle-label custom-wide"><input id="vst3RouteEnabled" type="checkbox" disabled /> 鍵盤・MIDI・サンプル演奏・録音再生・鼻歌試聴をVST3へ送る</label>
             <div class="custom-wide"><span class="kicker">VST3 PARAMETERS</span><div id="vst3Parameters" class="vst3-parameters"></div></div>
             <p id="vst3Status" class="humming-status custom-wide">VST3ホスト未確認。</p>
           </div>
         </details>
 
-        <div id="keyboardWrap" class="keyboard-stage">
-          <div class="keyboard-stage-head"><div><span class="kicker">LIVE KEYBOARD</span><strong>ピアノ鍵盤</strong></div><span class="keyboard-stage-sub">マウス / PCキー / MIDI / VST3 に連動</span></div>
-          <div id="keyboard" class="keyboard" aria-label="piano keyboard"></div>
-          <div class="keyboard-help">PCキー: A=ド(C4) / W=ド♯ / S=レ / E=レ♯ / D=ミ / F=ファ / T=ファ♯ / G=ソ / Y=ソ♯ / H=ラ / U=ラ♯ / J=シ / K=ド(C5) / MIDIキーボード対応</div>
-          <div class="keyboard-recorder">
-            <div class="keyboard-recorder-head"><div class="keyboard-recorder-title"><span class="kicker">RECORDER</span><strong>PCキーボード演奏を録音</strong></div><div class="keyboard-recorder-actions"><button id="keyboardRecordBtn" class="record-button">録音開始</button><button id="keyboardRecordStopBtn" disabled>■ 停止</button><button id="keyboardRecordPlayBtn" disabled>▶ 再生</button><button id="keyboardRecordClearBtn" disabled>クリア</button></div></div>
+        <section id="performance" class="performance-zone workflow-block">
+          <div class="workflow-section-label"><span>STEP 3</span> PLAY &amp; PREVIEW</div>
+          <div class="sample-player">
+            <div class="sample-copy"><span class="kicker">SAMPLE</span><strong>現在の音色でサンプル演奏</strong><span id="sampleDescription">生成した音色を短いフレーズで確認できます。</span></div>
+            <div class="sample-controls"><label for="sampleSelect">演奏タイプ</label><select id="sampleSelect"></select><button id="samplePlayBtn" class="primary">▶ サンプル演奏</button><button id="sampleStopBtn" disabled>■ 停止</button></div>
+            <details class="custom-sample-editor">
+              <summary>＋ 自分のサンプル演奏フレーズを登録</summary>
+              <div class="custom-sample-grid">
+                <label>登録先の楽器<span id="customSampleInstrument" class="custom-instrument-badge">シンセ</span></label>
+                <label>BPM<input id="customSampleBpm" type="number" min="40" max="240" value="100" /></label>
+                <label class="custom-wide">フレーズ名<input id="customSampleName" maxlength="40" placeholder="例: 自分のフュージョンフレーズ" /></label>
+                <label class="custom-wide">フレーズ<textarea id="customSampleSteps" rows="6" placeholder="C4,E4,G4 | 1 | 0.84&#10;A4 | 0.5 | 0.80&#10;R | 0.5 | 0.80"></textarea></label>
+                <p class="custom-sample-help">1行=1ステップ。「音名またはMIDIノート | 拍数 | Velocity」。和音はカンマ区切り、休符は R。</p>
+                <div class="custom-sample-actions"><button id="customSampleSaveBtn" class="primary">登録</button><button id="customSampleDeleteBtn" disabled>選択中の登録フレーズを削除</button></div>
+                <p id="customSampleStatus" class="custom-sample-status"></p>
+              </div>
+            </details>
+          </div>
+
+          <div id="keyboardWrap" class="keyboard-stage">
+            <div class="keyboard-stage-head"><div><span class="kicker">LIVE KEYBOARD</span><strong>ピアノ鍵盤</strong></div><span class="keyboard-stage-sub">マウス / PCキー / MIDI / VST3 に連動</span></div>
+            <div id="keyboard" class="keyboard" aria-label="piano keyboard"></div>
+            <div class="keyboard-help">PCキー: A=ド(C4) / W=ド♯ / S=レ / E=レ♯ / D=ミ / F=ファ / T=ファ♯ / G=ソ / Y=ソ♯ / H=ラ / U=ラ♯ / J=シ / K=ド(C5) / MIDIキーボード対応</div>
+          </div>
+          <div id="drumKitWrap" hidden><div id="drumKit" class="drum-kit" aria-label="drum kit pads"></div><div class="keyboard-help">A=Kick / S=Snare / D=Closed Hat / F=Open Hat / G/H/J=Toms / K=Crash / L=Ride</div></div>
+        </section>
+
+        <section id="recordingStudio" class="recording-studio workflow-block" data-default-mode="keyboard" data-recording-mode="keyboard">
+          <div class="recording-studio-head">
+            <div><span class="workflow-section-label"><span>STEP 4</span> RECORDING STUDIO</span><h3>演奏や鼻歌を録音</h3><p>録音方法を切り替えて使います。どちらも既存の演奏・補正処理をそのまま利用します。</p></div>
+          </div>
+          <div class="recording-mode-tabs" role="tablist" aria-label="録音方法">
+            <button id="recordingKeyboardTab" class="recording-mode-tab" type="button" role="tab" aria-controls="recordingKeyboardPane" aria-selected="true">⌨ PCキーボード演奏</button>
+            <button id="recordingHummingTab" class="recording-mode-tab" type="button" role="tab" aria-controls="recordingHummingPane" aria-selected="false" tabindex="-1">🎤 鼻歌からメロディー</button>
+          </div>
+
+          <div id="recordingKeyboardPane" class="recording-pane keyboard-recorder" role="tabpanel" aria-labelledby="recordingKeyboardTab" aria-hidden="false">
+            <div class="recording-pane-title"><div><span class="kicker">KEYBOARD RECORDER</span><strong>PCキー演奏をノートイベントとして録音</strong></div><span>A/W/S/E/D… で演奏</span></div>
+            <div class="keyboard-recorder-head"><div class="keyboard-recorder-title"><span class="kicker">REC</span><strong>最大120秒 / 512ノート</strong></div><div class="keyboard-recorder-actions"><button id="keyboardRecordBtn" class="record-button">録音開始</button><button id="keyboardRecordStopBtn" disabled>■ 停止</button><button id="keyboardRecordPlayBtn" disabled>▶ 再生</button><button id="keyboardRecordClearBtn" disabled>クリア</button></div></div>
             <p id="keyboardRecordStatus" class="keyboard-record-status">PCキー A/W/S/E/D… の演奏をノートイベントとして録音できます。</p>
             <div id="keyboardRecordingRoll" class="recording-roll empty" aria-label="recorded piano roll"></div>
           </div>
-        </div>
-        <div id="drumKitWrap" hidden><div id="drumKit" class="drum-kit" aria-label="drum kit pads"></div><div class="keyboard-help">A=Kick / S=Snare / D=Closed Hat / F=Open Hat / G/H/J=Toms / K=Crash / L=Ride</div></div>
+
+          <div id="recordingHummingPane" class="recording-pane humming-recorder" role="tabpanel" aria-labelledby="recordingHummingTab" aria-hidden="true" hidden>
+            <div class="recording-pane-title"><div><span class="kicker">HUMMING RECORDER</span><strong>鼻歌をMIDIライクなメロディーへ変換</strong></div><span>マイク音声そのものは保存しません</span></div>
+            <div class="humming-grid">
+              <p class="humming-help">停止後、推定キー／スケールへ音程を寄せ、BPMと音符グリッドも自動推定してクォンタイズします。</p>
+              <label class="toggle-label"><input id="hummingAutoKey" type="checkbox" checked /> キー／スケールを自動補正</label>
+              <div class="humming-analysis"><span class="kicker">KEY</span><strong id="hummingKeyDisplay">—</strong></div>
+              <label class="toggle-label"><input id="hummingAutoTiming" type="checkbox" checked /> BPM／音符を自動クォンタイズ</label>
+              <div class="humming-analysis"><span class="kicker">TIMING</span><strong id="hummingTimingDisplay">—</strong></div>
+              <label>BPM<input id="hummingBpm" type="number" min="40" max="240" value="100" /></label>
+              <label>量子化<select id="hummingQuantize"><option value="0.5">1/8音符</option><option value="0.25" selected>1/16音符</option><option value="0.125">1/32音符</option></select></label>
+              <div class="humming-live custom-wide"><span class="kicker">LIVE PITCH</span><strong id="hummingLivePitch">—</strong><span id="hummingConfidence"></span></div>
+              <div class="humming-actions custom-wide"><button id="hummingStartBtn" class="primary">● 録音開始</button><button id="hummingStopBtn" disabled>■ 録音停止</button><button id="hummingPlayBtn" disabled>▶ 補正後を試聴</button><button id="hummingTransferBtn" disabled>登録フレーズへ取り込む</button><button id="hummingClearBtn" disabled>クリア</button></div>
+              <label class="custom-wide">補正済みMIDI相当データ<textarea id="hummingResult" rows="7" readonly placeholder="録音後に C4 | 0.5 | 0.82 のようなノート列を表示します。"></textarea></label>
+              <div class="custom-wide score-wrap"><div class="score-title"><span class="kicker">SCORE</span><strong>鼻歌メロディー楽譜</strong></div><svg id="hummingScore" class="humming-score" viewBox="0 0 900 120" role="img" aria-label="鼻歌から生成した楽譜"></svg></div>
+              <p id="hummingStatus" class="humming-status custom-wide">マイク待機中。Chrome / Edge でマイク利用を許可してから録音してください。</p>
+            </div>
+          </div>
+        </section>
+
         <div class="meter-wrap"><span>Output</span><div class="meter"><div id="meterBar"></div></div></div>
       </div>
 
       <aside class="panel params-panel"><div class="section-title compact"><div><span class="kicker">PATCH EDITOR</span><h2>音色をグラフィカルに調整</h2></div><button id="resetParamsBtn" class="small-btn">生成値へ戻す</button></div><p class="param-help">スライダーを動かすと即座に現在の音へ反映されます。</p><div id="params" class="params-editor"></div></aside>
     </section>
 
-    <section class="panel future-panel"><span class="kicker">ENGINE CONTRACT</span><h2>Web Audio / 鼻歌 / VST3で同じNote Event境界</h2><p>既存の <code>noteOn / noteOff</code> をVST3ルーターが最終段で包むため、鍵盤、PCキー録音、MIDI、サンプル演奏、鼻歌試聴のすべてを同じ演奏イベントとして扱います。</p></section>
+    <section class="panel future-panel"><span class="kicker">ENGINE CONTRACT</span><h2>演奏・録音・VST3で同じNote Event境界</h2><p>既存の <code>noteOn / noteOff</code> をVST3ルーターが最終段で包むため、鍵盤、PCキー録音、MIDI、サンプル演奏、鼻歌試聴のすべてを同じ演奏イベントとして扱います。</p></section>
   </main>
   <script src="/app.js"></script>
   <script src="/patch_editor_runtime.js"></script>
@@ -124,6 +148,7 @@
   <script src="/output_level_runtime.js"></script>
   <script src="/humming_runtime.js"></script>
   <script src="/keyboard_performance_runtime.js"></script>
+  <script src="/recording_workspace_runtime.js"></script>
   <script src="/vst3_runtime.js"></script>
 </body>
 </html>
