@@ -7,12 +7,18 @@ purpose: >-
   descriptions. Preserve all existing synth/sampler/drum/FM, performance, editing, output,
   microphone and safety contracts while supporting automatic humming key/timing correction,
   staff notation, a diagnosable Windows native VST3 instrument host, same-instance native
-  VST3 editor windows, bounded expanded natural-language timbre archetypes, and a workflow-
-  guided UI with one unified recording workspace for computer-keyboard and humming capture.
+  VST3 editor windows, bounded expanded natural-language timbre archetypes, PCM-derived
+  spectral resynthesis, and a workflow-guided UI with one unified recording workspace for
+  computer-keyboard and humming capture.
 required_capabilities:
 - natural_language_patch_generation
 - deterministic_offline_prompt_fallback
 - expanded_natural_language_timbre_archetypes
+- pcm_spectral_resynthesis
+- pcm_derived_harmonic_template_analysis
+- pcm_resynthesis_source_morph
+- pcm_resynthesis_transient_layer
+- resynthesis_graphical_controls
 - validated_patch_schema
 - browser_web_audio_polyphonic_engine
 - workflow_guided_ui
@@ -100,6 +106,12 @@ non_negotiable_invariants:
 - generated_patch_must_be_schema_validated_and_clamped
 - expanded_timbre_recipes_must_be_validated_and_clamped
 - expanded_timbre_recipes_must_not_fetch_or_copy_third_party_presets
+- pcm_resynthesis_parameters_must_be_schema_validated_and_clamped
+- pcm_resynthesis_must_use_locally_generated_factory_pcm_only
+- pcm_resynthesis_must_use_existing_audio_context
+- pcm_resynthesis_must_not_fetch_network_or_load_third_party_samples
+- pcm_resynthesis_playback_must_use_same_note_on_note_off_contract
+- vst3_router_must_remain_final_note_event_wrapper
 - graphical_parameter_edits_must_be_validated_and_clamped
 - graphical_slider_input_must_not_rebuild_control_during_drag
 - audio_context_must_start_only_after_user_gesture
@@ -177,6 +189,7 @@ required_files:
 - web/patch_editor_runtime.js
 - web/guitar_runtime.js
 - web/piano_runtime.js
+- web/resynthesis_runtime.js
 - web/instrument_performance_runtime.js
 - web/performance_library_runtime.js
 - web/output_level_runtime.js
@@ -216,6 +229,8 @@ ui_requirements:
   midi_input_optional: true
   unified_recording_workspace: true
   recording_mode_tabs: [computer_keyboard, humming]
+  pcm_spectral_resynthesis_controls: true
+  pcm_resynthesis_source_morph: true
   microphone_humming_capture: true
   humming_live_pitch_display: true
   humming_record_start_stop: true
@@ -253,6 +268,7 @@ engine_routing:
   fretless_bass: sampler
   electric_guitar: sampler
   grand_piano: sampler
+  spectral_resynth: sampler
   studio_drums: drum
   dx_style_electric_piano: fm
   default: synth
@@ -292,6 +308,25 @@ grand_piano_contract:
   layers: [string_body, hammer_attack, damper_release, soundboard_resonance]
   controls: [piano_tone, piano_hammer_mix, piano_resonance, piano_damper_noise, piano_softness, piano_sustain, piano_velocity_curve, piano_room_mix]
   root_notes: [36, 43, 48, 55, 60, 67, 72, 79, 84]
+pcm_spectral_resynthesis_contract:
+  instrument_model: spectral_resynth
+  engine_type: sampler
+  source_families: [piano, guitar, fretless]
+  source_material: locally_generated_factory_pcm_only
+  analysis: harmonic_projection_from_pcm
+  oscillator: WebAudio_PeriodicWave
+  source_morph_min: 0.0
+  source_morph_max: 1.0
+  harmonic_count_min: 4
+  harmonic_count_max: 32
+  pcm_body_mix_max: 0.65
+  transient_mix_max: 1.0
+  noise_mix_max: 0.35
+  additional_audio_context: forbidden
+  runtime_network_fetch: forbidden
+  third_party_sample_load: forbidden
+  note_event_api: noteOn_noteOff
+  controls: [resynth_source_a, resynth_source_b, resynth_morph, resynth_harmonics, resynth_brightness, resynth_pcm_mix, resynth_transient_mix, resynth_detune_cents, resynth_noise_mix, resynth_attack_s, resynth_decay_s, resynth_sustain, resynth_release_s]
 custom_sample_contract:
   storage: browser_localStorage_only
   maximum_phrases: 50
@@ -389,10 +424,13 @@ vst3_contract:
 timbre_variation_contract:
   runtime_network_fetch: forbidden
   third_party_preset_copy: forbidden
+  third_party_sample_load: forbidden
   validation: existing_patch_validator
-  engine: synth
-  archetypes: [string_ensemble, synth_brass, airy_choir_pad, retro_polysynth, resonant_acid_bass, analog_synth_keys]
-  descriptor_modifiers: [warm, bright, dark, wide, dry, spacious]
+  legacy_engine: synth
+  preferred_engine: pcm_spectral_resynthesis
+  source_families: [piano, guitar, fretless]
+  archetypes: [string_ensemble, synth_brass, airy_choir_pad, retro_polysynth, resonant_acid_bass, analog_synth_keys, bell, pluck, organ, lead, pad, bass]
+  descriptor_modifiers: [warm, bright, dark, wide, thin, dry, spacious, metallic, woody, airy, percussive, smooth, short, long]
 drum_contract:
   canonical_notes:
     kick: 36

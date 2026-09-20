@@ -1,6 +1,48 @@
 # Natural Language Software Synth
 
-自然言語で楽器・音色・雰囲気を指定すると音源方式まで選択してPatchを生成し、その場で演奏できるローカル実行型ソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／サンプル演奏に加え、鼻歌からMIDIライクなメロディーを作成できます。v0.8.0ではVST3再ロード時のPCキー復旧、VST3本体Editor、音色バリエーション拡張を追加し、v0.8.1では増えた機能を操作目的に沿って並べ直し、鼻歌録音とPCキーボード録音を1つの録音画面へ統合しました。
+自然言語で楽器・音色・雰囲気を指定すると音源方式まで選択してPatchを生成し、その場で演奏できるローカル実行型ソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／サンプル演奏に加え、鼻歌からMIDIライクなメロディーを作成できます。v0.8.1では機能を操作目的に沿って整理し、v0.9.0では抽象的な音色指定が似た電子音へ収束しやすかった問題を改善する **PCM Spectral Resynthesis** を追加しました。
+
+## v0.9.0 の主な変更
+
+- 自然言語で指定した Pad / Strings / Brass / Choir / Bell / Pluck / Lead / Bass / Organ / Keys などを、従来の2 Oscillator中心の似た減算合成へ集約せず、**PCMスペクトル再合成**へ振り分けるよう変更。
+- 既存の **Factory Piano / Guitar / Fretless PCM** を再生素材としてだけでなく、音色の倍音構造を学習するローカルな参照素材として利用。
+- Factory PCMの短い解析区間から基音の整数倍ごとの振幅を測定し、Web Audio `PeriodicWave` へ再構築。
+- **Source A / Source B** として Piano / Guitar / Fretless の倍音テンプレートを選び、`Morph` で2つの音色特性を連続的に混ぜられるようにした。
+- 再合成した倍音成分だけでは失われやすいアタック感を補うため、元PCMの短い **Body / Transient layer** を限定量だけ重ねるハイブリッド方式を採用。
+- Patch Editorから `Source A/B / Morph / Harmonics / Spectral Brightness / PCM Body / PCM Transient / Detune / Air-Noise / ADSR` を調整可能。
+- `warm / bright / dark / wide / metallic / woody / airy / percussive / smooth / short / long` などの自然言語を、再合成パラメータのbounded modifierとして反映。
+- 新しい代表例として **PCM Resynth Bell / PCM Resynth Pluck / PCM Resynth Organ / PCM Resynth Lead / PCM Resynth Pad / PCM Resynth Bass** を追加。
+- 既存の **String Ensemble / Synth Brass / Airy Choir Pad / Retro Polysynth / Resonant Acid Bass / Analog Synth Keys** もPCM再合成方式へ移行し、音色ごとに異なるPCMソース・Morph・倍音数・アタック・エンベロープを使用。
+- 「グランドピアノ」「エレキギター」「フレットレスベース」「ドラム」「DX系FMエレピ」など、明示的な実楽器／専用音源の指定は従来の専用エンジンをそのまま使用。
+- 解析元はアプリ自身がローカル生成するFactory PCMだけで、第三者Preset／録音の取得・コピーやランタイムのネットワークアクセスは行わない。
+- PCM再合成も既存の単一 `AudioContext` と `noteOn / noteOff` 契約を利用し、VST3ルーターは引き続き最終Note Event境界を担当。
+- Native VST3 HostのC++は変更していないため、v0.9.0への更新後に `build_vst3_host.cmd` を再実行する必要はありません。
+
+### PCM Spectral Resynthesis の考え方
+
+```text
+自然言語
+  ↓
+音色カテゴリ + 質感を判定
+  ↓
+Factory PCMから参照元を選択
+  ├─ Piano PCM
+  ├─ Guitar PCM
+  └─ Fretless PCM
+  ↓
+倍音振幅をローカル解析
+  ↓
+PeriodicWaveとして再合成
+  ↓
+Source A ↔ Source B Morph
+  + 短いPCM Body / Transient
+  + Air / Noise
+  + ADSR / Delay
+  ↓
+既存 noteOn / noteOff
+```
+
+これはニューラルネットによる生成や外部サンプル検索ではなく、既存Factory PCMのスペクトルを決定論的DSPで再構築する方式です。例えば「ガラスのようなベル」はPiano/Guitar系の高域倍音と強いTransient、「木質のプラック」はGuitar/Fretless系のPCM Bodyと短いDecay、「エアリーなクワイア」はFretless/Piano系の滑らかな倍音とNoise・長いAttack/Releaseを使うため、同じ2 Oscillator音色へ収束しにくくなります。
 
 ## v0.8.1 の主な変更
 
@@ -66,7 +108,8 @@ VST3のProgram / Presetは、プラグイン側がホストへ切替用パラメ
 
 | 要求する音 | Engine / Model | 主な特徴 |
 | --- | --- | --- |
-| Pad / Lead / 一般シンセ | `synth / generic` | 2 Oscillator + Filter + ADSR + LFO + Delay |
+| Pad / Lead / Bell / Pluck / Strings / Brass / Choir / 一般的な抽象音色 | `sampler / spectral_resynth` | Factory PCM倍音解析 + PeriodicWave再合成 + PCM Body/Transient + Morph |
+| 基本的なSubtractive Synth要求／未分類fallback | `synth / generic` | 2 Oscillator + Filter + ADSR + LFO + Delay |
 | フレットレスベース | `sampler / fretless_bass` | PCM + Finger/Release/Slide Noise + Mwah |
 | エレキギター | `sampler / electric_guitar` | PCM + Pick/Release + Amp Drive + Cabinet + Chorus |
 | グランドピアノ | `sampler / grand_piano` | PCM + Hammer + Damper + String/Body Resonance + Room |
@@ -82,22 +125,24 @@ noteOn(midiNote, velocity, whenSeconds=0)
 noteOff(midiNote, whenSeconds=0)
 ```
 
-VST3ルーティングをONにすると、この最終 `noteOn / noteOff` 境界をVST3イベントへ変換します。そのため鍵盤、PCキー、Web MIDI、サンプル演奏、PCキー録音の再生、鼻歌試聴を同じVST3へ送れます。
+VST3ルーティングをONにすると、この最終 `noteOn / noteOff` 境界をVST3イベントへ変換します。そのためPCM再合成を含む内蔵音源、鍵盤、PCキー、Web MIDI、サンプル演奏、PCキー録音の再生、鼻歌試聴を同じVST3境界へ接続できます。
 
 ## 自然言語の音色バリエーション
 
-従来のPad / Bass / Bell / Pluck / Lead / Organに加え、一般的な減算シンセのサウンドデザイン原則を参考にしたオリジナルのパラメータレシピを追加しています。外部VSTプリセットや第三者の録音をコピーせず、既存のOscillator / Filter / ADSR / Detune / LFO / Delayを組み合わせ、最終値は従来どおりPatch validatorでClampします。
+v0.9.0以降、抽象的な音色要求は主にPCM Spectral Resynthesisへ送ります。自然言語から実行コードやDSPコードを生成するのではなく、**PCM参照元・Morph・倍音数・Brightness・PCM Body/Transient・Detune・Noise・ADSR**という有限のPatch値へ変換し、既存validatorでClampします。
 
-追加例:
+代表例:
 
-- `広がりのあるシンセストリングス` → **String Ensemble**
-- `パンチのあるシンセブラス` → **Synth Brass**
-- `エアリーなクワイアのボイスパッド` → **Airy Choir Pad**
-- `80年代の太いポリシンセ` → **Retro Polysynth**
-- `レゾナンスの強いアシッドベース` → **Resonant Acid Bass**
-- `柔らかいアナログのシンセキー` → **Analog Synth Keys**
+- `広がりのあるシンセストリングス` → **String Ensemble**（Fretless ↔ Piano）
+- `パンチのあるシンセブラス` → **Synth Brass**（Guitar ↔ Piano）
+- `エアリーなクワイアのボイスパッド` → **Airy Choir Pad**（Fretless ↔ Piano + Air）
+- `80年代の太いポリシンセ` → **Retro Polysynth**（Guitar ↔ Fretless）
+- `レゾナンスの強いアシッドベース` → **Resonant Acid Bass**（Fretless ↔ Guitar）
+- `柔らかいアナログのシンセキー` → **Analog Synth Keys**（Piano ↔ Guitar）
+- `ガラスのように明るい金属的なベル` → **PCM Resynth Bell**
+- `木質で短いアタックのプラック` → **PCM Resynth Pluck**
 
-さらに `warm / 暖かい`, `bright / 明るい`, `dark / 暗い`, `wide / 広がり`, `dry / ドライ`, `spacious / ambient / 空間` などを組み合わせると、新しいアーキタイプのCutoff、Resonance、Detune、Delay等へ限定範囲内の補正を加えます。ランタイム中にインターネットへ接続して音色データを取得する仕組みではありません。
+`warm / 暖かい`, `bright / 明るい`, `dark / 暗い`, `wide / 広がり`, `metallic / 金属的`, `woody / 木質`, `airy / 息`, `percussive / パーカッシブ`, `smooth / 滑らか`, `short / 短い`, `long / 長い` などを組み合わせると、PCM参照元や再合成パラメータへ限定範囲内の補正を加えます。ランタイム中にインターネットへ接続して音色データを取得する仕組みではありません。
 
 ## 鼻歌 → メロディー
 
@@ -340,6 +385,10 @@ build_vst3_host.cmd
 - 自然言語、鼻歌結果、ユーザー登録フレーズをコードとして実行しない
 - `eval()` / dynamic script injectionを使わない
 - ブラウザ内蔵音源はAudioContextを1つだけ共有
+- PCM Spectral Resynthesisも既存AudioContextを共有し、新しいAudioContextを作らない
+- PCM再合成の参照元はローカル生成Factory Piano / Guitar / Fretless PCMだけに限定
+- PCM再合成は第三者Sample／Presetの取得やランタイムのネットワークアクセスを行わない
+- PCM再合成のPatch値はすべてvalidatorでClamp
 - マイクの生音声を録音・保存・アップロードしない
 - Master Gain / Polyphony / PCM / Guitar Amp / Piano / Drum / FM値をClamp
 - VST3をブラウザプロセスへロードしない
@@ -375,6 +424,8 @@ GitHub ActionsでもLinux上のpytest/HarnessとWindows上のNative VST3 build�
 
 ## 今後の方向性
 
+- PCM Spectral Resynthesisの時間変化するスペクトル（Attack/Sustain別テンプレート）
+- PCM再合成のSourceをDrum transientや将来のライセンス済みPCMへ拡張
 - VST3 Preset / State保存
 - 複数VST3 Instrument / Effect chain
 - 鼻歌のクロマティック／ブルース／ペンタトニック等のスケール候補
