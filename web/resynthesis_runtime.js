@@ -174,7 +174,8 @@
     this.voices.set(note,{kind:"resynth",oscillators:[oscA,oscB],sources,voiceGain});setPerformanceActive(note,true);
   };
 
-  const baseNoteOn=engine.noteOn.bind(engine),baseNoteOff=engine.noteOff.bind(engine);
+  const baseNoteOn=engine.noteOn.bind(engine);
+  const baseNoteOff=engine.noteOff.bind(engine);
   engine.noteOn=function(midiNote,velocity=.85,whenSeconds=0){
     if(isResynthPatch(this.patch)){this.playSpectralResynth(midiNote,velocity,whenSeconds);return;}
     return baseNoteOn(midiNote,velocity,whenSeconds);
