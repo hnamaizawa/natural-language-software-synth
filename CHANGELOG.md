@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.9.2
+- PCM Spectral Resynthesis音色のSample Performanceを、Bass / Pad / Keys / Lead-Brass / Pluck-Bell / Strings-Voiceの役割別に自動切替するよう改善。
+- Bass向けにMIDI 28付近まで使う低音グルーヴ／低音オクターブ／ウォーキング／ロングトーンを追加し、低音域で音色を評価できるようにした。
+- Padはロングコード／オープン5度／スウェル、Keysはコード／アルペジオ／サステイン、Leadはメロディ／ソロ／ブラス・スタブ、Pluckはアルペジオ／ベル余韻／マレット、Strings-Voiceはレガート／クワイア／ピチカートを選択可能。
+- SOUND DESIGNの選択グループを優先し、自由入力ではPromptと生成Patchから評価カテゴリを推定。
+- Grand Piano / Electric Guitar / Fretless Bass / Drums / DX EPの既存専用Sample Performanceとユーザー登録フレーズを維持。
+- 新しい評価フレーズも既存 `noteOn()` / `noteOff()` 契約のみを使用し、追加AudioContextやネットワーク経路を作らない。
+- v0.9.2の役割別サンプル演奏、低音域、ロード順、既存専用楽器ルーティングの回帰テストを追加。
+- READMEへ `v0.9.2 の主な変更` と音色確認例を追記。
+
 ## v0.9.1
 - Step 1 SOUND DESIGNの固定11音色を、7グループ・45音色のカテゴリ選択／検索可能なライブラリへ拡張。
 - ライブラリ候補は専用の別音源経路を作らず、自由入力と同じ自然言語生成経路を利用。
@@ -128,7 +138,7 @@
 - 画面右側にスライダーと円形メーターによるグラフィカルPatch Editorを追加。
 - 音源タイプに応じて編集項目を自動切替し、変更値を即時反映。
 - 「生成値へ戻す」で直前に生成／読込したPatchへ戻す機能を追加。
-- Factory PCMは外部アーティスト録音を使わず、ブラウザ内で生成したPCMバッファをAudioBufferSourceNodeで再生する方式とした。
+- Factory PCMは外部アーティスト録音を使わずブラウザ内で生成したPCMバッファをAudioBufferSourceNodeで再生する方式とした。
 - PCM / FM / graphical editor用の回帰テストとハーネス不変条件を追加。
 
 ## v0.2.0
