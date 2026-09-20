@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from ai_synth.timbre_variants import generate_patch
@@ -39,7 +40,8 @@ def test_sound_design_library_is_grouped_and_scalable():
         "generate();",
     ]:
         assert token in js
-    assert js.count("],[\"") >= 40
+    entries = re.findall(r'\["[^"\n]+","[^"\n]+"\]', js)
+    assert len(entries) >= 40
     assert "new AudioContext" not in js
     assert "fetch(" not in js
 
