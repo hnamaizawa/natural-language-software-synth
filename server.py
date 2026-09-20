@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent
 WEB = ROOT / "web"
 sys.path.insert(0, str(ROOT / "src"))
 
-from ai_synth.prompt_engine import generate_patch  # noqa: E402
+from ai_synth.timbre_variants import generate_patch  # noqa: E402
 from ai_synth.patch import validate_patch  # noqa: E402
 
 HOST = "127.0.0.1"
