@@ -24,9 +24,12 @@
     const response=await fetch(path,options);const data=await response.json();if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);return data;
   }
   function show(message){status.textContent=message;}
+  function isHostControl(active){
+    return active===scanBtn||active===select||active===loadBtn||active===unloadBtn||active===testToneBtn||active===diagBtn||active===editorBtn||active===route||active===programSelect||active===programPrev||active===programNext||Boolean(params?.contains(active));
+  }
   function restorePerformanceFocus(){
     const active=document.activeElement;
-    if(active&&typeof active.blur==="function"&&active.closest?.(".vst3-host"))active.blur();
+    if(active&&typeof active.blur==="function"&&isHostControl(active))active.blur();
   }
   function restorePerformanceFocusSoon(){
     requestAnimationFrame(()=>{restorePerformanceFocus();setTimeout(restorePerformanceFocus,40);});
@@ -152,7 +155,7 @@
     params.innerHTML="";const data=await api("/api/vst3/parameters",{});if(!data.ok)throw new Error(data.error||"パラメータ取得失敗");
     const previousMessage=programStatus?.textContent||"";renderProgramUi(data);if(preserveProgramMessage&&programStatus)programStatus.textContent=previousMessage;
     const visible=(data.parameters||[]).slice(0,160);
-    for(const p of visible){const row=document.createElement("label");row.className="vst3-param";const title=document.createElement("span");title.textContent=p.units?`${p.title} (${p.units})`:p.title;const input=document.createElement("input");input.type="range";input.min="0";input.max="1";input.step=p.step_count>1?String(1/p.step_count):"0.001";input.value=String(clamp(p.value,0,1));const value=document.createElement("output");value.textContent=Number(input.value).toFixed(3);let timer=0;input.addEventListener("input",()=>{value.textContent=Number(input.value).toFixed(3);clearTimeout(timer);timer=setTimeout(()=>api("/api/vst3/parameter",{id:p.id,value:Number(input.value)}).catch(err=>show(`VST3パラメータエラー: ${err.message}`)),35);});input.addEventListener("change",()=>{input.blur();restorePerformanceFocusSoon();});row.append(title,input,value);params.append(row);}
+    for(const p of visible){const row=document.createElement("label");row.className="vst3-param";const title=document.createElement("span");title.textContent=p.units?`${p.title} (${p.units})`:p.title;const input=document.createElement("input");input.type="range";input.min="0";input.max="1";input.step=p.step_count>1?String(1/p.step_count):"0.001";input.value=String(clamp(p.value,0,1));const value=document.createElement("output");value.textContent=Number(input.value).toFixed(3);let timer=0;input.addEventListener("input",()=>{value.textContent=Number(input.value).toFixed(3);clearTimeout(timer);timer=setTimeout(()=>api("/api/vst3/parameter",{id:p.id,value:Number(input.value)}).catch(err=>show(`VST3パラメータエラー: ${err.message}`)),35);});input.addEventListener("change",()=>input.blur());input.addEventListener("change",restorePerformanceFocusSoon);row.append(title,input,value);params.append(row);}
     if((data.parameters||[]).length>visible.length){const note=document.createElement("p");note.className="param-help";note.textContent=`先頭${visible.length}項目を表示（全${data.parameters.length}項目）。`;params.append(note);}
   }
 
