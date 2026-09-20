@@ -1,6 +1,15 @@
 # Changelog
 
 ## Unreleased
+- VST3を再ロードした直後でも、診断ボタンを押さずにPCキー A/W/S/E/D… で演奏できるよう、非同期ロード／パラメータ再構築後のフォーカス復元を強化。
+- 同じVST3を再ロードした場合、直前のVST3ルーティングON状態を復元するよう改善。
+- ロード済みの同一VST3インスタンスに対して、Native HostからVST3本来のEditor Windowを開く機能を追加。Preset Browserやプラグイン固有の音色UIを利用可能にした。
+- VST3 Editorは `IEditController::createView(kEditor)` / `IPlugView` をWindows HWNDへattachし、`IComponentHandler` でUI上のParameter/Preset変更を現在のAudio Processorへ反映。
+- 独自Editorを持たないVST3では、従来の汎用Parameter / Program UIを引き続き利用。
+- 自然言語の減算シンセ音色に String Ensemble / Synth Brass / Airy Choir Pad / Retro Polysynth / Resonant Acid Bass / Analog Synth Keys を追加。
+- warm / bright / dark / wide / dry / spacious等の表現を、新しい音色アーキタイプへbounded modifierとして反映。
+- 新音色は一般的なサウンドデザイン原則を参考にしたオリジナルのパラメータレシピのみを使用し、第三者Preset／録音／実行コード／ランタイムのネットワーク取得は行わない。
+- VST3 reload / Native Editor / timbre variation用の回帰テストを追加。
 - VST3ルーティングON直後やVST3パラメータ操作後でも、PCキー A/W/S/E/D… で演奏へ戻れるようフォーカス処理を改善。
 - VST3が公開する離散Program/Preset相当パラメータを検出し、専用の音色セレクターと前後ボタンから切り替えられるUIを追加。
 - オンスクリーン鍵盤を立体感のある白鍵／黒鍵、ノート名、ショートカット表示、発音時のハイライトへ刷新。

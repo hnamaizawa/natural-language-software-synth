@@ -1,5 +1,22 @@
 # CURRENT
 
+## Unreleased - VST3 Reload / Native Editor / Timbre Variations
+
+- [x] VST3再ロード後、診断ボタンを押さなくてもPCキー A/W/S/E/D… で演奏へ戻れるよう非同期ロード後のフォーカスを解放
+- [x] 同一VST3を再ロードした場合は既存のVST3ルーティングON状態を復元
+- [x] Native Host内の同じロード済みVST3インスタンスに対してVST3本来のEditor Windowを開く経路を追加
+- [x] VST3 Editorは `IEditController::createView(kEditor)` / `IPlugView` をWindows HWNDへattach
+- [x] VST3 EditorからのParameter/Preset変更を `IComponentHandler` 経由で現在のAudio Processorへ転送
+- [x] 独自Editorを公開しないVST3では既存の汎用Parameter / Program UIへフォールバック
+- [x] 自然言語音色へ String Ensemble / Synth Brass / Airy Choir Pad を追加
+- [x] 自然言語音色へ Retro Polysynth / Resonant Acid Bass / Analog Synth Keys を追加
+- [x] warm / bright / dark / wide / dry / space 等の記述を追加音色へbounded modifierとして反映
+- [x] 外部Preset／第三者録音／実行コード／ランタイムのネットワーク取得を音色生成へ持ち込まない
+- [x] 既存Grand Piano / Fretless / Guitar / Drum / FM等は従来prompt engineへフォールバック
+- [x] VST3 reload / native editor / timbre variationの回帰テスト追加
+- [ ] README / Changelog / Blueprint / Harness更新
+- [ ] `python -m pytest tests/` / Harness / Windows Native VST3 build 最終確認
+
 ## Unreleased - Keyboard / VST3 Program / Recording UX
 
 - [x] VST3ルーティングON後にPCキー A/W/S/E/D… が無反応になるフォーカス問題を改善

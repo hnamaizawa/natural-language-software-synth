@@ -6,10 +6,12 @@ purpose: >-
   Generate and play local-first multi-engine instrument patches from natural-language
   descriptions. Preserve all existing synth/sampler/drum/FM, performance, editing, output,
   microphone and safety contracts while supporting automatic humming key/timing correction,
-  staff notation, and a diagnosable Windows native VST3 instrument host.
+  staff notation, a diagnosable Windows native VST3 instrument host, same-instance native
+  VST3 editor windows, and bounded expanded natural-language timbre archetypes.
 required_capabilities:
 - natural_language_patch_generation
 - deterministic_offline_prompt_fallback
+- expanded_natural_language_timbre_archetypes
 - validated_patch_schema
 - browser_web_audio_polyphonic_engine
 - pcm_fretless_bass_engine
@@ -84,11 +86,16 @@ required_capabilities:
 - vst3_bus_arrangement_negotiation
 - vst3_realtime_audio_diagnostics
 - vst3_native_audio_test_tone
+- vst3_reload_keyboard_focus_restore
+- vst3_native_editor_window
+- vst3_same_instance_editor_parameter_sync
 - local_windows_setup
 - regression_test_harness
 non_negotiable_invariants:
 - generated_text_must_never_be_executed_as_code
 - generated_patch_must_be_schema_validated_and_clamped
+- expanded_timbre_recipes_must_be_validated_and_clamped
+- expanded_timbre_recipes_must_not_fetch_or_copy_third_party_presets
 - graphical_parameter_edits_must_be_validated_and_clamped
 - graphical_slider_input_must_not_rebuild_control_during_drag
 - audio_context_must_start_only_after_user_gesture
@@ -141,6 +148,9 @@ non_negotiable_invariants:
 - vst3_live_note_events_must_use_active_event_bus
 - vst3_audio_output_must_use_active_main_output_bus
 - vst3_render_failures_and_output_peak_must_be_observable
+- vst3_reload_must_restore_computer_keyboard_focus
+- vst3_custom_editor_must_run_in_native_host_same_plugin_instance
+- vst3_editor_parameter_changes_must_reach_loaded_processor
 - eval_and_dynamic_script_injection_forbidden
 required_files:
 - AGENTS.md
@@ -156,6 +166,7 @@ required_files:
 - scripts/harness_check.py
 - src/ai_synth/patch.py
 - src/ai_synth/prompt_engine.py
+- src/ai_synth/timbre_variants.py
 - web/index.html
 - web/app.js
 - web/patch_editor_runtime.js
@@ -170,6 +181,8 @@ required_files:
 - web/style.css
 - native/vst3_host/CMakeLists.txt
 - native/vst3_host/src/main.cpp
+- native/vst3_host/src/plugin_editor_win32.h
+- native/vst3_host/src/plugin_editor_win32.cpp
 runtime_state_exclusions:
 - .env
 - .venv
@@ -207,6 +220,7 @@ ui_requirements:
   vst3_select_and_load: true
   vst3_route_toggle: true
   vst3_parameter_editor: true
+  vst3_native_plugin_editor: true
   vst3_audio_output_test: true
   vst3_diagnostics: true
   sample_performance: true
@@ -333,6 +347,15 @@ vst3_contract:
   event_input_bus: active_main_event_input_bus
   diagnostics: [note_on_queued, note_off_queued, events_delivered, process_calls, process_failures, last_output_peak, max_output_peak]
   native_audio_test_tone_hz: 440
+  native_editor:
+    process: same_native_host_process
+    plugin_instance: same_loaded_vst3_instance
+    view_factory: IEditController_createView_kEditor
+    windows_parent: HWND
+    frame_interface: IPlugFrame
+    parameter_bridge: IComponentHandler
+    browser_embedding: forbidden
+  reload_focus_restore: required
   vst3_sdk:
     repository: steinbergmedia/vst3sdk
     version: 3.8.1
@@ -342,6 +365,13 @@ vst3_contract:
     version: 0.11.25
     commit: 9634bedb5b5a2ca38c1ee7108a9358a4e233f14d
   route_sources: [onscreen_keyboard, computer_keyboard, web_midi, sample_performance, humming_preview]
+timbre_variation_contract:
+  runtime_network_fetch: forbidden
+  third_party_preset_copy: forbidden
+  validation: existing_patch_validator
+  engine: synth
+  archetypes: [string_ensemble, synth_brass, airy_choir_pad, retro_polysynth, resonant_acid_bass, analog_synth_keys]
+  descriptor_modifiers: [warm, bright, dark, wide, dry, spacious]
 drum_contract:
   canonical_notes:
     kick: 36

@@ -20,11 +20,14 @@ VST3実機確認を進める中で、ロード後の発音経路、鍵盤表示�
 - 「PC音声出力テスト」と「VST3診断」を追加。Note On件数、Event配送数、`process()` 成否、出力Peak、出力ch、Event Busを確認可能。
 - VST3ルーティング中のサンプル演奏でも、発音に合わせて画面の鍵盤がハイライトするよう同期。
 - VST3操作後にフォーム部品へフォーカスが残っていても、`A=ド(C4) / S=レ(D4) / D=ミ(E4)` などのPCキーボードショートカットで演奏しやすいよう改善。
+- **VST3を再ロードした直後でも、診断ボタンを押さずにPCキー演奏へ戻れるよう、非同期ロード／パラメータ再構築後のフォーカス復元を強化。**
+- 同じVST3を再ロードした場合は、直前のVST3ルーティングON状態を復元。
 - VST3がホストへ公開しているProgram / Preset相当の離散パラメータがある場合、専用セレクターと前後ボタンから音色切替可能。
+- **「VST3本体画面を開く」から、ロード中の同じVST3インスタンスのネイティブEditor Windowを表示可能。** VST3自身が提供するPreset Browserや音色UIからピアノ、Pad、Brass、Drum等を切り替えられるプラグインでは、その本来の画面を利用できます。
 - 白鍵／黒鍵の立体感、音名、PCキーラベル、発音中のハイライトを改善し、鍵盤UIを見やすくした。
 - PCキーボード演奏を最大120秒／512ノートまで録音し、ピアノロール表示・再生・クリアが可能。録音は音声ではなくMIDI相当のノート情報のみで、再生は既存 `noteOn / noteOff` 経路を利用するため、VST3ルーティングON時はVST3音源で再生される。
 
-VST3のProgram / Presetは、プラグイン側がホストへ切替用パラメータを公開している場合に利用できます。プラグイン独自UI内だけでプリセットを管理しているVST3では、現時点では専用Program/Presetセレクターから切り替えられない場合があります。
+VST3のProgram / Presetは、プラグイン側がホストへ切替用パラメータを公開している場合に専用セレクターから利用できます。Programパラメータを公開しないVST3でも、独自Editorを提供していれば「VST3本体画面を開く」からプラグイン自身のPreset Browserを利用できます。独自Editorも公開しないVST3では、従来の汎用パラメータUIを利用します。
 
 ## 音源モデル
 
@@ -47,6 +50,21 @@ noteOff(midiNote, whenSeconds=0)
 ```
 
 VST3ルーティングをONにすると、この最終 `noteOn / noteOff` 境界をVST3イベントへ変換します。そのため鍵盤、PCキー、Web MIDI、サンプル演奏、ギターストラム、鼻歌試聴を同じVST3へ送れます。
+
+## 自然言語の音色バリエーション
+
+従来のPad / Bass / Bell / Pluck / Lead / Organに加え、一般的な減算シンセのサウンドデザイン原則を参考にしたオリジナルのパラメータレシピを追加しています。外部VSTプリセットや第三者の録音をコピーせず、既存のOscillator / Filter / ADSR / Detune / LFO / Delayを組み合わせ、最終値は従来どおりPatch validatorでClampします。
+
+追加例:
+
+- `広がりのあるシンセストリングス` → **String Ensemble**
+- `パンチのあるシンセブラス` → **Synth Brass**
+- `エアリーなクワイアのボイスパッド` → **Airy Choir Pad**
+- `80年代の太いポリシンセ` → **Retro Polysynth**
+- `レゾナンスの強いアシッドベース` → **Resonant Acid Bass**
+- `柔らかいアナログのシンセキー` → **Analog Synth Keys**
+
+さらに `warm / 暖かい`, `bright / 明るい`, `dark / 暗い`, `wide / 広がり`, `dry / ドライ`, `spacious / ambient / 空間` などを組み合わせると、新しいアーキタイプのCutoff、Resonance、Detune、Delay等へ限定範囲内の補正を加えます。ランタイム中にインターネットへ接続して音色データを取得する仕組みではありません。
 
 ## 鼻歌 → メロディー
 
@@ -117,11 +135,11 @@ Python server.py (127.0.0.1 only)
 nlss_vst3_host.exe
   │
   ├─ Steinberg VST3 SDK
-  ├─ VST3 Instrument
+  ├─ VST3 Instrument + same-instance native Editor Window
   └─ miniaudio → Windows default audio output
 ```
 
-`.vst3` バイナリをChrome/Edge内へロードすることはありません。プラグインが不安定でもブラウザのWeb Audio音源とは別プロセスです。
+`.vst3` バイナリをChrome/Edge内へロードすることはありません。VST3本体画面もブラウザDOMへ埋め込むのではなく、Native HostがWindowsのネイティブウィンドウとして表示します。プラグインが不安定でもブラウザのWeb Audio音源とは別プロセスです。
 
 ### 初回だけ必要なVST3ホストのビルド
 
@@ -161,16 +179,15 @@ start_synth.cmd
 1. 「VST3を検索」
 2. プラグインを選択
 3. 「ロード」
-4. 必要ならVST3 Parameterを調整
-5. 「鍵盤・MIDI・サンプル演奏・鼻歌試聴をVST3へ送る」をON
+4. 必要なら「VST3本体画面を開く」でプラグイン自身のPreset／音色画面を表示
+5. 必要ならブラウザ側のVST3 ParameterまたはProgram/Presetを調整
+6. 「鍵盤・MIDI・サンプル演奏・鼻歌試聴をVST3へ送る」をON
 
 と操作します。
 
 標準ではWindowsのVST3標準配置先を検索します。追加フォルダーを使う場合は、起動前に `NLSS_VST3_PATHS` を設定できます（複数はWindowsの `;` 区切り）。ネイティブホストexeを別の場所に置く場合は `NLSS_VST3_HOST` にフルパスを設定できます。
 
 ### 現在のVST3対応範囲
-
-v0.7.0では以下を対象にしています。
 
 - VST3 Instrumentの検索
 - 1プラグインのロード／解除
@@ -180,8 +197,12 @@ v0.7.0では以下を対象にしています。
 - パラメータ一覧取得
 - 正規化値0〜1でパラメータ変更
 - VST3音声をWindows標準出力へ再生
+- VST3が公開するProgram/Preset相当パラメータの切替
+- VST3独自Editor Windowの表示（プラグインがEditorを提供する場合）
+- Editor内のParameter/Preset変更を、演奏中の同じVST3インスタンスへ反映
+- VST3診断／Native音声出力テスト
 
-プラグイン独自Editor Windowの埋め込み、複数VSTチェイン、Effect Insert、Preset Browser、Automation Laneなどは今後の拡張対象です。
+複数VSTチェイン、Effect Insert、Preset Stateの保存／復元、Automation Laneなどは今後の拡張対象です。
 
 ## PCMグランドピアノ
 
@@ -273,6 +294,12 @@ check_harness.cmd
 start_synth.cmd
 ```
 
+Native VST3 HostのC++が変更された更新を取得した場合は、`git pull` 後に一度だけ次も実行します。
+
+```bat
+build_vst3_host.cmd
+```
+
 終了は `Ctrl + C` です。
 
 ## 安全設計とガードレール
@@ -286,6 +313,8 @@ start_synth.cmd
 - VST3はスキャン済みローカルIDからのみロード
 - VST3 Note / Velocity / Parameter値をBridge側でもClamp
 - VST3 Bridgeは既存の `127.0.0.1` サーバー経由のみ
+- VST3独自EditorもNative Hostの同じプロセス／同じプラグインインスタンス上でのみ表示
+- 自然言語音色バリエーションはオリジナルのbounded parameter recipeのみで、第三者Preset／録音をランタイム取得しない
 - Factory PCMへ第三者アーティスト録音を埋め込まない
 - Output normalizationはMaster Gain上限を迂回しない
 
@@ -312,7 +341,6 @@ GitHub ActionsでもLinux上のpytest/HarnessとWindows上のNative VST3 build�
 
 ## 今後の方向性
 
-- VST3プラグイン独自Editor Window
 - VST3 Preset / State保存
 - 複数VST3 Instrument / Effect chain
 - 鼻歌のクロマティック／ブルース／ペンタトニック等のスケール候補
