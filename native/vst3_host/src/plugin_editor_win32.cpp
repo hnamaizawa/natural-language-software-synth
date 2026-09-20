@@ -3,6 +3,7 @@
 #include "pluginterfaces/base/funknown.h"
 
 #include <algorithm>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -176,6 +177,8 @@ LRESULT CALLBACK PluginEditorWin32::windowProc (HWND hwnd, UINT message, WPARAM 
     {
         const auto* create = reinterpret_cast<CREATESTRUCTW*> (lParam);
         self = static_cast<PluginEditorWin32*> (create->lpCreateParams);
+        if (self)
+            self->window_ = hwnd;
         SetWindowLongPtrW (hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR> (self));
     }
     if (self)
