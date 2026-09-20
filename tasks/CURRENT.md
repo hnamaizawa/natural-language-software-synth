@@ -14,7 +14,7 @@
 - [x] VST3本体EditorボタンをHTMLへ明示配置
 - [x] READMEへ `v0.8.1 の主な変更` と基本操作を追記
 - [x] UI構成／録音統合用の回帰テストを追加
-- [ ] `python -m pytest tests/` / Harness / Windows Native VST3 build 最終確認
+- [x] `python -m pytest tests/` / Harness / Windows Native VST3 build 最終確認
 
 ## Unreleased - VST3 Reload / Native Editor / Timbre Variations
 
@@ -157,7 +157,7 @@
 - [x] Pick Attack / Release Noise
 - [x] Palm Mute / Sustain / Body Tone
 - [x] Clean / Crunch / High Gain / Acoustic アンプモデル
-- [x] `WaveShaper` によるアンプDrive / Distortion
+- [x] `WaveShaper` によるAmp Drive / Distortion
 - [x] Amp Tone / Presence / Cabinet / Chorus
 - [x] ギター／アンプ用グラフィカルPatch Editor
 - [x] ロック / フュージョン / アコースティックのサンプル演奏
