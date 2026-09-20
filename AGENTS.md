@@ -20,3 +20,4 @@
 18. Run `python -m pytest tests/` and `python scripts/harness_check.py` before proposing a PR.
 19. Update CHANGELOG.md and tasks/CURRENT.md with every user-visible change.
 20. Before merging a PR with user-visible changes, confirm README.md documents the new behavior and usage. If it does not, update README.md in the same PR, rerun the required CI checks, and only then merge.
+21. Every versioned user-visible release must have a dedicated README.md section named `## vX.Y.Z の主な変更` (or equivalent wording containing the exact version). Summarize that version's fixes, features, and any required update/build steps there before merge; do not leave release notes only under generic headings such as `Unreleased` or `直近の改善`.
