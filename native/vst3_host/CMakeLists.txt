@@ -32,6 +32,7 @@ FetchContent_MakeAvailable(miniaudio)
 # sdk_hosting intentionally does not contain those two implementation units.
 add_executable(nlss_vst3_host
   src/main.cpp
+  src/plugin_editor_win32.cpp
   ${vst3sdk_SOURCE_DIR}/public.sdk/source/vst/hosting/plugprovider.cpp
   ${vst3sdk_SOURCE_DIR}/public.sdk/source/vst/hosting/module_win32.cpp
 )
@@ -41,7 +42,7 @@ target_include_directories(nlss_vst3_host PRIVATE
   ${vst3sdk_SOURCE_DIR}
   ${miniaudio_SOURCE_DIR}
 )
-target_link_libraries(nlss_vst3_host PRIVATE sdk_hosting)
+target_link_libraries(nlss_vst3_host PRIVATE sdk_hosting user32)
 
 if(MSVC)
   target_compile_options(nlss_vst3_host PRIVATE /W4 /permissive-)
