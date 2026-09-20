@@ -77,23 +77,28 @@ def _resynth_context(text: str) -> bool:
 
 
 def _dedicated_engine_request(text: str) -> bool:
-    """Use a dedicated instrument only when the prompt really asks for that instrument.
+    """Use a dedicated instrument when it is explicitly named.
 
-    `piano-like pad` / `ギターのようなベル` are resynthesis descriptions: the named
-    physical instrument is treated as a timbral source hint instead of hijacking routing.
+    Strong instrument names win even when a generic category word is embedded in them
+    (for example `フレットレスベース`). Otherwise, `piano-like pad` / `ギター風ベル`
+    treat the physical instrument as a resynthesis source hint instead of hijacking routing.
     """
-    abstract_context = bool(_category_scores(text))
-    comparison = _has(text, "-like", " like ", "like a", "のよう", "風の", "風な", "混ぜ", "blend", "hint of", "少し残")
-    if abstract_context or comparison:
-        return False
-    return _has(
+    explicit = _has(
         text,
         "grand piano", "concert grand", "acoustic piano", "グランドピアノ", "生ピアノ",
         "electric guitar", "acoustic guitar", "エレキギター", "アコースティックギター", "アコギ",
         "fretless bass", "フレットレスベース", "ジャコ", "pastorius",
         "drum kit", "drums", "ドラムセット", "ドラムキット", "kick", "snare", "キック", "スネア",
         "dx-7", "dx7", "dx ep", "fm electric piano", "dxエレピ",
-    ) or (_has(text, "ピアノ", "piano", "guitar", "ギター", "fretless", "フレットレス", "drum", "ドラム") and not _resynth_context(text))
+    )
+    if explicit:
+        return True
+
+    abstract_context = bool(_category_scores(text))
+    comparison = _has(text, "-like", " like ", "like a", "のよう", "風の", "風な", "混ぜ", "blend", "hint of", "少し残")
+    if abstract_context or comparison:
+        return False
+    return _has(text, "ピアノ", "piano", "guitar", "ギター", "fretless", "フレットレス", "drum", "ドラム") and not _resynth_context(text)
 
 
 def _resynth_base(prompt: str, archetype: str, **values: object) -> SynthPatch:
