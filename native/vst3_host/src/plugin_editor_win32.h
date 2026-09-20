@@ -18,7 +18,7 @@ public:
     using RestartCallback = std::function<void (Steinberg::int32)>;
 
     PluginEditorWin32 () = default;
-    ~PluginEditorWin32 () override;
+    ~PluginEditorWin32 ();
 
     void bind (Steinberg::Vst::IEditController* controller, ParameterEditCallback parameterEdit,
                RestartCallback restart);
