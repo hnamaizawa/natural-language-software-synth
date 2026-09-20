@@ -6,11 +6,13 @@ from typing import Any
 WAVES = {"sine", "triangle", "sawtooth", "square"}
 ENGINE_TYPES = {"synth", "sampler", "drum", "fm"}
 INSTRUMENT_MODELS = {
-    "generic", "fretless_bass", "electric_guitar", "grand_piano", "studio_drums", "dx_ep"
+    "generic", "fretless_bass", "electric_guitar", "grand_piano", "studio_drums", "dx_ep",
+    "spectral_resynth",
 }
 DRUM_STYLES = {"standard", "half_time_shuffle"}
 GUITAR_AMP_MODELS = {"clean", "crunch", "high_gain", "acoustic"}
 GUITAR_DEMO_STYLES = {"rock", "fusion", "acoustic"}
+RESYNTH_SOURCES = {"piano", "guitar", "fretless"}
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -76,6 +78,22 @@ class SynthPatch:
     piano_velocity_curve: float = 1.10
     piano_room_mix: float = 0.14
 
+    # PCM spectral resynthesis. The runtime derives harmonic templates from the locally
+    # generated Factory Piano / Guitar / Fretless PCM and morphs between two sources.
+    resynth_source_a: str = "piano"
+    resynth_source_b: str = "guitar"
+    resynth_morph: float = 0.35
+    resynth_harmonics: int = 16
+    resynth_brightness: float = 0.58
+    resynth_pcm_mix: float = 0.20
+    resynth_transient_mix: float = 0.28
+    resynth_detune_cents: float = 5.0
+    resynth_noise_mix: float = 0.02
+    resynth_attack_s: float = 0.02
+    resynth_decay_s: float = 0.50
+    resynth_sustain: float = 0.68
+    resynth_release_s: float = 1.10
+
     # PCM drums
     kick_tune_hz: float = 58.0
     kick_decay_s: float = 0.28
@@ -124,6 +142,10 @@ def validate_patch(data: dict[str, Any] | SynthPatch) -> SynthPatch:
         poly = int(data.get("max_polyphony", 12))
     except (TypeError, ValueError):
         poly = 12
+    try:
+        resynth_harmonics = int(data.get("resynth_harmonics", 16))
+    except (TypeError, ValueError):
+        resynth_harmonics = 16
 
     return SynthPatch(
         name=str(data.get("name", "Generated Patch"))[:80],
@@ -174,6 +196,19 @@ def validate_patch(data: dict[str, Any] | SynthPatch) -> SynthPatch:
         piano_sustain=_clamp(data.get("piano_sustain", 0.82), 0.2, 1.0),
         piano_velocity_curve=_clamp(data.get("piano_velocity_curve", 1.10), 0.5, 2.0),
         piano_room_mix=_clamp(data.get("piano_room_mix", 0.14), 0.0, 0.5),
+        resynth_source_a=enum_value("resynth_source_a", "piano", RESYNTH_SOURCES),
+        resynth_source_b=enum_value("resynth_source_b", "guitar", RESYNTH_SOURCES),
+        resynth_morph=_clamp(data.get("resynth_morph", 0.35), 0.0, 1.0),
+        resynth_harmonics=max(4, min(32, resynth_harmonics)),
+        resynth_brightness=_clamp(data.get("resynth_brightness", 0.58), 0.0, 1.0),
+        resynth_pcm_mix=_clamp(data.get("resynth_pcm_mix", 0.20), 0.0, 0.65),
+        resynth_transient_mix=_clamp(data.get("resynth_transient_mix", 0.28), 0.0, 1.0),
+        resynth_detune_cents=_clamp(data.get("resynth_detune_cents", 5.0), -30.0, 30.0),
+        resynth_noise_mix=_clamp(data.get("resynth_noise_mix", 0.02), 0.0, 0.35),
+        resynth_attack_s=_clamp(data.get("resynth_attack_s", 0.02), 0.001, 8.0),
+        resynth_decay_s=_clamp(data.get("resynth_decay_s", 0.50), 0.001, 8.0),
+        resynth_sustain=_clamp(data.get("resynth_sustain", 0.68), 0.0, 1.0),
+        resynth_release_s=_clamp(data.get("resynth_release_s", 1.10), 0.01, 10.0),
         kick_tune_hz=_clamp(data.get("kick_tune_hz", 58.0), 35.0, 120.0),
         kick_decay_s=_clamp(data.get("kick_decay_s", 0.28), 0.05, 1.2),
         snare_tone_hz=_clamp(data.get("snare_tone_hz", 185.0), 90.0, 300.0),
