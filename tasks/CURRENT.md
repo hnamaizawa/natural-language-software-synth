@@ -1,5 +1,24 @@
 # CURRENT
 
+## v0.9.2 Adaptive Sample Performance by Sound Role
+
+- [x] PCM Spectral Resynthesis音色のSample PerformanceをBass / Pad / Keys / Lead-Brass / Pluck-Bell / Strings-Voiceの役割別へ自動切替
+- [x] Bass向けにMIDI 28付近まで使う低音グルーヴ／低音オクターブ／ウォーキング／ロングトーンを追加
+- [x] Pad向けにロングコード／オープン5度／アンビエント・スウェルを追加
+- [x] Keys / Organ向けにコード／アルペジオ／サステインを追加
+- [x] Lead / Brass向けにメロディ／フュージョン・ソロ／ブラス・スタブを追加
+- [x] Pluck / Bell向けにアルペジオ／ベル単音余韻／マレット・オスティナートを追加
+- [x] Strings / Voice向けにレガート／クワイア・ロングコード／ピチカートを追加
+- [x] SOUND DESIGNの選択グループを優先し、自由入力はPrompt + Patchから評価カテゴリを推定
+- [x] Grand Piano / Guitar / Fretless / Drums / DX EPの既存専用Sample Performanceを維持
+- [x] ユーザー登録Sample Performanceを維持
+- [x] 適応型Previewも既存 `noteOn / noteOff` 契約のみを使用し、追加AudioContext／ネットワーク経路を作らない
+- [x] v0.9.2専用回帰テストを追加
+- [x] READMEへ `v0.9.2 の主な変更` と音色確認例を追記
+- [x] CHANGELOGへv0.9.2を追記
+- [x] 既存Blueprint non-negotiable invariantsを維持
+- [ ] `python -m pytest tests/` / Harness / Windows Native VST3 build 最終確認
+
 ## v0.9.1 SOUND DESIGN Library + Semantic Timbre Model
 
 - [x] Step 1 SOUND DESIGNの固定11音色を7グループ・45音色へ拡張

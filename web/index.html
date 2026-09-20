@@ -12,7 +12,7 @@
   <main>
     <header>
       <div>
-        <p class="eyebrow">v0.9.0 audio · core v0.7.2 · PCM spectral resynthesis</p>
+        <p class="eyebrow">v0.9.2 audio · core v0.7.2 · adaptive sample preview</p>
         <h1>Natural Language Software Synth</h1>
         <p class="lead">自然言語で音色を作り、演奏・録音までをひとつの流れで操作。抽象的な音色指定はFactory PCMの倍音構造を再合成して、音のキャラクター差を広げます。</p>
       </div>
@@ -136,7 +136,6 @@
 
         <div class="meter-wrap"><span>Output</span><div class="meter"><div id="meterBar"></div></div></div>
       </div>
-
       <aside class="panel params-panel"><div class="section-title compact"><div><span class="kicker">PATCH EDITOR</span><h2>音色をグラフィカルに調整</h2></div><button id="resetParamsBtn" class="small-btn">生成値へ戻す</button></div><p class="param-help">スライダーを動かすと即座に現在の音へ反映されます。</p><div id="params" class="params-editor"></div></aside>
     </section>
 
@@ -149,6 +148,7 @@
   <script src="/resynthesis_runtime.js"></script>
   <script src="/instrument_performance_runtime.js"></script>
   <script src="/performance_library_runtime.js"></script>
+  <script src="/adaptive_sample_performance_runtime.js"></script>
   <script src="/output_level_runtime.js"></script>
   <script src="/humming_runtime.js"></script>
   <script src="/keyboard_performance_runtime.js"></script>

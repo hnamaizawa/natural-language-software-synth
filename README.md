@@ -1,6 +1,25 @@
 # Natural Language Software Synth
 
-自然言語で楽器・音色・雰囲気を指定すると音源方式まで選択してPatchを生成し、その場で演奏できるローカル実行型ソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／サンプル演奏に加え、鼻歌からMIDIライクなメロディーを作成できます。v0.8.1では機能を操作目的に沿って整理し、v0.9.0では **PCM Spectral Resynthesis** を追加、v0.9.1ではSOUND DESIGNをグループ化した45音色のライブラリへ拡張し、自然言語を複数の音色軸として解釈するよう改善しました。
+自然言語で楽器・音色・雰囲気を指定すると音源方式まで選択してPatchを生成し、その場で演奏できるローカル実行型ソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／サンプル演奏に加え、鼻歌からMIDIライクなメロディーを作成できます。v0.8.1では機能を操作目的に沿って整理し、v0.9.0では **PCM Spectral Resynthesis** を追加、v0.9.1ではSOUND DESIGNをグループ化した45音色のライブラリへ拡張し、v0.9.2では選んだ音色の役割に合わせてSample Performanceを自動的に切り替えるよう改善しました。
+
+## v0.9.2 の主な変更
+
+- Step 1で生成した **PCM Spectral Resynthesis音色のカテゴリ／役割に応じて、Sample Performance候補を自動切替**するよう改善。
+- **Bass** は低音グルーヴ、低音オクターブ、ウォーキング、ロングトーンを選択可能。最低MIDI 28付近まで使い、ベース音色をC4付近だけで評価してしまう問題を解消。
+- **Pad / Atmosphere** はロングコード、オープン5度、アンビエント・スウェルでAttack／広がり／Sustain／Releaseを確認可能。
+- **Keys / Organ** は鍵盤コード、アルペジオ、オルガン・サステインを用意。
+- **Lead / Brass** はリード・メロディ、フュージョン・ソロ、ブラス・スタブを用意。
+- **Pluck / Bell** はプラック・アルペジオ、ベル単音余韻、マレット・オスティナートを用意。
+- **Strings / Voice** はストリングス・レガート、クワイア・ロングコード、ピチカート・パターンを用意。
+- SOUND DESIGNのグループ選択から生成した場合はそのグループを優先し、自由入力ではPromptと生成Patchから評価カテゴリを推定。
+- Grand Piano / Electric Guitar / Fretless Bass / Drums / DX EPなど既存の専用楽器は、従来の楽器別Sample Performanceをそのまま維持。
+- 登録済みの自作フレーズも引き続き選択可能。
+- 新しい評価フレーズも既存の `noteOn / noteOff` 契約だけを利用し、AudioContextやネットワーク経路を追加しない。
+- Native VST3 HostのC++は変更していないため、v0.9.2への更新後に `build_vst3_host.cmd` を再実行する必要はありません。
+
+### v0.9.2 の音色確認例
+
+Bassグループの音色を作った場合、Sample Performanceは自動的にBass向け候補になります。たとえば **「ベース・グルーヴ」** でアタックと太さ、**「低音オクターブ」** で最低域の芯、**「ロングトーン」** でSustainとReleaseを比較できます。同様にPadなら長い和音、Bellなら単音余韻、Leadなら単音旋律というように、音色の用途に適した音域と演奏内容で評価します。
 
 ## v0.9.1 の主な変更
 
@@ -130,7 +149,7 @@ VST3実機確認を進める中で、ロード後の発音経路、鍵盤表示�
 - VST3操作後にフォーム部品へフォーカスが残っていても、`A=ド(C4) / S=レ(D4) / D=ミ(E4)` などのPCキーボードショートカットで演奏しやすいよう改善。
 - **VST3を再ロードした直後でも、診断ボタンを押さずにPCキー演奏へ戻れるよう、非同期ロード／パラメータ再構築後のフォーカス復元を強化。**
 - 同じVST3を再ロードした場合は、直前のVST3ルーティングON状態を復元。
-- VST3がホストへ公開しているProgram / Preset相当の離散パラメータがある場合、専用セレクターと前後ボタンから音色切替可能。
+- VST3がホストへ公開しているProgram / Preset相当の離散パラメータがある場合、専用セレクターと前後Programボタンから音色切替可能。
 - **「VST3本体画面を開く」から、ロード中の同じVST3インスタンスのネイティブEditor Windowを表示可能。** VST3自身が提供するPreset Browserや音色UIからピアノ、Pad、Brass、Drum等を切り替えられるプラグインでは、その本来の画面を利用できます。
 - 白鍵／黒鍵の立体感、音名、PCキーラベル、発音中のハイライトを改善し、鍵盤UIを見やすくした。
 - PCキーボード演奏を最大120秒／512ノートまで録音し、ピアノロール表示・再生・クリアが可能。録音は音声ではなくMIDI相当のノート情報のみで、再生は既存 `noteOn / noteOff` 経路を利用するため、VST3ルーティングON時はVST3音源で再生される。
@@ -157,7 +176,6 @@ setPatch(validatedPatch)
 noteOn(midiNote, velocity, whenSeconds=0)
 noteOff(midiNote, whenSeconds=0)
 ```
-
 VST3ルーティングをONにすると、この最終 `noteOn / noteOff` 境界をVST3イベントへ変換します。そのためPCM再合成を含む内蔵音源、鍵盤、PCキー、Web MIDI、サンプル演奏、PCキー録音の再生、鼻歌試聴を同じVST3境界へ接続できます。
 
 ## 自然言語の音色バリエーション
@@ -353,7 +371,7 @@ Amp Modelは `clean / crunch / high_gain / acoustic`。ギター和音のSample 
 
 ## Sample Performanceと自作フレーズ
 
-Synth / Fretless / FM EP / Grand Piano / Drums / Electric Guitarに、Pop / EDM / Ambient / Funk / Fusion / City Pop / Classical / Boogie / Blues / Bossa Nova / Jazzなどの短いオリジナルSample Performanceがあります。
+Synth / Fretless / FM EP / Grand Piano / Drums / Electric Guitarに、Pop / EDM / Ambient / Funk / Fusion / City Pop / Classical / Boogie / Blues / Bossa Nova / Jazzなどの短いオリジナルSample Performanceがあります。v0.9.2以降、PCM Spectral Resynthesis音色はBass / Pad / Keys / Lead / Pluck / Strings-Voiceの役割別に評価フレーズを自動選択します。
 
 自作フレーズは次の形式で登録できます。
 
@@ -459,6 +477,7 @@ GitHub ActionsでもLinux上のpytest/HarnessとWindows上のNative VST3 build�
 
 ## 今後の方向性
 
+- 自然言語を直接Patch値へ落とすのではなく、まず構造化された **Timbre Intent / 音色設計書**（音源系統、材質、Attack、Body、Sustain、Release、Brightness、Noise、Pitch behavior、Space等）へ変換してからDSPへマッピングする二段階方式
 - 自然言語の強弱表現（「少し」「かなり」「もっと」）や否定表現をより細かく数値化
 - PCM Spectral Resynthesisの時間変化するスペクトル（Attack/Sustain別テンプレート）
 - PCM再合成のSourceをDrum transientや将来のライセンス済みPCMへ拡張
