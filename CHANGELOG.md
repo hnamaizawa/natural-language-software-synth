@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+- 画面を「音色を作る → 音源を選ぶ → 演奏・試聴 → 録音する」の操作順へ再構成し、上部に4ステップのガイドを追加。
+- VST3設定を「音源を選ぶ」、Sample Performanceとライブ鍵盤／ドラムを「演奏・試聴」へ整理。
+- PCキーボード演奏録音と鼻歌録音を1つの **RECORDING STUDIO** に統合し、2つのタブで切り替えるUIを追加。
+- RECORDING STUDIOのタブ切替はUIのみを制御し、既存のNote Event、AudioContext、マイク解析、VST3ルーティング経路を変更しない。
+- PCキー録音の最大120秒／512ノート、ピアノロール、再生／クリアと、鼻歌のキー補正／タイミング補正／楽譜／フレーズ転送を維持。
+- VST3本体EditorボタンをHTMLへ明示配置し、「音源を選ぶ」からアクセスできるよう整理。
+- Workflow UI / Unified Recording Studio用の回帰テストを追加。
+- READMEへ `v0.8.1 の主な変更` と新しい基本操作を追記。
 - VST3を再ロードした直後でも、診断ボタンを押さずにPCキー A/W/S/E/D… で演奏できるよう、非同期ロード／パラメータ再構築後のフォーカス復元を強化。
 - 同じVST3を再ロードした場合、直前のVST3ルーティングON状態を復元するよう改善。
 - ロード済みの同一VST3インスタンスに対して、Native HostからVST3本来のEditor Windowを開く機能を追加。Preset Browserやプラグイン固有の音色UIを利用可能にした。
