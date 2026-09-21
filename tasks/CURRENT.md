@@ -1,5 +1,21 @@
 # CURRENT
 
+## v0.10.2 SOUND DESIGN Preview / Japanese Labels / Hover Help
+
+- [x] Step 1 SOUND DESIGNに現在音色のSample Performance開始ボタンを追加
+- [x] Step 3の既存 `samplePlayBtn` を再利用し、上下スクロールなしで試聴可能にする
+- [x] 7グループ・45音色すべてに日本語ラベルを追加
+- [x] 日本語 / Englishを再生成なしで瞬時に切替
+- [x] カテゴリ切替／検索で音色ボタンが再描画されても選択言語を維持
+- [x] 音色ボタンへ日本語の音色説明ホバーヘルプを追加
+- [x] Step 1周辺の主要操作ボタンへ日本語ホバーヘルプを追加
+- [x] UI層は追加AudioContext／ネットワーク／永続化／generated code経路を追加しない
+- [x] v0.10.2専用回帰テストを追加
+- [x] READMEへ `v0.10.2 の主な変更` と実録音PCMへの発展案を追記
+- [x] CHANGELOGへv0.10.2を追記
+- [x] 既存Blueprint non-negotiable invariantsを維持
+- [ ] `python -m pytest tests/` / Harness / Windows Native VST3 build 最終確認
+
 ## v0.9.2 Adaptive Sample Performance by Sound Role
 
 - [x] PCM Spectral Resynthesis音色のSample PerformanceをBass / Pad / Keys / Lead-Brass / Pluck-Bell / Strings-Voiceの役割別へ自動切替

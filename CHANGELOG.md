@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.10.2
+- Step 1 SOUND DESIGNに「この音色でサンプル演奏」ボタンを追加し、Step 3までスクロールせず現在音色を試聴可能にした。
+- Step 1の試聴は既存 `samplePlayBtn` / Sample Performance経路を再利用し、追加AudioContextや別Note Event経路を作らない。
+- 7グループ・45音色すべてに日本語ラベルを追加し、日本語 / English切替で即時に表示を切り替えられるようにした。
+- 音色ライブラリのカテゴリ切替／検索による再描画後も選択中の表示言語を維持。
+- 各音色ボタンに日本語の音色説明をホバーヘルプとして追加。
+- SOUND DESIGN周辺の主要操作ボタンにも日本語ホバーヘルプを追加。
+- UI補助層は外部通信、MediaRecorder、localStorage、generated code実行を追加しない。
+- READMEへ `v0.10.2 の主な変更` と実録音Multi-sample PCMへの発展方針を追記。
+
 ## v0.9.2
 - PCM Spectral Resynthesis音色のSample Performanceを、Bass / Pad / Keys / Lead-Brass / Pluck-Bell / Strings-Voiceの役割別に自動切替するよう改善。
 - Bass向けにMIDI 28付近まで使う低音グルーヴ／低音オクターブ／ウォーキング／ロングトーンを追加し、低音域で音色を評価できるようにした。
