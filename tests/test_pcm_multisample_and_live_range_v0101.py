@@ -23,7 +23,7 @@ def test_resynth_uses_nearest_multisample_roots_and_longer_pcm_body():
 def test_resynth_pitch_is_actual_midi_note_not_hidden_patch_octave():
     assert "const f=midiFreq(note),morph=p.resynth_morph" in RESYNTH
     assert "midiFreq(note+(Number(p.octave_shift)||0)*12)" not in RESYNTH
-    assert "live octave selection belongs to the" in RESYNTH
+    assert "performance surface" in RESYNTH
 
 
 def test_live_keyboard_has_auto_and_manual_octave_ranges():
