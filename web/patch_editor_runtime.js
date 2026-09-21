@@ -85,6 +85,8 @@ applyParam = function(key,value,rerender=true) {
     soundDesignPreviewBtn:"現在の音色を、Step 3で選択中のサンプル演奏フレーズでその場で試聴します。",
     paletteLanguageJa:"SOUND DESIGNの音色名とグループ名を日本語表示へ切り替えます。音色そのものは変更しません。",
     paletteLanguageEn:"SOUND DESIGNの音色名とグループ名を英語表示へ切り替えます。音色そのものは変更しません。",
+    timbreCompareBtn:"A/B/Cの3候補を同じサンプル演奏フレーズで順番に再生して比較します。",
+    timbreRefineBtn:"「もっと暗く」「木質を強く」などの差分指示をTimbre Intentへ反映します。",
     samplePlayBtn:"現在の音色を選択中のサンプル演奏フレーズで再生します。",
     sampleStopBtn:"再生中のサンプル演奏を停止します。",
     resetParamsBtn:"グラフィカルに変更した音色パラメータを、生成直後の値へ戻します。"
@@ -92,6 +94,7 @@ applyParam = function(key,value,rerender=true) {
 
   let paletteLanguage="ja";
   let paletteObserver=null;
+  let soundDesignObserver=null;
 
   function soundPaletteGrid(){return document.getElementById("soundPaletteGrid");}
   function englishLabel(button){
@@ -158,13 +161,27 @@ applyParam = function(key,value,rerender=true) {
     en.addEventListener("click",()=>{paletteLanguage="en";applyPaletteLanguage();});
   }
 
+  function dynamicButtonHelp(button){
+    if(button.classList.contains("ti-candidate"))return"このA/B/C音色候補を現在の音色として適用します。Sample Performanceで同じフレーズを使って比較できます。";
+    if(button.id==="timbreCompareBtn")return CONTROL_HELP_JA.timbreCompareBtn;
+    if(button.id==="timbreRefineBtn")return CONTROL_HELP_JA.timbreRefineBtn;
+    return`${(button.textContent||"このボタン").trim()}を実行します。`;
+  }
+
   function addJapaneseButtonHelp(){
     for(const [id,help] of Object.entries(CONTROL_HELP_JA)){
       const button=document.getElementById(id);if(button)button.title=help;
     }
     for(const button of document.querySelectorAll("#soundDesign button")){
-      if(!button.title)button.title=`${(button.textContent||"このボタン").trim()}を実行します。`;
+      if(button.matches("#soundPaletteGrid button[data-prompt]"))continue;
+      if(!button.title)button.title=dynamicButtonHelp(button);
     }
+  }
+
+  function installSoundDesignObserver(){
+    const host=document.getElementById("soundDesign");if(!host||soundDesignObserver)return;
+    soundDesignObserver=new MutationObserver(()=>addJapaneseButtonHelp());
+    soundDesignObserver.observe(host,{childList:true,subtree:true});
   }
 
   function addStyles(){
@@ -183,7 +200,7 @@ applyParam = function(key,value,rerender=true) {
   }
 
   function initSoundDesignUx(){
-    addStyles();addQuickControls();installPaletteObserver();applyPaletteLanguage();addJapaneseButtonHelp();
+    addStyles();addQuickControls();installPaletteObserver();installSoundDesignObserver();applyPaletteLanguage();addJapaneseButtonHelp();
     const eyebrow=document.querySelector("header .eyebrow");if(eyebrow)eyebrow.textContent="v0.10.2 audio · core v0.7.2 · Timbre Intent + PCM Hybrid";
     window.soundDesignUx={get language(){return paletteLanguage;},setLanguage(lang){if(lang==="ja"||lang==="en"){paletteLanguage=lang;applyPaletteLanguage();}}};
   }
