@@ -91,19 +91,22 @@
     if(name==="piano"){
       const root=nearestRoot(note,PIANO_ROOTS);
       if(typeof engine.ensurePianoSamples==="function")engine.ensurePianoSamples(root);
-      const buffer=engine.sampleBuffers.get(`piano_${root}`);
-      return buffer?{name,buffer,root,offset:0,analysisOffset:.065,duration:buffer.duration}:null;
+      const buffer=engine.sampleBuffers.get(`piano_${root}`)||engine.sampleBuffers.get("piano_60");
+      const actualRoot=engine.sampleBuffers.get(`piano_${root}`)?root:60;
+      return buffer?{name,buffer,root:actualRoot,offset:0,analysisOffset:.065,duration:buffer.duration}:null;
     }
     if(name==="guitar"){
       const root=nearestRoot(note,GUITAR_ROOTS);
       if(typeof engine.ensureGuitarSamples==="function")engine.ensureGuitarSamples();
-      const buffer=engine.sampleBuffers.get(`guitar_${root}`);
-      return buffer?{name,buffer,root,offset:0,analysisOffset:.045,duration:buffer.duration}:null;
+      const buffer=engine.sampleBuffers.get(`guitar_${root}`)||engine.sampleBuffers.get("guitar_64");
+      const actualRoot=engine.sampleBuffers.get(`guitar_${root}`)?root:64;
+      return buffer?{name,buffer,root:actualRoot,offset:0,analysisOffset:.045,duration:buffer.duration}:null;
     }
     return nearestFretlessDescriptor(note);
   }
 
-  function harmonicTemplate(name,harmonics,note=60){
+  function harmonicTemplate(name,harmonics){
+    const note=arguments.length>2?arguments[2]:60;
     const descriptor=sourceDescriptor(name,note);if(!descriptor)return null;
     const key=`${name}:${descriptor.root}:${harmonics}:${descriptor.buffer.sampleRate}`;
     if(spectralCache.has(key))return spectralCache.get(key);
@@ -160,8 +163,8 @@
   engine.playSpectralResynth=function(midiNote,velocity,whenSeconds){
     const note=clamp(Math.round(midiNote),0,127);this.limitVoices(note);
     const p=validateResynthExtras(this.patch),now=this.ctx.currentTime+Math.max(0,Number(whenSeconds)||0),vel=clamp(velocity,0,1);
-    // Pitch is now determined by the actual MIDI note. Live octave selection belongs to the
-    // performance surface so the piano-roll/keyboard labels and audible register stay aligned.
+    // Pitch is determined by the actual MIDI note. Live octave selection belongs to the
+    // performance surface so keyboard labels, recorded notes and audible pitch remain aligned.
     const f=midiFreq(note),morph=p.resynth_morph;
     const voiceGain=this.ctx.createGain(),filter=this.ctx.createBiquadFilter();
     const dry=this.ctx.createGain(),delay=this.ctx.createDelay(1.5),feedback=this.ctx.createGain(),wet=this.ctx.createGain();
