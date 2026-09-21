@@ -62,9 +62,12 @@ def test_browser_runtime_analyzes_factory_pcm_and_reconstructs_periodic_waves():
     for token in [
         'engine.sampleBuffers.get(`piano_${root}`)',
         'engine.sampleBuffers.get(`guitar_${root}`)',
+        'engine.sampleBuffers.get("piano_60")',
+        'engine.sampleBuffers.get("guitar_64")',
         'engine.sampleBuffers.get("fretless")',
         "function nearestRoot(note,roots)",
-        "function harmonicTemplate(name,harmonics,note=60)",
+        "function harmonicTemplate(name,harmonics)",
+        "arguments.length>2?arguments[2]:60",
         "Math.hypot(re,im)",
         "createPeriodicWave",
         "playPcmLayer",
