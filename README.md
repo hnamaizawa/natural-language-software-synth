@@ -2,7 +2,41 @@
 
 自然言語で楽器・音色・雰囲気を指定すると、ローカルで安全なPatchデータへ変換してその場で演奏できるソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／Sample Performance／鼻歌メロディー／Windows VST3 Instrumentに対応しています。
 
-v0.10.1では、v0.10.0のTimbre Intentに加えて、PCM Spectral Resynthesisを **PCM Multi-sampleを発音主体として残すHybrid Resynthesis** へ改善し、ライブ鍵盤のオクターブ切替とDrum PadのPCキーボード操作も追加しました。
+v0.10.2では、v0.10.1のPCM Multi-sample Hybrid Resynthesisを維持しながら、Step 1 SOUND DESIGNだけで音色選択と試聴を往復できるようにし、45音色の英語／日本語ラベル即時切替と日本語ホバーヘルプを追加しました。
+
+## v0.10.2 の主な変更
+
+- Step 1 SOUND DESIGNに **「▶ この音色でサンプル演奏」** ボタンを追加。
+- Step 3まで上下スクロールせず、現在生成されている音色を選択中のSample Performanceでその場で試聴可能。
+- Step 1の試聴ボタンは既存 `samplePlayBtn` を再利用し、新しいAudioContextや別のNote Event経路を作らない。
+- 7グループ・45音色すべてに日本語ラベルを追加。
+- **日本語 / English** 切替ボタンで、音色名とグループ名を再生成なしで瞬時に切替可能。
+- ラベル切替は表示だけを変更し、自然言語Prompt、Timbre Intent、Patch、Sample Performanceには影響しない。
+- 音色ライブラリがカテゴリ切替／検索で再描画されても、選択中の表示言語を自動的に再適用。
+- 各音色ボタンに日本語ホバーヘルプを追加。音色の特徴と「クリックすると生成される」ことを表示。
+- 「音色を生成」「この音色でサンプル演奏」「日本語 / English」「サンプル演奏 / 停止」「生成値へ戻す」などStep 1周辺の操作ボタンにも日本語ホバーヘルプを追加。
+- UI補助層は追加AudioContext、外部通信、MediaRecorder、動的コード実行、localStorageを追加しない。
+- Native VST3 HostのC++は変更していないため、v0.10.2への更新後に `build_vst3_host.cmd` の再実行は不要。
+
+### よりリアルなPCMを土台にする今後の方向
+
+v0.10.2時点のPCMは引き続きアプリ内で決定論的に生成したFactory PCMです。音色のリアルさをさらに上げるには、ライセンスが明確な実録音Multi-sampleをローカルで扱えるようにするのが有効です。
+
+```text
+実録音 WAV / SFZ
+   ↓
+Key Zone / Velocity Layer / Round Robin / Release Sample
+   ↓
+PCM Body / Transient / Sustain
+   ＋
+時間変化するSpectral解析
+   ↓
+Timbre Intent
+   ↓
+PCM + Spectral / Granular Resynthesis
+```
+
+この方式なら、本物の楽器らしさをPCM側で保ちながら、「もっと木質」「暗く」「アタックを柔らかく」などの自然言語指示を再合成処理へ反映できます。商用サンプルを無断同梱せず、ユーザー自身の録音またはライセンスが明確な素材をローカルImportする設計が適しています。
 
 ## v0.10.1 の主な変更
 
@@ -248,7 +282,7 @@ check_harness.cmd
 start_synth.cmd
 ```
 
-Native VST3 HostのC++が変更されたバージョンのみ `build_vst3_host.cmd` を再実行します。v0.10.1ではNative C++変更はありません。
+Native VST3 HostのC++が変更されたバージョンのみ `build_vst3_host.cmd` を再実行します。v0.10.2ではNative C++変更はありません。
 
 # VST3 Instrument
 
@@ -280,6 +314,7 @@ Step 2でVST3検索／ロード／Editor／Parameter／Program/Preset／ルー�
 - `eval()` / `new Function()` / generated executable codeを使用しない
 - 生成／編集／ImportされたPatchをvalidatorでClamp
 - 単一AudioContextと既存 `noteOn / noteOff` 契約を維持
+- v0.10.2のSOUND DESIGN UXは既存Sample Performance経路のみ再利用し、追加AudioContext／ネットワーク／永続化を作らない
 - v0.10.1のPCM Body強化もローカルFactory PCMのみ利用し、ネットワークからSampleを取得しない
 - マイク生音声を録音／保存／アップロードしない
 - Master Gain / Polyphony / PCM / Guitar / Piano / Drum / FM / Resynthesis値をClamp
