@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.11.0
+- 開発方針を「自然言語からゼロ生成」中心から **Preset-first + Reference Audio Match + 自然言語微調整** へ変更。
+- Step 1へ9種類のREALISTIC INSTRUMENT PRESETSを追加し、自然言語生成を介さず専用楽器Patchを直接適用可能にした。
+- 70年代ブリッジ／ウォーム系フレットレス、Concert/Close Grand、Clean Fusion/Acoustic-style Guitar、Dry/Shuffle Drums、Classic FM EPを追加。
+- 手元のMP3 / WAV / M4A / AACをブラウザ内だけで解析するReference Audio Matchを追加。
+- Reference Audioは最大80MB、解析区間3〜30秒、開始位置指定に対応。
+- FFT / RMS / Spectral Flux / Zero Crossing等から明るさ、暖かさ、Transient、Sustain、粗さ、中域、低域Body、Dynamics、空間傾向を抽出。
+- 抽出特徴量をFretless / Piano / Guitar / Drum / FM EP / Genericの既存bounded Patchパラメータへマッピング。
+- Reference Audioの元波形は再生素材・Factory PCMとして利用せず、アップロード・永続保存・ソース埋め込みを行わない。
+- Original preset / Reference Matchの切替と、同じSample PerformanceによるA/B比較を追加。
+- 自然言語入力は補助的な選択／微調整用途として維持。
+- 既存BlueprintのFactory PCM・単一AudioContext・validated Patch・VST3最終Note Event wrapper等のnon-negotiable invariantsを維持。
+- v0.11.0専用回帰テストとREADME手順を追加。
+
 ## v0.10.2
 - Step 1 SOUND DESIGNに「この音色でサンプル演奏」ボタンを追加し、Step 3までスクロールせず現在音色を試聴可能にした。
 - Step 1の試聴は既存 `samplePlayBtn` / Sample Performance経路を再利用し、追加AudioContextや別Note Event経路を作らない。
@@ -23,7 +37,7 @@
 ## v0.9.1
 - Step 1 SOUND DESIGNの固定11音色を、7グループ・45音色のカテゴリ選択／検索可能なライブラリへ拡張。
 - ライブラリ候補は専用の別音源経路を作らず、自由入力と同じ自然言語生成経路を利用。
-- 自然言語解析を単一カテゴリ中心から、明暗・暖冷・硬軟・Attack・長さ・空間・広がり・Air/Noise・Metal/Wood・Organic/Digital・Rough/Clean・Thickness等の連続的な音色軸へ拡張。
+- 自然言語解析を単一カテゴリ中心から、明暗・暖冷・硬軟、Attack、長さ、空間、広がり、Air/Noise、Metal/Wood、Organic/Digital、Rough/Clean、Thickness等の連続的な音色軸へ拡張。
 - Bell + Padなど複数カテゴリを含む文章では、副カテゴリのAttack / Sustain / Transient等も保持するよう改善。
 - 「ピアノのようなPad」「ギター弦を混ぜたBell」などでは実楽器名をPCM参照元ヒントとして解釈し、明示的なGrand Piano / Guitar / Fretless / Drums / DX EPは従来の専用音源を維持。
 - 氷 / 鋼 / ガラス / 木質 / 煙 / 霧 / 風などの比喩語をboundedな音色軸へマッピング。
