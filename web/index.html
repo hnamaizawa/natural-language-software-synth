@@ -12,15 +12,15 @@
   <main>
     <header>
       <div>
-        <p class="eyebrow">v0.10.0 audio · core v0.7.2 · Timbre Intent Engine</p>
+        <p class="eyebrow">v0.11.0 audio · Preset-first · Local Reference Match</p>
         <h1>Natural Language Software Synth</h1>
-        <p class="lead">自然言語をまずTimbre Intent（音色設計書）へ変換し、解釈結果を確認・調整してからA/B/Cの音色候補を生成。PCM再合成・演奏・録音までをひとつの流れで操作します。</p>
+        <p class="lead">まず実用的な楽器プリセットを選び、必要に応じて手元のMP3/WAVをReference Audioとしてローカル解析して音色を近づけます。自然言語は音色の選択・微調整に利用します。</p>
       </div>
       <button id="audioBtn" class="primary">音源を有効化</button>
     </header>
 
     <nav class="workflow-guide" aria-label="基本操作の流れ">
-      <a href="#soundDesign"><span>1</span><strong>音色を作る</strong><small>自然言語から生成</small></a>
+      <a href="#soundDesign"><span>1</span><strong>音色を作る</strong><small>Preset / Reference / 自然言語</small></a>
       <a href="#soundSource"><span>2</span><strong>音源を選ぶ</strong><small>内蔵 / VST3</small></a>
       <a href="#performance"><span>3</span><strong>演奏・試聴</strong><small>鍵盤 / MIDI / Sample</small></a>
       <a href="#recordingStudio"><span>4</span><strong>録音する</strong><small>PCキー / 鼻歌</small></a>
@@ -28,7 +28,7 @@
 
     <section id="soundDesign" class="panel prompt-panel workflow-section">
       <div class="workflow-section-label"><span>STEP 1</span> SOUND DESIGN</div>
-      <label for="prompt">どんな音が欲しいですか？</label>
+      <label for="prompt">任意: 自然言語で音色を選択／微調整</label>
       <div class="prompt-row">
         <textarea id="prompt" rows="3">コンサートホールで弾くような豊かなグランドピアノ。ハンマーのアタックと響板の余韻が自然な音。</textarea>
         <button id="generateBtn" class="primary">音色を生成</button>
@@ -139,7 +139,7 @@
       <aside class="panel params-panel"><div class="section-title compact"><div><span class="kicker">PATCH EDITOR</span><h2>音色をグラフィカルに調整</h2></div><button id="resetParamsBtn" class="small-btn">生成値へ戻す</button></div><p class="param-help">スライダーを動かすと即座に現在の音へ反映されます。</p><div id="params" class="params-editor"></div></aside>
     </section>
 
-    <section class="panel future-panel"><span class="kicker">ENGINE CONTRACT</span><h2>Timbre Intent・PCM再合成・演奏・録音・VST3で安全な境界を維持</h2><p>自然言語はTimbre Intentというboundedなデータへ変換し、Patchも既存validatorを通します。PCM Spectral Resynthesisは既存の <code>noteOn / noteOff</code> を使用し、VST3ルーターが最終段で包みます。</p></section>
+    <section class="panel future-panel"><span class="kicker">ENGINE CONTRACT</span><h2>Preset・Reference Audio・自然言語・VST3で安全な境界を維持</h2><p>Reference Audioはブラウザ内で特徴量だけを抽出し、音声そのものは保存・送信しません。Preset／Reference Match／自然言語のいずれも最終的に既存validatorを通したPatchとなり、既存の <code>noteOn / noteOff</code> を使用します。</p></section>
   </main>
   <script src="/app.js"></script>
   <script src="/patch_editor_runtime.js"></script>
@@ -150,6 +150,7 @@
   <script src="/performance_library_runtime.js"></script>
   <script src="/adaptive_sample_performance_runtime.js"></script>
   <script src="/timbre_intent_runtime.js"></script>
+  <script src="/reference_match_runtime.js"></script>
   <script src="/output_level_runtime.js"></script>
   <script src="/humming_runtime.js"></script>
   <script src="/keyboard_performance_runtime.js"></script>
