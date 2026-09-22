@@ -29,8 +29,9 @@ def _is_drum_prompt(text: str) -> bool:
 def _is_fretless_prompt(text: str) -> bool:
     return _has(
         text,
-        "fretless", "fretless bass", "pastorius", "jaco",
+        "fretless", "fretless bass", "pastorius", "jaco", "patitucci",
         "フレットレス", "フレットレスベース", "ジャコ", "パストリアス",
+        "パティトゥッチ", "パティトゥーチ",
     )
 
 
@@ -93,7 +94,28 @@ def generate_patch(prompt: str) -> SynthPatch:
             master_gain=0.24,
             max_polyphony=10,
         )
-        if _has(text, "finger", "fingerstyle", "指", "指弾", "フィンガー"):
+        # Original modern-fusion recipe: a firm attack and clear upper mids keep
+        # fast lines defined. It reuses the bounded bass engine without embedding
+        # or reproducing any third-party recording.
+        if _has(text, "patitucci", "パティトゥッチ", "パティトゥーチ"):
+            archetype = "modern fusion six-string bass"
+            p = replace(
+                p,
+                sample_tone=0.88,
+                sample_attack_mix=0.78,
+                finger_noise_mix=0.64,
+                release_noise_mix=0.18,
+                slide_amount=0.18,
+                slide_time_s=0.12,
+                mwah_amount=0.42,
+                sample_velocity_curve=1.25,
+                lfo_rate_hz=4.2,
+                lfo_depth_cents=2.0,
+                master_gain=0.22,
+            )
+        if _has(text, "finger", "fingerstyle", "指", "指弾", "フィンガー") and not _has(
+            text, "patitucci", "パティトゥッチ", "パティトゥーチ"
+        ):
             p = replace(p, finger_noise_mix=max(p.finger_noise_mix, 0.82), sample_attack_mix=max(p.sample_attack_mix, 0.60))
         if _has(text, "slide", "gliss", "スライド", "グリス"):
             p = replace(p, slide_amount=max(p.slide_amount, 0.68), slide_time_s=0.28)

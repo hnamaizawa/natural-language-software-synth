@@ -1,5 +1,31 @@
 # CURRENT
 
+## v0.11.0 Preset-first + Local Reference Audio Match
+
+- [x] モダン・フュージョン6弦ベースの基準プリセットを追加
+- [x] John Patitucci / ジョン・パティトゥッチ表記を自然言語で認識
+- [x] 速い指弾き向けの明瞭なAttack／中高域と、控えめなSlide／Mwahをbounded値で設定
+- [x] 市販音源は同梱せず、手元のM4Aを既存Reference Audio Matchでローカル解析する方針を維持
+- [x] 開発の主軸を自然言語ゼロ生成からPreset-firstへ変更
+- [x] REALISTIC INSTRUMENT PRESETSをStep 1先頭へ追加
+- [x] Fretless / Grand Piano / Guitar / Drums / FM EPの調整済み基準Patchを自然言語生成なしで直接適用
+- [x] 手元のMP3 / WAV / M4A / AACをReference Audioとしてローカル解析
+- [x] Reference Audio最大80MB、解析区間3〜30秒、開始位置指定
+- [x] 既存 `engine.ctx.decodeAudioData()` を利用し追加AudioContextを作らない
+- [x] FFT / RMS / Spectral Flux / Zero Crossingベースの特徴量抽出
+- [x] 明るさ／暖かさ／Transient／Sustain／粗さ／中域／低域Body／Dynamics／空間傾向を可視化
+- [x] Fretless / Piano / Guitar / Drum / FM EP / Genericごとのbounded Parameter Mapping
+- [x] Reference Match結果を必ず既存 `validatePatch()` へ通す
+- [x] 参照音声の元波形を音源として利用・保存・アップロード・ソース埋め込みしない
+- [x] Original / Reference Match切替
+- [x] 同じSample PerformanceによるA/B比較
+- [x] 自然言語入力を任意の選択／微調整用途として維持
+- [x] v0.11.0専用回帰テストを追加
+- [x] READMEへ `v0.11.0 の主な変更` とCD由来MP3をReferenceにする手順・制約を追記
+- [x] CHANGELOGへv0.11.0を追記
+- [x] 既存Blueprint non-negotiable invariantsを変更せず維持
+- [ ] `python -m pytest tests/` / Harness / Windows Native VST3 build 最終確認
+
 ## v0.10.2 SOUND DESIGN Preview / Japanese Labels / Hover Help
 
 - [x] Step 1 SOUND DESIGNに現在音色のSample Performance開始ボタンを追加
@@ -58,7 +84,7 @@
 - [x] 画面上部に4ステップの操作ガイドを追加
 - [x] VST3設定を「音源を選ぶ」へ移動
 - [x] Sample Performance / ライブ鍵盤 / ドラムを「演奏・試聴」へ集約
-- [x] PCキーボード録音と鼻歌録音を1つの RECORDING STUDIO へ統合
+- [x] PCキーボード録音と鼻歌録音を1つの RECORDING STUDIO に統合
 - [x] RECORDING STUDIOにPCキーボード／鼻歌の2タブを追加
 - [x] 既存のPCキー録音上限・ピアノロール・VST3再生経路を維持
 - [x] 既存の鼻歌キー補正・タイミング補正・楽譜・フレーズ転送を維持
