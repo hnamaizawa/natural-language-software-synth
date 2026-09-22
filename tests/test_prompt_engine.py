@@ -36,6 +36,18 @@ def test_fretless_bass_prompt_selects_pcm_sampler():
     assert p.mwah_amount >= 0.68
 
 
+def test_patitucci_prompt_selects_articulate_modern_fusion_bass_recipe():
+    p = generate_patch("ジョン・パティトゥッチのような、明瞭で速い指弾きの6弦フュージョンベース")
+    assert p.engine_type == "sampler"
+    assert p.instrument_model == "fretless_bass"
+    assert p.sample_tone >= 0.85
+    assert p.sample_attack_mix >= 0.75
+    assert 0.55 <= p.finger_noise_mix <= 0.70
+    assert p.slide_amount <= 0.20
+    assert p.mwah_amount <= 0.45
+    assert p.sample_velocity_curve >= 1.20
+
+
 def test_user_rosanna_prompt_selects_pcm_half_time_shuffle_drums():
     p = generate_patch("Toto のロザーナーでジェフ ポーカロさんのシャッフルで有名なドラムの音を生成してください。")
     assert p.engine_type == "drum"
