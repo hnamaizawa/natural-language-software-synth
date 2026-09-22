@@ -28,6 +28,21 @@ def test_preset_first_library_applies_direct_validated_instrument_patches():
     assert "applyPreset(preset)" in runtime
 
 
+def test_modern_fusion_six_string_bass_preset_is_articulate_and_bounded():
+    runtime = read("web/reference_match_runtime.js")
+    for token in [
+        'id: "modern_fusion_6string_bass"',
+        'ja: "モダン・フュージョン6弦ベース"',
+        'sample_tone: .88',
+        'sample_attack_mix: .78',
+        'finger_noise_mix: .64',
+        'slide_amount: .18',
+        'mwah_amount: .42',
+        'sample_velocity_curve: 1.25',
+    ]:
+        assert token in runtime
+
+
 def test_reference_audio_stays_browser_local_and_bounded():
     runtime = read("web/reference_match_runtime.js")
     assert "MAX_FILE_BYTES = 80 * 1024 * 1024" in runtime
