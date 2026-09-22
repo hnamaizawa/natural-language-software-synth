@@ -1,6 +1,9 @@
 # Changelog
 
 ## v0.11.0
+- REALISTIC INSTRUMENT PRESETSへ「モダン・フュージョン6弦ベース」を追加。速い指弾きでも輪郭が残るAttack、締まった低域、前に出る中高域を重視し、Slide/Mwahは控えめに設定。
+- `John Patitucci` / `ジョン・パティトゥッチ` を自然言語で認識し、同じboundedなモダン・フュージョン向けベースPatchを生成可能にした。
+- 市販音源の波形やサンプルは同梱せず、ユーザーが手元のM4Aを選択した場合だけ既存Reference Audio Matchで特徴量をローカル解析する境界を維持。
 - 開発方針を「自然言語からゼロ生成」中心から **Preset-first + Reference Audio Match + 自然言語微調整** へ変更。
 - Step 1へ9種類のREALISTIC INSTRUMENT PRESETSを追加し、自然言語生成を介さず専用楽器Patchを直接適用可能にした。
 - 70年代ブリッジ／ウォーム系フレットレス、Concert/Close Grand、Clean Fusion/Acoustic-style Guitar、Dry/Shuffle Drums、Classic FM EPを追加。
