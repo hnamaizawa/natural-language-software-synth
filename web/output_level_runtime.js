@@ -10,7 +10,8 @@
     studio_drums:1.04,
     dx_ep:1.10,
     electric_guitar:.96,
-    grand_piano:1.03
+    grand_piano:1.03,
+    licensed_pcm:.94
   });
 
   function outputInstrumentKey(p){
@@ -19,6 +20,7 @@
     if(p&&(p.instrument_model==="studio_drums"||p.engine_type==="drum"))return"studio_drums";
     if(p&&p.instrument_model==="fretless_bass")return"fretless_bass";
     if(p&&p.instrument_model==="dx_ep")return"dx_ep";
+    if(p&&p.instrument_model==="licensed_pcm")return"licensed_pcm";
     return"generic";
   }
 

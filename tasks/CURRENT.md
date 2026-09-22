@@ -1,5 +1,18 @@
 # CURRENT
 
+## v0.12.0 Practical Presets / Licensed PCM / Complete Hover Help
+
+- [x] 実用プリセットを4種類追加
+- [x] VCSL CC0テナーサックスPCMを同梱
+- [x] 出典・上流コミット・原パス・SHA-256を固定
+- [x] Licensed PCM PatchをPython／ブラウザ双方でClamp
+- [x] 既存AudioContextとnoteOn／noteOffを再利用
+- [x] 全音色パラメータに日本語ホバー／フォーカス説明を追加
+- [x] 動的UIを含むその他の操作要素にも説明を補完
+- [x] v0.12.0専用回帰テストを追加
+- [x] README / CHANGELOGを更新
+- [x] `python -m pytest tests/` / Harness 最終確認（144 passed / HARNESS PASS）
+
 ## v0.11.1 Selected Choice Highlight
 
 - [x] REALISTIC INSTRUMENT PRESETSの選択中ボタンを強調表示

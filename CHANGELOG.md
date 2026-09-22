@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.12.0
+- CC0 1.0のVCSL実録音PCMを使う「スタジオ・テナーサックス」を追加し、出典・上流コミット・原パス・SHA-256を同梱ライセンス文書へ固定。
+- Pop Close Piano / Neo Soul FM EP / Pop Pocket Drumsを含む実用プリセットを追加。
+- Licensed PCM専用のbounded Patch schemaと、既存AudioContext／Note Eventを再利用する再生Runtimeを追加。
+- 全音色パラメータへ日本語ホバー／フォーカス説明を追加し、動的UIを含む未対応操作要素にも説明を補完。
+- CC0 PCM、Clamp、同一オリジン読込、単一AudioContext、UI Help副作用なしを検証する回帰テストを追加。
+
 ## v0.11.1
 - REALISTIC INSTRUMENT PRESETS、SOUND DESIGN音色ライブラリ、Timbre Intent A/B/C候補、Original / Reference Matchで、現在選択中の項目を明るい枠線・背景・軽い発光で強調。
 - 選択項目へ `✓ 選択中` バッジと `aria-pressed=true` を付け、後から見ても現在の選択を判別しやすくした。
