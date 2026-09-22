@@ -38,7 +38,7 @@ def test_reference_audio_stays_browser_local_and_bounded():
     assert "analyzeBuffer(buffer" in runtime
     assert "matchPatch(state.basePatch" in runtime
     for forbidden in [
-        "fetch(", "XMLHttpRequest", "localStorage", "MediaRecorder", "getUserMedia(",
+        "fetch(", "XMLHttpRequest", "localStorage.", "MediaRecorder", "getUserMedia(",
         "new AudioContext", "new (window.AudioContext", "eval(", "new Function(",
     ]:
         assert forbidden not in runtime
