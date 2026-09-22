@@ -138,6 +138,7 @@
     features: null,
     comparing: false,
     language: "ja",
+    selectedPresetId: "",
   };
 
   function formatBytes(bytes) {
@@ -171,11 +172,13 @@
   }
 
   function applyPreset(preset) {
+    state.selectedPresetId = preset.id;
     const applied = applyPatch(preset.patch, `リアル楽器プリセット「${preset.ja}」を適用しました。`, true);
     const target = document.getElementById("referenceTarget");
     if (target) target.value = preset.target;
     const intent = document.getElementById("timbreIntentPanel");
     if (intent) intent.hidden = true;
+    renderPresetButtons();
     updateReferenceButtons();
     return applied;
   }
@@ -203,8 +206,10 @@
     for (const preset of REALISTIC_PRESETS) {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "realistic-preset-button";
+      const selected = state.selectedPresetId === preset.id;
+      button.className = `realistic-preset-button${selected ? " selected" : ""}`;
       button.dataset.presetId = preset.id;
+      button.setAttribute("aria-pressed", String(selected));
       button.innerHTML = `<strong>${state.language === "ja" ? preset.ja : preset.en}</strong><span>${preset.group.toUpperCase()}</span>`;
       button.title = `${preset.help} クリックすると自然言語生成を介さず、この基準Patchを直接適用します。`;
       button.addEventListener("click", () => applyPreset(preset));
@@ -532,8 +537,8 @@
 
   function updateReferenceButtons(active = "") {
     const original = document.getElementById("referenceOriginalBtn"), matched = document.getElementById("referenceMatchedBtn");
-    if (original) original.classList.toggle("active", active === "original");
-    if (matched) matched.classList.toggle("active", active === "matched");
+    if (original) { const selected = active === "original"; original.classList.toggle("active", selected); original.setAttribute("aria-pressed", String(selected)); }
+    if (matched) { const selected = active === "matched"; matched.classList.toggle("active", selected); matched.setAttribute("aria-pressed", String(selected)); }
   }
 
   function waitForSamplePlayback() {
@@ -575,8 +580,11 @@
     style.textContent = `
       .realistic-preset-panel,.reference-match-panel{margin:14px 0;padding:15px;border:1px solid #39415f;border-radius:16px;background:#111521}
       .rp-head,.rm-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}.rp-head strong,.rm-head strong{display:block;font-size:1.05rem}.rp-head small,.rm-help,.rm-status{color:#9ca6c4}
-      .rp-language{display:inline-flex;gap:4px;padding:4px;border:1px solid #343a56;border-radius:12px}.rp-language button.active,.rm-compare button.active{border-color:#8e9cff;background:#313a62}
-      .realistic-preset-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:12px}.realistic-preset-button{text-align:left;padding:10px 12px}.realistic-preset-button strong,.realistic-preset-button span{display:block}.realistic-preset-button span{margin-top:3px;color:#9ca6c4;font-size:.72rem}
+      .rp-language{display:inline-flex;gap:4px;padding:4px;border:1px solid #343a56;border-radius:12px}.rp-language button.active{border-color:#8e9cff;background:#313a62}
+      .realistic-preset-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:12px}.realistic-preset-button{text-align:left;padding:10px 12px;position:relative}.realistic-preset-button strong,.realistic-preset-button span{display:block}.realistic-preset-button span{margin-top:3px;color:#9ca6c4;font-size:.72rem}
+      .realistic-preset-button.selected,.rm-compare button.active{border-color:#aab6ff;background:linear-gradient(180deg,#35406c,#272f52);box-shadow:0 0 0 2px rgba(142,156,255,.22),0 7px 18px rgba(64,82,170,.24);transform:translateY(-1px)}
+      .realistic-preset-button.selected{padding-top:31px}.realistic-preset-button.selected::after,.rm-compare button.active::after{content:"✓ 選択中";position:absolute;top:7px;right:8px;padding:2px 7px;border-radius:999px;background:#8999ff;color:#101528;font-size:.66rem;font-weight:900;letter-spacing:.02em}
+      .rm-compare button{position:relative}.rm-compare button.active{padding-top:25px}
       .rm-local-badge{padding:6px 9px;border:1px solid #49745d;border-radius:999px;color:#9fe1b7;font-size:.72rem;font-weight:800}.rm-help{line-height:1.65}.rm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.rm-grid label{display:grid;gap:5px}.rm-wide{grid-column:1/-1}.rm-grid input,.rm-grid select{min-height:40px;color:#eef1ff;background:#0e1019;border:1px solid #343a56;border-radius:10px;padding:7px 9px}.rm-actions{display:flex;gap:8px;flex-wrap:wrap}.rm-features{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:12px}.rm-feature{padding:9px;border:1px solid #2e354d;border-radius:11px;background:#0d1018}.rm-feature>div:first-child{display:flex;justify-content:space-between;gap:8px}.rm-feature-bar{height:6px;margin-top:7px;border-radius:999px;background:#252c40;overflow:hidden}.rm-feature-bar i{display:block;height:100%;background:linear-gradient(90deg,#667eea,#9f7aea)}.rm-feature-meta small{display:block;color:#9ca6c4;margin-top:7px}.rm-compare{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #2e354d}
       @media(max-width:760px){.rp-head,.rm-head{flex-direction:column}.rm-grid{grid-template-columns:1fr}.rm-wide{grid-column:1}.rm-actions,.rm-compare{display:grid;grid-template-columns:1fr}.rp-language{align-self:stretch;justify-content:center}}
     `;
