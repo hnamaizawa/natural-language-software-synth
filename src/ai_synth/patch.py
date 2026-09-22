@@ -8,7 +8,9 @@ ENGINE_TYPES = {"synth", "sampler", "drum", "fm"}
 INSTRUMENT_MODELS = {
     "generic", "fretless_bass", "electric_guitar", "grand_piano", "studio_drums", "dx_ep",
     "spectral_resynth",
+    "licensed_pcm",
 }
+PCM_INSTRUMENTS = {"tenor_sax"}
 DRUM_STYLES = {"standard", "half_time_shuffle"}
 GUITAR_AMP_MODELS = {"clean", "crunch", "high_gain", "acoustic"}
 GUITAR_DEMO_STYLES = {"rock", "fusion", "acoustic"}
@@ -77,6 +79,15 @@ class SynthPatch:
     piano_sustain: float = 0.82
     piano_velocity_curve: float = 1.10
     piano_room_mix: float = 0.14
+
+    # Curated CC0 PCM instruments bundled with source and checksum metadata.
+    pcm_instrument: str = "tenor_sax"
+    pcm_tone: float = 0.68
+    pcm_attack_s: float = 0.018
+    pcm_release_s: float = 0.42
+    pcm_body: float = 0.62
+    pcm_room_mix: float = 0.10
+    pcm_velocity_curve: float = 1.05
 
     # PCM spectral resynthesis. The runtime derives harmonic templates from the locally
     # generated Factory Piano / Guitar / Fretless PCM and morphs between two sources.
@@ -196,6 +207,13 @@ def validate_patch(data: dict[str, Any] | SynthPatch) -> SynthPatch:
         piano_sustain=_clamp(data.get("piano_sustain", 0.82), 0.2, 1.0),
         piano_velocity_curve=_clamp(data.get("piano_velocity_curve", 1.10), 0.5, 2.0),
         piano_room_mix=_clamp(data.get("piano_room_mix", 0.14), 0.0, 0.5),
+        pcm_instrument=enum_value("pcm_instrument", "tenor_sax", PCM_INSTRUMENTS),
+        pcm_tone=_clamp(data.get("pcm_tone", 0.68), 0.0, 1.0),
+        pcm_attack_s=_clamp(data.get("pcm_attack_s", 0.018), 0.001, 1.0),
+        pcm_release_s=_clamp(data.get("pcm_release_s", 0.42), 0.02, 3.0),
+        pcm_body=_clamp(data.get("pcm_body", 0.62), 0.0, 1.0),
+        pcm_room_mix=_clamp(data.get("pcm_room_mix", 0.10), 0.0, 0.5),
+        pcm_velocity_curve=_clamp(data.get("pcm_velocity_curve", 1.05), 0.5, 2.0),
         resynth_source_a=enum_value("resynth_source_a", "piano", RESYNTH_SOURCES),
         resynth_source_b=enum_value("resynth_source_b", "guitar", RESYNTH_SOURCES),
         resynth_morph=_clamp(data.get("resynth_morph", 0.35), 0.0, 1.0),

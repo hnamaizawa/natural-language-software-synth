@@ -11,12 +11,14 @@ const DEFAULT_PATCH = {
   hat_decay_s:.09, tom_decay_s:.42, drum_brightness:.68, drum_room_mix:.12,
   fm_mod_index:4.8, fm_brightness:.72, fm_ratio_1:14, fm_ratio_2:1,
   fm_decay_s:2.4, fm_release_s:1.4, fm_chorus_mix:.18,
+  pcm_instrument:"tenor_sax",pcm_tone:.68,pcm_attack_s:.018,pcm_release_s:.42,
+  pcm_body:.62,pcm_room_mix:.10,pcm_velocity_curve:1.05,
   master_gain:.22, max_polyphony:12, prompt:""
 };
 
 const WAVES=new Set(["sine","triangle","sawtooth","square"]);
 const ENGINE_TYPES=new Set(["synth","sampler","drum","fm"]);
-const INSTRUMENT_MODELS=new Set(["generic","fretless_bass","studio_drums","dx_ep"]);
+const INSTRUMENT_MODELS=new Set(["generic","fretless_bass","studio_drums","dx_ep","licensed_pcm"]);
 const DRUM_STYLES=new Set(["standard","half_time_shuffle"]);
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,Number(v)));
 const midiFreq=m=>440*Math.pow(2,(m-69)/12);
@@ -161,6 +163,9 @@ function validatePatch(raw){
     fm_mod_index:clamp(p.fm_mod_index,0,18),fm_brightness:clamp(p.fm_brightness,0,1),fm_ratio_1:clamp(p.fm_ratio_1,.25,20),
     fm_ratio_2:clamp(p.fm_ratio_2,.25,20),fm_decay_s:clamp(p.fm_decay_s,.05,8),fm_release_s:clamp(p.fm_release_s,.05,8),
     fm_chorus_mix:clamp(p.fm_chorus_mix,0,.5),master_gain:clamp(p.master_gain,.02,.35),
+    pcm_instrument:p.pcm_instrument==="tenor_sax"?"tenor_sax":"tenor_sax",pcm_tone:clamp(p.pcm_tone,0,1),
+    pcm_attack_s:clamp(p.pcm_attack_s,.001,1),pcm_release_s:clamp(p.pcm_release_s,.02,3),pcm_body:clamp(p.pcm_body,0,1),
+    pcm_room_mix:clamp(p.pcm_room_mix,0,.5),pcm_velocity_curve:clamp(p.pcm_velocity_curve,.5,2),
     max_polyphony:Math.round(clamp(p.max_polyphony,1,16)),prompt:String(p.prompt||"").slice(0,500)
   };
 }

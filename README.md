@@ -2,6 +2,19 @@
 
 実用的な楽器プリセットを起点に、手元のReference Audioや自然言語で音色を調整し、その場で演奏・比較できるローカル優先のソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／Sample Performance／鼻歌メロディー／Windows VST3 Instrumentに対応しています。
 
+## v0.12.0 の主な変更
+
+- 実用プリセットとして **スタジオ・テナーサックス、ポップ・クローズピアノ、ネオソウルFMエレピ、ポップ・ポケットドラム** を追加しました。
+- テナーサックスは VCSL の CC0 1.0 実録音PCMを同梱。上流URL、上流コミット、原ファイルパス、SHA-256を `web/assets/pcm/vcsl/LICENSE.md` に固定し、監査可能にしています。
+- CC0 PCMはユーザー操作後に同一オリジンから読み込み、既存の単一 `AudioContext` と `noteOn / noteOff` 境界だけを使用します。
+- 音色パラメータは、マウスホバーまたはキーボードフォーカスで日本語の意味と効果を確認できます。
+- 動的に生成されるプリセット、鍵盤、ドラムパッド、VST3パラメータを含む操作UIにもホバー説明を補完します。
+- 全パラメータは従来どおり validator でClampされます。
+
+### 同梱PCMのライセンス
+
+同梱している `tenor_sax_c3.wav` は [Versilian Community Sample Library (VCSL)](https://github.com/sgossner/VCSL) のCC0公開素材です。市販CD、ユーザーのReference Audio、特定アーティストの録音はPCM素材として取り込んでいません。詳しい出典とハッシュは `web/assets/pcm/vcsl/LICENSE.md` を参照してください。
+
 ## v0.11.1 の主な変更
 
 - REALISTIC INSTRUMENT PRESETSとSOUND DESIGN音色ライブラリで、選択した音色を明るい枠線・背景・軽い発光で強調します。

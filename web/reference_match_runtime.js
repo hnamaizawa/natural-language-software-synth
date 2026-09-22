@@ -17,6 +17,34 @@
 
   const REALISTIC_PRESETS = Object.freeze([
     {
+      id: "studio_tenor_sax", group: "winds", ja: "スタジオ・テナーサックス", en: "Studio Tenor Sax",
+      help: "CC0公開されたVCSLの実録音PCMを使い、ポップスやジャズのリードで扱いやすく整えたテナーサックスです。",
+      target: "generic",
+      patch: {
+        name: "Studio Tenor Sax", engine_type: "sampler", instrument_model: "licensed_pcm", pcm_instrument: "tenor_sax",
+        pcm_tone: .72, pcm_attack_s: .014, pcm_release_s: .38, pcm_body: .66, pcm_room_mix: .09,
+        pcm_velocity_curve: 1.08, master_gain: .20, max_polyphony: 8, prompt: "CC0 VCSL studio tenor sax"
+      }
+    },
+    {
+      id: "pop_close_grand", group: "keys", ja: "ポップ・クローズピアノ", en: "Pop Close Piano",
+      help: "バンド内で埋もれにくい短めの余韻と明瞭なアタックに整えた実用的なポップピアノです。",
+      target: "piano",
+      patch: {name:"Pop Close Piano",engine_type:"sampler",instrument_model:"grand_piano",piano_tone:.78,piano_hammer_mix:.62,piano_resonance:.48,piano_damper_noise:.12,piano_softness:.10,piano_sustain:.68,piano_velocity_curve:1.18,piano_room_mix:.06,master_gain:.21,max_polyphony:16,prompt:""}
+    },
+    {
+      id: "neo_soul_ep", group: "keys", ja: "ネオソウルFMエレピ", en: "Neo Soul FM EP",
+      help: "丸いアタックと深めのコーラスで、コード演奏に馴染むネオソウル向けエレピです。",
+      target: "ep",
+      patch: {name:"Neo Soul FM EP",engine_type:"fm",instrument_model:"dx_ep",fm_mod_index:3.9,fm_brightness:.58,fm_ratio_1:14,fm_ratio_2:1,fm_decay_s:3.4,fm_release_s:2.1,fm_chorus_mix:.30,master_gain:.20,max_polyphony:12,prompt:""}
+    },
+    {
+      id: "pop_pocket_drums", group: "drums", ja: "ポップ・ポケットドラム", en: "Pop Pocket Drums",
+      help: "短く締まったキックと明瞭なスネアで、打ち込みの土台にしやすいポップ向けドラムです。",
+      target: "drums",
+      patch: {name:"Pop Pocket Drums",engine_type:"drum",instrument_model:"studio_drums",drum_style:"standard",kick_tune_hz:52,kick_decay_s:.20,snare_tone_hz:205,snare_decay_s:.16,hat_decay_s:.065,tom_decay_s:.32,drum_brightness:.76,drum_room_mix:.08,master_gain:.23,max_polyphony:16,prompt:""}
+    },
+    {
       id: "modern_fusion_6string_bass", group: "bass", ja: "モダン・フュージョン6弦ベース", en: "Modern Fusion 6-string Bass",
       help: "速い指弾きでも輪郭が残るアタック、締まった低域、前に出る中高域を重視したモダン・フュージョン向けベースです。",
       target: "fretless",
