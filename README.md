@@ -1,8 +1,61 @@
 # Natural Language Software Synth
 
-自然言語で楽器・音色・雰囲気を指定すると、ローカルで安全なPatchデータへ変換してその場で演奏できるソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／Sample Performance／鼻歌メロディー／Windows VST3 Instrumentに対応しています。
+実用的な楽器プリセットを起点に、手元のReference Audioや自然言語で音色を調整し、その場で演奏・比較できるローカル優先のソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／Sample Performance／鼻歌メロディー／Windows VST3 Instrumentに対応しています。
 
-v0.10.2では、v0.10.1のPCM Multi-sample Hybrid Resynthesisを維持しながら、Step 1 SOUND DESIGNだけで音色選択と試聴を往復できるようにし、45音色の英語／日本語ラベル即時切替と日本語ホバーヘルプを追加しました。
+v0.11.0では、自然言語からゼロベースで音色を作る方式を主役から外し、**リアル楽器プリセット → Reference Audio Match → 必要なら自然言語で微調整**という順序へ変更しました。
+
+## v0.11.0 の主な変更
+
+- Step 1の先頭に **REALISTIC INSTRUMENT PRESETS** を追加し、自然言語生成を介さず調整済みPatchを直接適用可能にした。
+- 基準プリセットとして、70年代ブリッジ・フレットレス、ウォーム・シンギング・フレットレス、コンサート・グランド、クローズ・グランド、クリーン・フュージョン・ギター、アコースティック・ギター、ドライ・スタジオ・ドラム、シャッフル・スタジオ・ドラム、クラシックFMエレピを追加。
+- **Reference Audio Match** を追加し、手元のMP3 / WAV / M4A / AACをブラウザ内だけで解析可能にした。
+- Reference Audioは最大80MB、解析区間は3〜30秒。開始位置と解析時間を指定できる。
+- 解析対象を、現在の音色／フレットレスベース／グランドピアノ／ギター／ドラム／FMエレピ／その他から指定可能。
+- Reference Audioから、明るさ、暖かさ、Transient、Sustain、粗さ/Noise、中域の存在感、低域Body、Dynamics、空間/余韻傾向を抽出。
+- FFTベースのスペクトル特徴、フレームRMS、Spectral Flux、Zero Crossing等を使ってReference特徴量を算出。
+- 抽出した特徴量だけを、各専用音源の既存boundedパラメータへマッピング。元MP3/WAVの波形を音源として再生・コピーしない。
+- Reference Match後も必ず既存 `validatePatch()` を通してClamp。
+- **元のプリセット / Reference Match** をワンクリックで切替可能。
+- 同じSample PerformanceでOriginal / Reference Matchを連続試聴するA/B比較を追加。
+- 自然言語入力欄は残し、「任意: 自然言語で音色を選択／微調整」として補助的な役割へ変更。
+- Reference Audioはブラウザのメモリ上だけでデコード・解析し、サーバー／GitHub／外部サービスへ送信せず、永続保存もしない。
+- 既存のFactory PCM、単一AudioContext、`noteOn / noteOff`、VST3最終ラッパー、第三者録音をFactory PCMへ埋め込まない不変条件は維持。
+- Native VST3 Host C++は変更していないため、v0.11.0取得後に `build_vst3_host.cmd` の再実行は不要。
+
+### CDから用意したMP3をReferenceとして使う場合
+
+1. まず、最も近い **REALISTIC INSTRUMENT PRESET** を選びます。フレットレスなら「70年代ブリッジ・フレットレス」などを選択します。
+2. Reference Audio Matchで、手元のMP3を選択します。
+3. 対象楽器を「フレットレスベース」などへ設定します。
+4. 対象楽器がよく聞こえる箇所を開始位置で指定し、10〜20秒程度を解析するのがおすすめです。
+5. 「参照音を解析して近づける」を押します。
+6. 「元のプリセット」と「Reference Match」を切り替えるか、「同じフレーズでA/B比較」で確認します。
+7. 必要なら最後に自然言語で「もう少し暗く」「フィンガーノイズを増やす」など微調整します。
+
+ミックス済みCD楽曲では、Reference Audio Matchはベースだけを完全分離しているわけではありません。ドラム、ギター、ボーカル等の成分も特徴量へ混ざるため、**対象楽器が単独または目立っている短い区間を指定するほど有効**です。
+
+また、v0.11.0のReference Audioは「音色の目標」として特徴量だけを使います。CD等から取り込んだ録音そのものをFactory PCMへ埋め込んだり、リポジトリへ保存したりはしません。利用するReference Audioは、ユーザー自身が適法に利用できる手元のファイルを使用してください。
+
+### v0.11.0時点での「リアルさ」の限界
+
+Preset-firstへ変更しましたが、内蔵Piano/Guitar/Fretless/DrumのPCM自体は引き続きアプリ内で決定論的に生成したFactory PCMです。したがってReference Matchで音色傾向は近づけられても、実録音Multi-sampleと同じリアルさにはなりません。
+
+次の段階では、ライセンスが明確な実録音Multi-sample WAV/SFZまたはユーザー自身の録音を、ローカルSample Instrumentとして読み込めるようにし、次の要素を追加するのが重要です。
+
+```text
+Real Multi-sample WAV / SFZ
+    ↓
+Key Zone
+Velocity Layer
+Round Robin
+Release Sample
+    ↓
+Realistic Instrument Preset
+    ↓
+Reference Audio Match
+    ↓
+Natural-language fine tuning
+```
 
 ## v0.10.2 の主な変更
 
@@ -282,7 +335,7 @@ check_harness.cmd
 start_synth.cmd
 ```
 
-Native VST3 HostのC++が変更されたバージョンのみ `build_vst3_host.cmd` を再実行します。v0.10.2ではNative C++変更はありません。
+Native VST3 HostのC++が変更されたバージョンのみ `build_vst3_host.cmd` を再実行します。v0.11.0ではNative C++変更はありません。
 
 # VST3 Instrument
 
@@ -312,8 +365,11 @@ Step 2でVST3検索／ロード／Editor／Parameter／Program/Preset／ルー�
 
 - 自然言語、Timbre Intent、鼻歌結果、ユーザーフレーズをコードとして実行しない
 - `eval()` / `new Function()` / generated executable codeを使用しない
-- 生成／編集／ImportされたPatchをvalidatorでClamp
+- 生成／編集／Import／Reference MatchされたPatchをvalidatorでClamp
 - 単一AudioContextと既存 `noteOn / noteOff` 契約を維持
+- Reference Audioはユーザーがローカルで選択したMP3/WAV/M4A/AACだけをブラウザメモリ上で解析し、サーバーへ送信しない
+- Reference Audioの元波形を永続保存せず、Factory PCMやGitHubソースへコピーしない
+- Reference Matchは抽出したbounded特徴量のみを既存Patchパラメータへ反映
 - v0.10.2のSOUND DESIGN UXは既存Sample Performance経路のみ再利用し、追加AudioContext／ネットワーク／永続化を作らない
 - v0.10.1のPCM Body強化もローカルFactory PCMのみ利用し、ネットワークからSampleを取得しない
 - マイク生音声を録音／保存／アップロードしない
@@ -332,14 +388,14 @@ python scripts/harness_check.py
 
 # 今後の方向性
 
-PCM Multi-sample Hybrid Resynthesisをさらに本物の楽器へ近づけるには、次の順が有効です。
+v0.11.0でPreset-firstとReference Audio Matchを導入したため、次は内蔵音源自体を実録音ベースへ移行するのが優先です。
 
 - ライセンスが明確な **Multi-sample WAV / SFZ**、またはユーザー自身の録音をローカルImport
 - Velocity Layer / Round Robin / Key Range / Release Sample対応
+- ミックス済みReference Audioから対象楽器を分離するローカルSource Separationの検討
 - Attack / Early Body / Sustain / Releaseごとの時間変化スペクトル
 - Phase / Formantを保ったSpectral Morph、Granular / WSOLA系の時間伸縮
 - Bowed String / Brass / Voice / Reed / Mallet / Metal / Air等の参照素材拡張
-- Optional LLM ParserはTimbre Intent JSONだけを生成し、DSPコードは生成しない
-- A/B/Cのユーザー選択をローカル評価データとしてCandidate Generatorへ反映
+- 自然言語はPreset選択・Reference Match後の微調整へ重点化
 - VST3 Preset / State保存、複数VST3 / Effect Chain
 - MusicXML / Standard MIDI File Export、ピアノロール／ステップシーケンサー
