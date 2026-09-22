@@ -17,6 +17,18 @@
 
   const REALISTIC_PRESETS = Object.freeze([
     {
+      id: "modern_fusion_6string_bass", group: "bass", ja: "モダン・フュージョン6弦ベース", en: "Modern Fusion 6-string Bass",
+      help: "速い指弾きでも輪郭が残るアタック、締まった低域、前に出る中高域を重視したモダン・フュージョン向けベースです。",
+      target: "fretless",
+      patch: {
+        name: "Modern Fusion 6-string Bass", engine_type: "sampler", instrument_model: "fretless_bass",
+        sample_tone: .88, sample_attack_mix: .78, finger_noise_mix: .64, release_noise_mix: .18,
+        slide_amount: .18, slide_time_s: .12, mwah_amount: .42, sample_velocity_curve: 1.25,
+        lfo_rate_hz: 4.2, lfo_depth_cents: 2.0, master_gain: .22, max_polyphony: 10,
+        prompt: "モダン・フュージョン6弦ベース。明瞭で速い指弾きアタック、締まった低域、前に出る中高域。"
+      }
+    },
+    {
       id: "fretless_bridge_70s", group: "bass", ja: "70年代ブリッジ・フレットレス", en: "70s Bridge Fretless",
       help: "ブリッジ寄りの明るい中高域、指弾きアタック、歌うミッドレンジを重視したフレットレスベースの基準音色です。",
       target: "fretless",
