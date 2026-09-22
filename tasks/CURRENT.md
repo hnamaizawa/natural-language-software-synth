@@ -2,6 +2,10 @@
 
 ## v0.11.0 Preset-first + Local Reference Audio Match
 
+- [x] モダン・フュージョン6弦ベースの基準プリセットを追加
+- [x] John Patitucci / ジョン・パティトゥッチ表記を自然言語で認識
+- [x] 速い指弾き向けの明瞭なAttack／中高域と、控えめなSlide／Mwahをbounded値で設定
+- [x] 市販音源は同梱せず、手元のM4Aを既存Reference Audio Matchでローカル解析する方針を維持
 - [x] 開発の主軸を自然言語ゼロ生成からPreset-firstへ変更
 - [x] REALISTIC INSTRUMENT PRESETSをStep 1先頭へ追加
 - [x] Fretless / Grand Piano / Guitar / Drums / FM EPの調整済み基準Patchを自然言語生成なしで直接適用
