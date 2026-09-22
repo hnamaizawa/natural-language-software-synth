@@ -2,6 +2,15 @@
 
 実用的な楽器プリセットを起点に、手元のReference Audioや自然言語で音色を調整し、その場で演奏・比較できるローカル優先のソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／Sample Performance／鼻歌メロディー／Windows VST3 Instrumentに対応しています。
 
+## v0.11.1 の主な変更
+
+- REALISTIC INSTRUMENT PRESETSとSOUND DESIGN音色ライブラリで、選択した音色を明るい枠線・背景・軽い発光で強調します。
+- 選択中のボタンには **「✓ 選択中」** と表示されるため、別の操作をした後でも現在の音色を確認できます。
+- Timbre IntentのA/B/C候補と、Reference Audioの「元のプリセット／Reference Match」も同じ考え方で強調します。
+- プリセットの日本語／English表示を切り替えても選択は維持されます。
+- SOUND DESIGNのカテゴリ変更や検索でボタンが再描画されても、選択した音色が再表示されたときに選択状態が復元されます。
+- 音声エンジンやVST3 Native Hostは変更していないため、更新後に `build_vst3_host.cmd` の再実行は不要です。
+
 v0.11.0では、自然言語からゼロベースで音色を作る方式を主役から外し、**リアル楽器プリセット → Reference Audio Match → 必要なら自然言語で微調整**という順序へ変更しました。
 
 ## v0.11.0 の主な変更

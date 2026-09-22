@@ -93,6 +93,7 @@ applyParam = function(key,value,rerender=true) {
   });
 
   let paletteLanguage="ja";
+  let selectedPalettePrompt="";
   let paletteObserver=null;
   let soundDesignObserver=null;
 
@@ -118,6 +119,9 @@ applyParam = function(key,value,rerender=true) {
         button.lang=paletteLanguage==="ja"?"ja":"en";
         button.title=japaneseHelp(button,en);
         button.setAttribute("aria-label",`${target}。${button.dataset.prompt||"音色を生成"}`);
+        const selected=button.dataset.prompt===selectedPalettePrompt;
+        button.classList.toggle("selected",selected);
+        button.setAttribute("aria-pressed",String(selected));
       }
     }
     const category=document.getElementById("soundPaletteCategory");
@@ -145,6 +149,15 @@ applyParam = function(key,value,rerender=true) {
     const grid=soundPaletteGrid();if(!grid||paletteObserver)return;
     paletteObserver=new MutationObserver(()=>applyPaletteLanguage());
     paletteObserver.observe(grid,{childList:true});
+  }
+
+  function installPaletteSelection(){
+    const grid=soundPaletteGrid();if(!grid||grid.dataset.selectionInstalled)return;
+    grid.dataset.selectionInstalled="true";
+    grid.addEventListener("click",event=>{
+      const button=event.target&&event.target.closest?event.target.closest("button[data-prompt]"):null;
+      if(!button)return;selectedPalettePrompt=button.dataset.prompt||"";applyPaletteLanguage();
+    });
   }
 
   function addQuickControls(){
@@ -194,13 +207,15 @@ applyParam = function(key,value,rerender=true) {
       .sound-label-language button{padding:7px 11px;border-radius:8px}
       .sound-label-language button.active{border-color:#8e9cff;background:#313a62;box-shadow:0 0 0 2px rgba(142,156,255,.10)}
       #soundPaletteGrid button[title]{position:relative}
+      #soundPaletteGrid button.selected{padding-top:29px;border-color:#aab6ff;background:linear-gradient(180deg,#35406c,#272f52);box-shadow:0 0 0 2px rgba(142,156,255,.22),0 7px 18px rgba(64,82,170,.24);transform:translateY(-1px)}
+      #soundPaletteGrid button.selected::after{content:"✓ 選択中";position:absolute;top:6px;right:7px;padding:2px 7px;border-radius:999px;background:#8999ff;color:#101528;font-size:.66rem;font-weight:900}
       @media (max-width:620px){.sound-design-quick-controls{align-items:stretch}.sound-design-quick-controls #soundDesignPreviewBtn{width:100%}.sound-label-language{justify-content:center}}
     `;
     document.head.appendChild(style);
   }
 
   function initSoundDesignUx(){
-    addStyles();addQuickControls();installPaletteObserver();installSoundDesignObserver();applyPaletteLanguage();addJapaneseButtonHelp();
+    addStyles();addQuickControls();installPaletteObserver();installPaletteSelection();installSoundDesignObserver();applyPaletteLanguage();addJapaneseButtonHelp();
     const eyebrow=document.querySelector("header .eyebrow");if(eyebrow)eyebrow.textContent="v0.10.2 audio · core v0.7.2 · Timbre Intent + PCM Hybrid";
     window.soundDesignUx={get language(){return paletteLanguage;},setLanguage(lang){if(lang==="ja"||lang==="en"){paletteLanguage=lang;applyPaletteLanguage();}}};
   }

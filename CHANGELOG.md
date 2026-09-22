@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.11.1
+- REALISTIC INSTRUMENT PRESETS、SOUND DESIGN音色ライブラリ、Timbre Intent A/B/C候補、Original / Reference Matchで、現在選択中の項目を明るい枠線・背景・軽い発光で強調。
+- 選択項目へ `✓ 選択中` バッジと `aria-pressed=true` を付け、後から見ても現在の選択を判別しやすくした。
+- プリセットの日本語／English切替、音色ライブラリのカテゴリ切替／検索による再描画後も選択状態を維持。
+- 表示層のみの変更とし、AudioContext、Note Event、Reference Audioのローカル限定境界、Patch Clampには変更なし。
+
 ## v0.11.0
 - REALISTIC INSTRUMENT PRESETSへ「モダン・フュージョン6弦ベース」を追加。速い指弾きでも輪郭が残るAttack、締まった低域、前に出る中高域を重視し、Slide/Mwahは控えめに設定。
 - `John Patitucci` / `ジョン・パティトゥッチ` を自然言語で認識し、同じboundedなモダン・フュージョン向けベースPatchを生成可能にした。

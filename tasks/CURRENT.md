@@ -1,5 +1,17 @@
 # CURRENT
 
+## v0.11.1 Selected Choice Highlight
+
+- [x] REALISTIC INSTRUMENT PRESETSの選択中ボタンを強調表示
+- [x] SOUND DESIGN音色ライブラリの選択をカテゴリ切替／検索後も維持
+- [x] Timbre Intent A/B/C候補の現在選択を強調表示
+- [x] Original / Reference Matchの現在適用中の方を強調表示
+- [x] 選択項目へ `✓ 選択中` と `aria-pressed` を付与
+- [x] UI表示のみを変更し、AudioContext／Note Event／Reference Audio境界を維持
+- [x] v0.11.1専用回帰テストを追加
+- [x] README / CHANGELOGを更新
+- [ ] `python -m pytest tests/` / Harness / Windows Native VST3 build 最終確認
+
 ## v0.11.0 Preset-first + Local Reference Audio Match
 
 - [x] モダン・フュージョン6弦ベースの基準プリセットを追加
