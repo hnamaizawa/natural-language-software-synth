@@ -60,7 +60,7 @@ class Vst3Bridge:
                 continue
         return None
 
-    def _scan_roots(self) -> list[Path]:
+    def _scan_roots(self, requested: list[str] | None = None) -> list[Path]:
         roots: list[Path] = []
         common = os.environ.get("COMMONPROGRAMFILES")
         program_files = os.environ.get("ProgramFiles")
@@ -75,6 +75,10 @@ class Vst3Bridge:
         for item in extra.split(os.pathsep):
             if item.strip():
                 roots.append(Path(item.strip()).expanduser())
+        for item in (requested or [])[:16]:
+            value = str(item).strip()[:1024]
+            if value:
+                roots.append(Path(value).expanduser())
 
         unique: list[Path] = []
         seen: set[str] = set()
@@ -145,9 +149,11 @@ class Vst3Bridge:
             "error": f"VST3 host produced too much non-protocol output during {phase} ({ignored} lines).",
         }
 
-    def scan(self) -> dict:
+    def scan(self, requested_roots: list[str] | None = None) -> dict:
         found: dict[str, Path] = {}
-        for root in self._scan_roots():
+        incompatible: list[str] = []
+        scan_roots = self._scan_roots(requested_roots)
+        for root in scan_roots:
             if not root.is_dir():
                 continue
             for current, dirs, files in os.walk(root):
@@ -165,6 +171,8 @@ class Vst3Bridge:
                         found[self._plugin_id(path)] = path
                         if len(found) >= self.MAX_PLUGINS:
                             break
+                    elif name.lower().endswith((".dll", ".exe")) and len(incompatible) < 64:
+                        incompatible.append(str((current_path / name).resolve()))
                 if len(found) >= self.MAX_PLUGINS:
                     break
             if len(found) >= self.MAX_PLUGINS:
@@ -172,9 +180,12 @@ class Vst3Bridge:
 
         with self._lock:
             self._plugins = found
-        return self.plugins_response()
+        response = self.plugins_response(scan_roots=scan_roots)
+        response["incompatible_count"] = len(incompatible)
+        response["incompatible_examples"] = incompatible[:8]
+        return response
 
-    def plugins_response(self) -> dict:
+    def plugins_response(self, scan_roots: list[Path] | None = None) -> dict:
         with self._lock:
             plugins = [
                 {"id": plugin_id, "name": path.stem, "path": str(path)}
@@ -185,7 +196,7 @@ class Vst3Bridge:
             "plugins": plugins,
             "count": len(plugins),
             "native_host_available": self.host_executable() is not None,
-            "scan_roots": [str(path) for path in self._scan_roots()],
+            "scan_roots": [str(path) for path in (scan_roots if scan_roots is not None else self._scan_roots())],
         }
 
     def _start_host(self) -> dict:
@@ -251,14 +262,16 @@ class Vst3Bridge:
             self._loaded_plugin_id = plugin_id
         return response
 
-    def note_on(self, midi_note: int, velocity: float) -> dict:
+    def note_on(self, midi_note: int, velocity: float, channel: int = 0) -> dict:
         midi_note = max(0, min(127, int(midi_note)))
         velocity = max(0.0, min(1.0, float(velocity)))
-        return self._command(f"NOTE_ON\t{midi_note}\t{velocity:.6f}")
+        channel = max(0, min(15, int(channel)))
+        return self._command(f"NOTE_ON\t{midi_note}\t{velocity:.6f}\t{channel}")
 
-    def note_off(self, midi_note: int) -> dict:
+    def note_off(self, midi_note: int, channel: int = 0) -> dict:
         midi_note = max(0, min(127, int(midi_note)))
-        return self._command(f"NOTE_OFF\t{midi_note}")
+        channel = max(0, min(15, int(channel)))
+        return self._command(f"NOTE_OFF\t{midi_note}\t{channel}")
 
     def parameters(self) -> dict:
         return self._command("PARAMS")
@@ -397,13 +410,15 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             if parsed.path == "/api/vst3/scan":
-                return self._json(VST3.scan())
+                raw_paths = payload.get("scan_paths", [])
+                scan_paths = raw_paths if isinstance(raw_paths, list) else []
+                return self._json(VST3.scan([str(item) for item in scan_paths]))
             if parsed.path == "/api/vst3/load":
                 return self._json(VST3.load(str(payload.get("plugin_id", ""))[:64]))
             if parsed.path == "/api/vst3/note-on":
-                return self._json(VST3.note_on(int(payload.get("note", 60)), float(payload.get("velocity", 0.8))))
+                return self._json(VST3.note_on(int(payload.get("note", 60)), float(payload.get("velocity", 0.8)), int(payload.get("channel", 0))))
             if parsed.path == "/api/vst3/note-off":
-                return self._json(VST3.note_off(int(payload.get("note", 60))))
+                return self._json(VST3.note_off(int(payload.get("note", 60)), int(payload.get("channel", 0))))
             if parsed.path == "/api/vst3/parameters":
                 return self._json(VST3.parameters())
             if parsed.path == "/api/vst3/parameter":
