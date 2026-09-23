@@ -1,5 +1,13 @@
 # CURRENT
 
+## v0.12.1 SSD5 Drum Routing / Additional VST3 Scan Folder
+
+- [x] ドラムPatchのNote On/OffをMIDIチャンネル10へ送信
+- [x] サンプル演奏・ドラムパッド・PCキーで共通経路を維持
+- [x] 追加検索フォルダUIとbounded server scanを追加
+- [x] `.dll` / `.exe` を非VST3候補として診断表示
+- [ ] pytest / harness / Windows Native VST3 build 最終確認
+
 ## v0.12.0 Practical Presets / Licensed PCM / Complete Hover Help
 
 - [x] 実用プリセットを4種類追加
