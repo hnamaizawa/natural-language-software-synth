@@ -13,6 +13,10 @@
 - v0.13.0はマルチトラックのデータ／UI基盤です。複数トラックの同時再生、クリップ直接編集、楽譜編集、オーディオトラック録音は次フェーズで追加します。
 - AudioContextは追加せず、既存の単一AudioContextとVST3最終Note Event境界を維持しています。Native VST3 Hostの再ビルドは不要です。
 
+### MULTI-TRACK PROJECTが表示されない場合
+
+まずアプリを終了して `git pull` 後に `start_synth.cmd` を再実行してください。v0.13.1以降はローカルWebサーバーがHTML／CSS／JavaScriptへ `Cache-Control: no-store` を返し、マルチトラックCSS／Runtimeにもバージョン識別子を付けるため、旧画面がブラウザキャッシュから再表示される問題を防ぎます。v0.13.0から初めて更新する場合だけ、開いている画面で `Ctrl + F5` を一度押してください。
+
 ## v0.12.2 の主な変更
 
 - Reference Match解析後に、**元のプリセット → Reference Match** の旧値、新値、増減方向、差分値を一覧表示します。
