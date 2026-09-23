@@ -66,6 +66,7 @@
               <div class="vst3-program-copy"><span class="kicker">VST3 PROGRAM / PRESET</span><strong>VST3音色を切り替え</strong><span id="vst3ProgramStatus">VST3をロードすると、公開されているProgram/Presetを表示します。</span></div>
               <div class="vst3-program-actions"><button id="vst3ProgramPrevBtn" disabled>◀</button><select id="vst3ProgramSelect" disabled><option value="">Program/Presetなし</option></select><button id="vst3ProgramNextBtn" disabled>▶</button></div>
             </div>
+            <label>MIDIチャンネル<select id="vst3MidiChannel"><option value="auto">自動（ドラム=10／その他=1）</option><option value="0">チャンネル1（SSD5推奨候補）</option><option value="9">チャンネル10（GMドラム）</option></select></label>
             <div class="custom-wide vst3-actions"><button id="vst3EditorBtn" disabled>VST3本体画面を開く</button><button id="vst3TestToneBtn">PC音声出力テスト</button><button id="vst3DiagBtn">VST3診断</button></div>
             <label class="toggle-label custom-wide"><input id="vst3RouteEnabled" type="checkbox" disabled /> 鍵盤・MIDI・サンプル演奏・録音再生・鼻歌試聴をVST3へ送る</label>
             <div class="custom-wide"><span class="kicker">VST3 PARAMETERS</span><div id="vst3Parameters" class="vst3-parameters"></div></div>
