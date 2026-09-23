@@ -2,6 +2,17 @@
 
 実用的な楽器プリセットを起点に、手元のReference Audioや自然言語で音色を調整し、その場で演奏・比較できるローカル優先のソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／Sample Performance／鼻歌メロディー／Windows VST3 Instrumentに対応しています。
 
+## v0.13.0 の主な変更
+
+- ドラム、ベース、キーボード、ギター、メロディー、コーラス、パッドの7トラックを持つProjectを追加しました。
+- トラックを選ぶと、既存のPreset、Reference Match、自然言語調整、Patch Editor、ライブ演奏の対象がそのトラックへ切り替わります。
+- 各トラックは独立したvalidated Patch、生成時Patch、音源メタデータ、Mute／Solo、Volume／Pan、MIDIチャンネル、Note Clipを保持します。
+- 現在選択しているSample Performanceをbounded Note Clipへ変換し、16拍タイムラインとピアノロールで確認できます。
+- 選択クリップは共有BPMで試聴でき、従来と同じ `engine.noteOn()` / `engine.noteOff()` を使います。
+- 曲全体をProject JSONとして保存・読込できます。読込時は最大24トラック、各64クリップ、各512ノートに制限し、Patchも既存validatorへ通します。
+- v0.13.0はマルチトラックのデータ／UI基盤です。複数トラックの同時再生、クリップ直接編集、楽譜編集、オーディオトラック録音は次フェーズで追加します。
+- AudioContextは追加せず、既存の単一AudioContextとVST3最終Note Event境界を維持しています。Native VST3 Hostの再ビルドは不要です。
+
 ## v0.12.2 の主な変更
 
 - Reference Match解析後に、**元のプリセット → Reference Match** の旧値、新値、増減方向、差分値を一覧表示します。
