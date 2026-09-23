@@ -74,6 +74,21 @@ def test_reference_match_only_uses_features_to_adjust_existing_patch():
     assert "同じフレーズでA/B比較" in runtime
 
 
+def test_reference_match_shows_an_intuitive_parameter_difference_panel():
+    runtime = read("web/reference_match_runtime.js")
+    for token in [
+        'id="referencePatchDiff"',
+        "function patchDifferences(base, matched)",
+        "function renderPatchDifferences(base, matched)",
+        "元のプリセット → Reference Match",
+        "renderPatchDifferences(state.basePatch, state.matchedPatch)",
+    ]:
+        assert token in runtime
+    assert 'new Set(["name", "prompt", "engine_type", "instrument_model"])' in runtime
+    assert ".rm-diff-row.up" in runtime
+    assert ".rm-diff-row.down" in runtime
+
+
 def test_existing_blueprint_non_negotiable_pcm_and_artist_recording_guards_remain():
     blueprint = read("harness/app_blueprint.yaml")
     for token in [

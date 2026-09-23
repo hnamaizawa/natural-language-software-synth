@@ -131,6 +131,18 @@ def test_vst3_scan_ui_accepts_extra_local_folder_and_explains_vst2_files():
     assert "VST2は非対応" in js
 
 
+def test_vst3_midi_channel_can_be_switched_for_ssd5_and_zero_peak_is_explained():
+    html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    js = (ROOT / "web" / "vst3_runtime.js").read_text(encoding="utf-8")
+    assert 'id="vst3MidiChannel"' in html
+    assert 'value="0">チャンネル1（SSD5推奨候補）' in html
+    assert 'value="9">チャンネル10（GMドラム）' in html
+    assert "function routedChannel()" in js
+    assert "const channel=routedChannel()" in js
+    assert "MIDIイベントは到達していますが音声出力が0です" in js
+    assert "キット／Presetのロード" in js
+
+
 def test_native_host_negotiates_bus_arrangements_before_activation_and_marks_live_notes():
     cpp = (ROOT / "native" / "vst3_host" / "src" / "main.cpp").read_text(encoding="utf-8")
     for token in [

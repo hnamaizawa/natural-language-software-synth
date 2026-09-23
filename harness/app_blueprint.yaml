@@ -95,6 +95,8 @@ required_capabilities:
 - vst3_localhost_bridge
 - vst3_bus_arrangement_negotiation
 - vst3_realtime_audio_diagnostics
+- vst3_selectable_midi_input_channel
+- vst3_zero_output_plugin_setup_guidance
 - vst3_native_audio_test_tone
 - vst3_reload_keyboard_focus_restore
 - vst3_native_editor_window
@@ -168,6 +170,8 @@ non_negotiable_invariants:
 - vst3_reload_must_restore_computer_keyboard_focus
 - vst3_custom_editor_must_run_in_native_host_same_plugin_instance
 - vst3_editor_parameter_changes_must_reach_loaded_processor
+- vst3_selected_midi_channel_must_be_bounded
+- reference_match_difference_must_compare_validated_patch_values_only
 - eval_and_dynamic_script_injection_forbidden
 required_files:
 - AGENTS.md
@@ -395,6 +399,8 @@ vst3_contract:
   note_max: 127
   melodic_midi_channel_zero_based: 0
   drum_midi_channel_zero_based: 9
+  selectable_midi_channels_zero_based: [0, 9]
+  automatic_channel_rule: drum_9_otherwise_0
   velocity_min: 0.0
   velocity_max: 1.0
   parameter_normalized_min: 0.0
@@ -405,6 +411,7 @@ vst3_contract:
   output_bus: active_main_output_bus
   event_input_bus: active_main_event_input_bus
   diagnostics: [note_on_queued, note_off_queued, events_delivered, process_calls, process_failures, last_output_peak, max_output_peak]
+  zero_output_guidance: [load_plugin_kit_or_preset, check_master_volume, try_midi_channel_1_or_10]
   native_audio_test_tone_hz: 440
   native_editor:
     process: same_native_host_process
