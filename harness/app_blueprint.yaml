@@ -661,6 +661,485 @@ non_negotiable_invariants:
 - project_import_must_bound_tracks_clips_and_notes
 - project_clip_preview_must_use_existing_note_event_contract
 - multitrack_runtime_must_use_existing_audio_context
+- static_ui_assets_must_not_be_served_stale_after_pull
+- eval_and_dynamic_script_injection_forbidden
+required_files:
+- AGENTS.md
+- HARNESS.md
+- README.md
+- server.py
+- pyproject.toml
+- setup_windows.cmd
+- start_synth.cmd
+- check_harness.cmd
+- build_vst3_host.cmd
+- harness/app_blueprint.yaml
+- scripts/harness_check.py
+- src/ai_synth/patch.py
+- src/ai_synth/prompt_engine.py
+- src/ai_synth/timbre_variants.py
+- web/index.html
+- web/app.js
+- web/patch_editor_runtime.js
+- web/guitar_runtime.js
+- web/piano_runtime.js
+- web/resynthesis_runtime.js
+- web/instrument_performance_runtime.js
+- web/performance_library_runtime.js
+- web/output_level_runtime.js
+- web/humming_runtime.js
+- web/keyboard_performance_runtime.js
+- web/recording_workspace_runtime.js
+- web/multitrack_runtime.js
+- web/vst3_runtime.js
+- web/performance_editor.css
+- web/keyboard_performance.css
+- web/multitrack.css
+- web/style.css
+- native/vst3_host/CMakeLists.txt
+- native/vst3_host/src/main.cpp
+- native/vst3_host/src/plugin_editor_win32.h
+- native/vst3_host/src/plugin_editor_win32.cpp
+runtime_state_exclusions:
+- .env
+- .venv
+- .git
+- .pytest_cache
+- __pycache__
+- data/presets
+- generated
+- native/vst3_host/build
+- native/vst3_host/out
+acceptance_commands:
+- setup_windows.cmd
+- check_harness.cmd
+- start_synth.cmd
+- build_vst3_host.cmd
+ui_requirements:
+  workflow_guide_steps: [sound_design, sound_source, play_preview, recording]
+  prompt_to_patch: true
+  onscreen_keyboard: true
+  onscreen_drum_pads: true
+  adaptive_instrument_surface: true
+  computer_keyboard: true
+  midi_input_optional: true
+  unified_recording_workspace: true
+  recording_mode_tabs: [computer_keyboard, humming]
+  pcm_spectral_resynthesis_controls: true
+  pcm_resynthesis_source_morph: true
+  microphone_humming_capture: true
+  humming_live_pitch_display: true
+  humming_record_start_stop: true
+  humming_auto_key_correction_default: true
+  humming_auto_timing_default: true
+  humming_key_result_display: true
+  humming_timing_result_display: true
+  humming_score_svg: true
+  humming_preview: true
+  humming_transfer_to_custom_phrase: true
+  humming_quantize_values: [0.5, 0.25, 0.125]
+  vst3_scan: true
+  vst3_select_and_load: true
+  vst3_route_toggle: true
+  vst3_parameter_editor: true
+  vst3_native_plugin_editor: true
+  vst3_audio_output_test: true
+  vst3_diagnostics: true
+  sample_performance: true
+  instrument_model_specific_sample_performance: true
+  expanded_sample_performance_genres: true
+  custom_sample_phrase_registration: true
+  custom_sample_phrase_delete: true
+  custom_sample_phrase_storage: localStorage
+  sample_performance_types: [synth_melody, synth_chords, synth_jazz, synth_pop, synth_edm, synth_ambient, fretless_phrase, fretless_jazz, fretless_funk, fretless_fusion, fretless_ballad, ep_chords, ep_jazz, ep_citypop, ep_fusion, ep_ballad, piano_classical, piano_jazz, piano_ballad, piano_pop, piano_boogie, drum_shuffle, drum_straight, drum_jazz, drum_rock, drum_funk, drum_fusion, drum_bossa, guitar_rock, guitar_fusion, guitar_acoustic, guitar_jazz, guitar_blues, guitar_funk, guitar_pop, guitar_bossa]
+  sample_performance_stop: true
+  graphical_patch_parameter_editor: true
+  continuous_slider_editing: true
+  engine_specific_parameter_controls: true
+  guitar_amp_graphical_controls: true
+  grand_piano_graphical_controls: true
+  reset_to_generated_patch: true
+  patch_json_export_import: true
+  multitrack_project: true
+  default_track_roles: [drums, bass, keyboard, guitar, melody, chorus, pad]
+  project_json_export_import: true
+  note_clip_from_sample_performance: true
+  arrangement_timeline_preview: true
+  selected_clip_piano_roll_preview: true
+engine_routing:
+  fretless_bass: sampler
+  electric_guitar: sampler
+  grand_piano: sampler
+  spectral_resynth: sampler
+  studio_drums: drum
+  dx_style_electric_piano: fm
+  default: synth
+output_normalization_contract:
+  instrument_velocity_trim_min: 0.82
+  instrument_velocity_trim_max: 1.22
+  final_leveler:
+    type: dynamics_compressor
+    threshold_db: -18
+    knee_db: 16
+    ratio: 2.5
+    attack_s: 0.006
+    release_s: 0.18
+  master_gain_makeup_stage: forbidden
+jazz_voicing_contract:
+  harmony: quartal
+  adjacent_interval_semitones: 5
+  chord_tones: 4
+pcm_fretless_contract:
+  layers: [nearest_root_note, attack_noise, release_noise, slide_noise]
+  controls: [sample_tone, sample_attack_mix, finger_noise_mix, release_noise_mix, slide_amount, slide_time_s, mwah_amount, sample_velocity_curve]
+  generated_finger_noise_default_min: 0.68
+  explicit_finger_style_noise_min: 0.82
+guitar_contract:
+  source: locally_generated_pcm_multisample
+  amp_models: [clean, crunch, high_gain, acoustic]
+  demo_styles: [rock, fusion, acoustic, jazz, blues, funk, pop, bossa]
+  controls: [guitar_amp_model, guitar_amp_drive, guitar_amp_tone, guitar_amp_presence, guitar_cabinet_mix, guitar_body_tone, guitar_pick_mix, guitar_release_mix, guitar_palm_mute, guitar_sustain, guitar_chorus_mix]
+  effects: [waveshaper_distortion, tone_filter, presence_shelf, cabinet_filter, chorus_delay]
+  chord_strum:
+    note_event_api: noteOn_noteOff_whenSeconds
+    interval_seconds_min: 0.016
+    interval_seconds_max: 0.028
+    directions: [down, up]
+grand_piano_contract:
+  source: locally_generated_pcm_multisample
+  layers: [string_body, hammer_attack, damper_release, soundboard_resonance]
+  controls: [piano_tone, piano_hammer_mix, piano_resonance, piano_damper_noise, piano_softness, piano_sustain, piano_velocity_curve, piano_room_mix]
+  root_notes: [36, 43, 48, 55, 60, 67, 72, 79, 84]
+pcm_spectral_resynthesis_contract:
+  instrument_model: spectral_resynth
+  engine_type: sampler
+  source_families: [piano, guitar, fretless]
+  source_material: locally_generated_factory_pcm_only
+  analysis: harmonic_projection_from_pcm
+  oscillator: WebAudio_PeriodicWave
+  source_morph_min: 0.0
+  source_morph_max: 1.0
+  harmonic_count_min: 4
+  harmonic_count_max: 32
+  pcm_body_mix_max: 0.65
+  transient_mix_max: 1.0
+  noise_mix_max: 0.35
+  additional_audio_context: forbidden
+  runtime_network_fetch: forbidden
+  third_party_sample_load: forbidden
+  note_event_api: noteOn_noteOff
+  controls: [resynth_source_a, resynth_source_b, resynth_morph, resynth_harmonics, resynth_brightness, resynth_pcm_mix, resynth_transient_mix, resynth_detune_cents, resynth_noise_mix, resynth_attack_s, resynth_decay_s, resynth_sustain, resynth_release_s]
+custom_sample_contract:
+  storage: browser_localStorage_only
+  maximum_phrases: 50
+  maximum_steps_per_phrase: 128
+  bpm_min: 40
+  bpm_max: 240
+  step_beats_min: 0.125
+  step_beats_max: 8
+  velocity_min: 0.05
+  velocity_max: 1.0
+  accepted_note_forms: [midi_0_to_127, scientific_pitch_name, rest]
+  executable_user_text: forbidden
+recording_workspace_contract:
+  modes: [computer_keyboard, humming]
+  default_mode: computer_keyboard
+  tab_switching: ui_only
+  new_audio_context: forbidden
+  new_network_transport: forbidden
+  computer_keyboard_recording_limits:
+    maximum_recording_seconds: 120
+    maximum_notes: 512
+  humming_runtime: existing_humming_capture_contract
+humming_capture_contract:
+  microphone_source: navigator_media_devices_get_user_media
+  microphone_audio_storage: forbidden
+  microphone_audio_upload: forbidden
+  analysis_location: browser_only
+  audio_context: shared_existing_context
+  detector: yin_style_monophonic
+  minimum_frequency_hz: 75
+  maximum_frequency_hz: 1000
+  minimum_confidence: 0.72
+  maximum_recording_seconds: 120
+  maximum_notes: 512
+  minimum_note_duration_ms: 90
+  quantize_beats: [0.5, 0.25, 0.125]
+  pitch_assist:
+    modes: [major, natural_minor]
+    weighted_by: [duration, pitch_confidence]
+    correction: nearest_scale_pitch
+    maximum_search_semitones: 3
+  timing_assist:
+    bpm_search_min: 60
+    bpm_search_max: 180
+    allowed_quantize_beats: [0.5, 0.25, 0.125]
+    manual_bpm_bounds: [40, 240]
+  score:
+    format: browser_local_svg_staff
+    source: corrected_quantized_note_events
+    clefs: [treble, bass]
+    time_signature: 4/4
+  output: [midi_note, duration_beats, velocity, rest]
+  preview_api: noteOn_noteOff
+  custom_phrase_transfer: true
+vst3_contract:
+  browser_native_loading: forbidden
+  bridge_server_bind: 127.0.0.1
+  bridge_transport: same_origin_http_to_python_then_stdio_to_native_host
+  native_host_process: separate_windows_executable
+  standard_scan_roots: [COMMONPROGRAMFILES/VST3, LOCALAPPDATA/Programs/Common/VST3]
+  user_scan_roots: bounded_local_paths_from_ui
+  optional_scan_roots_env: NLSS_VST3_PATHS
+  optional_host_path_env: NLSS_VST3_HOST
+  plugin_selection: scanned_plugin_id_only
+  note_min: 0
+  note_max: 127
+  melodic_midi_channel_zero_based: 0
+  drum_midi_channel_zero_based: 9
+  selectable_midi_channels_zero_based: [0, 9]
+  automatic_channel_rule: drum_9_otherwise_0
+  velocity_min: 0.0
+  velocity_max: 1.0
+  parameter_normalized_min: 0.0
+  parameter_normalized_max: 1.0
+  maximum_parameter_controls_in_browser: 160
+  processing_order: [configure_bus_arrangements, select_and_activate_main_buses, prepare_process_buffers, setup_processing, set_active, set_processing]
+  live_note_event_flag: kIsLive
+  output_bus: active_main_output_bus
+  event_input_bus: active_main_event_input_bus
+  diagnostics: [note_on_queued, note_off_queued, events_delivered, process_calls, process_failures, last_output_peak, max_output_peak]
+  zero_output_guidance: [load_plugin_kit_or_preset, check_master_volume, try_midi_channel_1_or_10]
+  native_audio_test_tone_hz: 440
+  native_editor:
+    process: same_native_host_process
+    plugin_instance: same_loaded_vst3_instance
+    view_factory: IEditController_createView_kEditor
+    windows_parent: HWND
+    frame_interface: IPlugFrame
+    parameter_bridge: IComponentHandler
+    browser_embedding: forbidden
+  reload_focus_restore: required
+  vst3_sdk:
+    repository: steinbergmedia/vst3sdk
+    version: 3.8.1
+    commit: 3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96
+  audio_backend:
+    library: miniaudio
+    version: 0.11.25
+    commit: 9634bedb5b5a2ca38c1ee7108a9358a4e233f14d
+  route_sources: [onscreen_keyboard, onscreen_drum_pad, computer_keyboard, computer_keyboard_recording_playback, web_midi, sample_performance, humming_preview]
+timbre_variation_contract:
+  runtime_network_fetch: forbidden
+  third_party_preset_copy: forbidden
+  third_party_sample_load: forbidden
+  validation: existing_patch_validator
+  legacy_engine: synth
+  preferred_engine: pcm_spectral_resynthesis
+  source_families: [piano, guitar, fretless]
+  archetypes: [string_ensemble, synth_brass, airy_choir_pad, retro_polysynth, resonant_acid_bass, analog_synth_keys, bell, pluck, organ, lead, pad, bass]
+  descriptor_modifiers: [warm, bright, dark, wide, thin, dry, spacious, metallic, woody, airy, percussive, smooth, short, long]
+drum_contract:
+  canonical_notes:
+    kick: 36
+    snare: 38
+    closed_hat: 42
+    open_hat: 46
+    low_tom: 45
+    mid_tom: 48
+    high_tom: 50
+    crash: 49
+    ride: 51
+fm_contract:
+  controls: [fm_mod_index, fm_brightness, fm_ratio_1, fm_ratio_2, fm_decay_s, fm_release_s, fm_chorus_mix]
+sequencer_contract:
+  note_on: "noteOn(midiNote, velocity, whenSeconds=0)"
+  note_off: "noteOff(midiNote, whenSeconds=0)"
+  set_patch: "setPatch(validatedPatch)"
+schema_version: '1.0'
+blueprint_name: natural-language-software-synth
+blueprint_version: 0.7.2
+canonical_project: natural-language-software-synth
+purpose: >-
+  Generate and play local-first multi-engine instrument patches from natural-language
+  descriptions. Preserve all existing synth/sampler/drum/FM, performance, editing, output,
+  microphone and safety contracts while supporting automatic humming key/timing correction,
+  staff notation, a diagnosable Windows native VST3 instrument host, same-instance native
+  VST3 editor windows, bounded expanded natural-language timbre archetypes, PCM-derived
+  spectral resynthesis, and a workflow-guided UI with one unified recording workspace for
+  computer-keyboard and humming capture.
+required_capabilities:
+- natural_language_patch_generation
+- deterministic_offline_prompt_fallback
+- expanded_natural_language_timbre_archetypes
+- pcm_spectral_resynthesis
+- pcm_derived_harmonic_template_analysis
+- pcm_resynthesis_source_morph
+- pcm_resynthesis_transient_layer
+- resynthesis_graphical_controls
+- validated_patch_schema
+- browser_web_audio_polyphonic_engine
+- workflow_guided_ui
+- unified_recording_workspace
+- recording_mode_tabs
+- pcm_fretless_bass_engine
+- pcm_fretless_articulation_layers
+- enhanced_fretless_finger_noise
+- pcm_electric_guitar_engine
+- guitar_amp_distortion_stage
+- guitar_amp_model_controls
+- guitar_chord_strum_timing
+- guitar_rock_sample_performance
+- guitar_fusion_sample_performance
+- guitar_acoustic_sample_performance
+- guitar_jazz_sample_performance
+- pcm_grand_piano_engine
+- grand_piano_hammer_articulation
+- grand_piano_damper_articulation
+- grand_piano_resonance_controls
+- grand_piano_sample_performance
+- pcm_studio_drum_engine
+- dx_style_fm_electric_piano_engine
+- adaptive_piano_or_drum_performance_surface
+- drum_surface_must_persist_for_drum_patch
+- computer_keyboard_performance
+- onscreen_keyboard_performance
+- onscreen_drum_pad_performance
+- optional_web_midi_input
+- gm_style_drum_note_mapping
+- current_patch_sample_performance
+- instrument_model_specific_sample_performance
+- expanded_sample_performance_genres
+- user_registered_sample_performance
+- local_custom_sample_phrase_storage
+- custom_sample_phrase_delete
+- microphone_humming_melody_capture
+- monophonic_yin_pitch_detection
+- humming_midi_like_note_event_capture
+- humming_note_duration_and_velocity_capture
+- humming_quantization
+- humming_key_scale_inference
+- humming_scale_snap_correction
+- humming_automatic_tempo_grid_estimation
+- humming_automatic_quantization
+- humming_staff_notation_svg
+- humming_preview_with_current_patch
+- humming_to_custom_phrase_transfer
+- fretless_sample_performance
+- fretless_jazz_walking_sample_performance
+- fm_ep_sample_performance
+- fm_ep_jazz_sample_performance
+- drum_half_time_shuffle_sample_performance
+- drum_straight_sample_performance
+- drum_jazz_swing_sample_performance
+- synth_jazz_sample_performance
+- quartal_jazz_chord_voicings
+- perceived_output_level_normalization
+- bounded_instrument_level_trim
+- final_output_dynamics_leveler
+- graphical_patch_parameter_editor
+- continuous_graphical_parameter_editing
+- engine_specific_parameter_controls
+- parameter_reset_to_generated_patch
+- patch_json_save_load
+- multitrack_project_model
+- independent_track_patch_assignment
+- bounded_note_clip_model
+- project_json_save_load
+- arrangement_timeline_preview
+- selected_clip_piano_roll_preview
+- stable_note_event_contract
+- future_sequencer_adapter_boundary
+- future_native_vst3_host_boundary
+- windows_native_vst3_host
+- vst3_standard_path_scan
+- vst3_instrument_load
+- vst3_note_event_routing
+- vst3_parameter_enumeration_and_editing
+- vst3_localhost_bridge
+- vst3_bus_arrangement_negotiation
+- vst3_realtime_audio_diagnostics
+- vst3_selectable_midi_input_channel
+- vst3_zero_output_plugin_setup_guidance
+- vst3_native_audio_test_tone
+- vst3_reload_keyboard_focus_restore
+- vst3_native_editor_window
+- vst3_same_instance_editor_parameter_sync
+- local_windows_setup
+- regression_test_harness
+non_negotiable_invariants:
+- generated_text_must_never_be_executed_as_code
+- generated_patch_must_be_schema_validated_and_clamped
+- expanded_timbre_recipes_must_be_validated_and_clamped
+- expanded_timbre_recipes_must_not_fetch_or_copy_third_party_presets
+- pcm_resynthesis_parameters_must_be_schema_validated_and_clamped
+- pcm_resynthesis_must_use_locally_generated_factory_pcm_only
+- pcm_resynthesis_must_use_existing_audio_context
+- pcm_resynthesis_must_not_fetch_network_or_load_third_party_samples
+- pcm_resynthesis_playback_must_use_same_note_on_note_off_contract
+- vst3_router_must_remain_final_note_event_wrapper
+- graphical_parameter_edits_must_be_validated_and_clamped
+- graphical_slider_input_must_not_rebuild_control_during_drag
+- audio_context_must_start_only_after_user_gesture
+- all_engines_must_share_single_audio_context
+- all_web_audio_engines_must_share_single_audio_context
+- recording_workspace_ui_must_not_create_parallel_audio_or_network_path
+- microphone_capture_must_use_existing_audio_context
+- microphone_audio_must_not_be_persisted_or_uploaded
+- humming_capture_must_be_monophonic_and_bounded
+- humming_preview_must_use_same_note_on_note_off_contract
+- humming_note_data_must_be_quantized_to_bounded_custom_phrase_values
+- humming_pitch_correction_must_snap_only_to_inferred_or_selected_scale
+- humming_timing_quantization_must_be_bounded
+- humming_score_must_be_derived_from_corrected_note_events
+- master_gain_must_be_hard_limited
+- output_level_normalization_must_not_bypass_master_gain_limit
+- output_level_runtime_must_use_existing_audio_context
+- instrument_level_trim_must_be_bounded
+- jazz_chord_samples_must_use_quartal_voicing
+- polyphony_must_be_bounded
+- oscillator_frequency_must_be_derived_from_valid_midi_note
+- sequencer_must_use_same_note_on_note_off_contract_as_live_playing
+- sample_performance_must_use_same_note_on_note_off_contract_as_live_playing
+- sample_performance_must_match_explicit_instrument_model
+- expanded_sample_library_must_use_note_event_contract
+- custom_sample_phrases_must_remain_local_browser_data
+- custom_sample_phrase_values_must_be_bounded
+- custom_sample_phrases_must_not_execute_user_text
+- guitar_detection_must_require_explicit_electric_guitar_model
+- guitar_chord_sample_performance_must_apply_strum_timing
+- drum_patch_must_keep_drum_surface_and_drum_keymap
+- pcm_sampler_must_use_audio_buffer_source_nodes
+- pcm_factory_buffers_must_not_embed_third_party_artist_recordings
+- guitar_pcm_must_use_existing_audio_context
+- guitar_amp_parameters_must_be_schema_validated_and_clamped
+- guitar_sample_performance_must_use_note_event_contract
+- grand_piano_pcm_must_use_existing_audio_context
+- grand_piano_parameters_must_be_schema_validated_and_clamped
+- drum_pad_and_sample_must_use_note_event_contract
+- pcm_and_fm_parameters_must_be_schema_validated_and_clamped
+- saved_user_patches_must_not_be_copied_into_generated_apps
+- external_llm_credentials_must_not_be_required_for_offline_mode
+- vst3_binary_must_never_be_loaded_in_browser_process
+- vst3_bridge_must_bind_through_existing_local_http_server
+- vst3_plugin_load_must_be_limited_to_scanned_local_plugin_ids
+- vst3_note_values_must_be_bounded
+- vst3_parameter_values_must_be_normalized_and_bounded
+- vst3_native_host_must_run_as_separate_process
+- vst3_dependencies_must_be_pinned
+- vst3_bus_configuration_must_complete_before_processing_activation
+- vst3_live_note_events_must_use_active_event_bus
+- vst3_audio_output_must_use_active_main_output_bus
+- vst3_render_failures_and_output_peak_must_be_observable
+- vst3_reload_must_restore_computer_keyboard_focus
+- vst3_custom_editor_must_run_in_native_host_same_plugin_instance
+- vst3_editor_parameter_changes_must_reach_loaded_processor
+- vst3_selected_midi_channel_must_be_bounded
+- reference_match_difference_must_compare_validated_patch_values_only
+- project_tracks_must_store_validated_patches_only
+- project_import_must_bound_tracks_clips_and_notes
+- project_clip_preview_must_use_existing_note_event_contract
+- multitrack_runtime_must_use_existing_audio_context
 - eval_and_dynamic_script_injection_forbidden
 required_files:
 - AGENTS.md
