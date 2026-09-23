@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.13.1 Multi-track Visibility / Cache Safety
+
+- [x] マージ済みmainに7パート／Note Clip／Timeline／Piano Roll実装が存在することを再確認
+- [x] Multi-track CSS／Runtimeへv0.13.1キャッシュ識別子を追加
+- [x] Runtime初期化中／完了をProject状態へ表示
+- [x] `python -m pytest tests/` / Harness 最終確認（154 passed / HARNESS PASS）
+
 ## v0.13.0 Multi-track Project Foundation
 
 - [x] ドラム／ベース／キーボード／ギター／メロディー／コーラス／パッドの7トラック

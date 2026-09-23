@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/performance_editor.css" />
   <link rel="stylesheet" href="/keyboard_performance.css" />
-  <link rel="stylesheet" href="/multitrack.css" />
+  <link rel="stylesheet" href="/multitrack.css?v=0.13.1" />
 </head>
 <body>
   <main>
@@ -43,7 +43,7 @@
           <div id="arrangementTimeline" class="arrangement-timeline" aria-label="16拍のアレンジメント"></div>
           <div class="piano-roll-head"><strong>PIANO ROLL PREVIEW</strong><span>選択クリップのノートを表示（編集機能は次フェーズ）</span></div>
           <div id="projectPianoRoll" class="project-piano-roll empty" aria-label="選択クリップのピアノロール"></div>
-          <p id="projectStatus" class="project-status">7つの基本パートを用意しました。トラックを選び、既存の音色機能で音を作ってください。</p>
+          <p id="projectStatus" class="project-status" data-runtime-state="loading">マルチトラック機能を初期化しています…</p>
         </div>
       </div>
     </section>
@@ -180,7 +180,7 @@
   <script src="/humming_runtime.js"></script>
   <script src="/keyboard_performance_runtime.js"></script>
   <script src="/recording_workspace_runtime.js"></script>
-  <script src="/multitrack_runtime.js"></script>
+  <script src="/multitrack_runtime.js?v=0.13.1"></script>
   <script src="/vst3_runtime.js"></script>
   <script src="/ui_help_runtime.js"></script>
 </body>

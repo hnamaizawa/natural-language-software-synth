@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.13.1
+
+- Multi-track CSS／Runtime URLへバージョン識別子を付与し、更新後も旧UIがブラウザキャッシュから表示される問題を修正。
+- Project状態へRuntime初期化中／完了を示す診断属性を追加。
+
 ## v0.13.0
 
 - 7つの基本パートを独立管理するbounded Multi-track ProjectモデルとTrack UIを追加。
