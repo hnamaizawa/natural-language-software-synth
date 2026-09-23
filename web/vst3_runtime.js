@@ -9,6 +9,7 @@
   const route=document.getElementById("vst3RouteEnabled"),params=document.getElementById("vst3Parameters"),status=document.getElementById("vst3Status");
   const programSelect=document.getElementById("vst3ProgramSelect"),programPrev=document.getElementById("vst3ProgramPrevBtn"),programNext=document.getElementById("vst3ProgramNextBtn"),programStatus=document.getElementById("vst3ProgramStatus");
   const extraScanPaths=document.getElementById("vst3ExtraScanPaths");
+  const midiChannel=document.getElementById("vst3MidiChannel");
   if(!scanBtn||!select||!loadBtn||!route||!status)return;
 
   let editorBtn=document.getElementById("vst3EditorBtn");
@@ -19,6 +20,7 @@
 
   let loaded=false,scheduledTimers=new Set(),routedVisualNotes=new Set(),programParameter=null;
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
+  function routedChannel(){const selected=String(midiChannel?.value||"auto");return selected==="auto"?(engine.patch?.engine_type==="drum"?9:0):Math.round(clamp(selected,0,15));}
 
   async function api(path,payload=null){
     const options=payload===null?{cache:"no-store"}:{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)};
@@ -61,7 +63,7 @@
   engine.noteOn=function(midiNote,velocity,whenSeconds=0){
     if(route.checked&&loaded){
       const note=Math.round(clamp(midiNote,0,127));
-      const channel=engine.patch?.engine_type==="drum"?9:0;
+      const channel=routedChannel();
       scheduleNative("/api/vst3/note-on",{note,velocity:clamp(velocity,.001,1),channel},whenSeconds,()=>setRoutedVisual(note,true),()=>setRoutedVisual(note,false));
       return null;
     }
@@ -70,7 +72,7 @@
   engine.noteOff=function(midiNote,whenSeconds=0){
     if(route.checked&&loaded){
       const note=Math.round(clamp(midiNote,0,127));
-      const channel=engine.patch?.engine_type==="drum"?9:0;
+      const channel=routedChannel();
       scheduleNative("/api/vst3/note-off",{note,channel},whenSeconds,()=>setRoutedVisual(note,false));
       return;
     }
@@ -143,7 +145,8 @@
       loaded=true;route.disabled=false;unloadBtn.disabled=false;if(editorBtn)editorBtn.disabled=false;
       if(resumeRouting)route.checked=true;
       const channels=Number(data.main_output_channels||0),eventBus=Number(data.main_event_input_bus??-1);
-      show(`VST3: ${data.name||select.selectedOptions[0]?.text||"loaded"} をロードしました。出力 ${channels}ch / Event Bus ${eventBus}。`);
+      const pluginName=data.name||select.selectedOptions[0]?.text||"loaded",ssdHint=/ssd|steven slate/i.test(pluginName)?" SSD5本体画面を開き、ドラムキットがロード済みか確認してください。":"";
+      show(`VST3: ${pluginName} をロードしました。出力 ${channels}ch / Event Bus ${eventBus}。${ssdHint}`);
       await refreshParameters();
       restorePerformanceFocusSoon();
     }
@@ -178,8 +181,9 @@
     show("VST3診断を取得中…");
     try{
       const d=await api("/api/vst3/diagnostics");if(!d.ok)throw new Error(d.error||"診断失敗");
-      const peak=Number(d.max_output_peak||0).toFixed(6),failures=Number(d.process_failures||0),routeState=route.checked?"ON":"OFF";
-      show(`VST3診断: Route ${routeState} / NoteOn ${d.note_on_queued||0} / Event ${d.events_delivered||0} / process ${d.process_calls||0} (失敗 ${failures}) / peak ${peak} / output ${d.main_output_channels||0}ch / Event Bus ${d.main_event_input_bus??-1}${d.editor_open?" / Editor OPEN":""}`);
+      const peakValue=Number(d.max_output_peak||0),peak=peakValue.toFixed(6),failures=Number(d.process_failures||0),routeState=route.checked?"ON":"OFF",events=Number(d.events_delivered||0);
+      const guidance=events>0&&peakValue<0.000001?" MIDIイベントは到達していますが音声出力が0です。VST3本体画面でキット／Presetのロード、Master音量、MIDI受信チャンネルを確認し、SSD5ではチャンネル1も試してください。":events===0?" 演奏後もEventが0ならVST3ルーティングとEvent Busを確認してください。":"";
+      show(`VST3診断: Route ${routeState} / MIDI Ch ${routedChannel()+1} / NoteOn ${d.note_on_queued||0} / Event ${events} / process ${d.process_calls||0} (失敗 ${failures}) / peak ${peak} / output ${d.main_output_channels||0}ch / Event Bus ${d.main_event_input_bus??-1}${d.editor_open?" / Editor OPEN":""}。${guidance}`);
     }catch(err){show(`VST3診断エラー: ${err.message}`);}finally{restorePerformanceFocusSoon();}
   }
 
@@ -188,6 +192,7 @@
   if(programSelect)programSelect.addEventListener("change",()=>{const index=Number(programSelect.value);programSelect.blur();setProgramIndex(index);});
   if(programPrev)programPrev.addEventListener("click",()=>setProgramIndex(Number(programSelect?.value||0)-1));
   if(programNext)programNext.addEventListener("click",()=>setProgramIndex(Number(programSelect?.value||0)+1));
+  if(midiChannel)midiChannel.addEventListener("change",()=>{show(`VST3 MIDI受信チャンネルを ${routedChannel()+1} に設定しました。SSD5が無音の場合はチャンネル1と10を切り替えて試してください。`);midiChannel.blur();restorePerformanceFocusSoon();});
   route.addEventListener("change",()=>{if(!route.checked)clearRoutedVisuals();show(route.checked?"VST3ルーティング有効: 鍵盤・PCキー・MIDI・サンプル・鼻歌試聴をVST3へ送ります。":"Web Audio音源へ戻しました。");route.blur();restorePerformanceFocusSoon();});
   window.addEventListener("beforeunload",cancelScheduled);
 

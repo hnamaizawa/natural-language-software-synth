@@ -267,6 +267,7 @@
       </div>
       <p id="referenceFileStatus" class="rm-status">参照音声を選択してください。最大80MB、解析区間は3〜30秒です。</p>
       <div id="referenceFeatureGrid" class="rm-features" hidden></div>
+      <section id="referencePatchDiff" class="rm-patch-diff" hidden aria-live="polite"></section>
       <div id="referenceCompareActions" class="rm-compare" hidden><button id="referenceOriginalBtn" type="button">元のプリセット</button><button id="referenceMatchedBtn" type="button" class="primary">Reference Match</button><button id="referenceCompareBtn" type="button">▶ 同じフレーズでA/B比較</button></div>
       <p id="referenceMatchStatus" class="rm-status"></p>`;
     soundDesign.insertBefore(panel, promptLabel);
@@ -295,8 +296,10 @@
     const status = document.getElementById("referenceFileStatus");
     const features = document.getElementById("referenceFeatureGrid");
     const compare = document.getElementById("referenceCompareActions");
+    const patchDiff = document.getElementById("referencePatchDiff");
     if (features) features.hidden = true;
     if (compare) compare.hidden = true;
+    if (patchDiff) patchDiff.hidden = true;
     if (!file) {
       analyze.disabled = true; clear.disabled = true;
       status.textContent = "参照音声を選択してください。最大80MB、解析区間は3〜30秒です。";
@@ -322,6 +325,7 @@
     document.getElementById("referenceAnalyzeBtn").disabled = true;
     document.getElementById("referenceClearBtn").disabled = true;
     document.getElementById("referenceFeatureGrid").hidden = true;
+    document.getElementById("referencePatchDiff").hidden = true;
     document.getElementById("referenceCompareActions").hidden = true;
     document.getElementById("referenceFileStatus").textContent = "参照音声をクリアしました。音声データは保持していません。";
     document.getElementById("referenceMatchStatus").textContent = "";
@@ -535,6 +539,54 @@
     grid.appendChild(meta);
   }
 
+  const PATCH_LABELS = Object.freeze({
+    sample_tone:"明るさ",sample_attack_mix:"アタック",finger_noise_mix:"指ノイズ",release_noise_mix:"リリースノイズ",mwah_amount:"Mwah",slide_amount:"スライド",sample_velocity_curve:"ベロシティカーブ",
+    piano_tone:"明るさ",piano_hammer_mix:"ハンマー",piano_resonance:"共鳴",piano_softness:"柔らかさ",piano_sustain:"サステイン",piano_room_mix:"ルーム",
+    guitar_body_tone:"ボディ明るさ",guitar_pick_mix:"ピック",guitar_release_mix:"リリース",guitar_sustain:"サステイン",guitar_amp_tone:"アンプトーン",guitar_amp_presence:"プレゼンス",guitar_chorus_mix:"コーラス",
+    drum_brightness:"明るさ",drum_room_mix:"ルーム",kick_decay_s:"キック余韻",snare_decay_s:"スネア余韻",hat_decay_s:"ハイハット余韻",tom_decay_s:"タム余韻",
+    fm_brightness:"明るさ",fm_mod_index:"倍音量",fm_decay_s:"ディケイ",fm_release_s:"リリース",fm_chorus_mix:"コーラス",
+    filter_cutoff_hz:"フィルター周波数",attack_s:"アタック",sustain:"サステイン",release_s:"リリース",filter_q:"レゾナンス"
+  });
+
+  function formatPatchValue(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return String(value);
+    if (Math.abs(number) >= 100) return number.toFixed(0);
+    if (Math.abs(number) >= 10) return number.toFixed(1);
+    return number.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+  }
+
+  function patchDifferences(base, matched) {
+    const ignored = new Set(["name", "prompt", "engine_type", "instrument_model"]);
+    return Object.keys(matched).filter(key => !ignored.has(key) && Object.prototype.hasOwnProperty.call(base, key)).map(key => {
+      const before = base[key], after = matched[key];
+      const numeric = Number.isFinite(Number(before)) && Number.isFinite(Number(after));
+      const delta = numeric ? Number(after) - Number(before) : 0;
+      return {key,label:PATCH_LABELS[key] || key,before,after,numeric,delta};
+    }).filter(item => item.numeric ? Math.abs(item.delta) > 0.0005 : item.before !== item.after)
+      .sort((a,b) => Math.abs(b.delta) - Math.abs(a.delta));
+  }
+
+  function renderPatchDifferences(base, matched) {
+    const panel = document.getElementById("referencePatchDiff");
+    if (!panel) return;
+    const rows = patchDifferences(base, matched);
+    panel.hidden = false;
+    panel.innerHTML = `<div class="rm-diff-head"><div><span class="kicker">PARAMETER DIFFERENCE</span><strong>元のプリセット → Reference Match</strong></div><span>${rows.length}項目を変更</span></div>`;
+    const list = document.createElement("div"); list.className = "rm-diff-list";
+    for (const row of rows) {
+      const direction = row.delta > 0 ? "up" : row.delta < 0 ? "down" : "same";
+      const arrow = direction === "up" ? "↑" : direction === "down" ? "↓" : "→";
+      const delta = row.numeric ? `${row.delta > 0 ? "+" : ""}${formatPatchValue(row.delta)}` : "変更";
+      const item = document.createElement("div"); item.className = `rm-diff-row ${direction}`;
+      item.title = `${row.key}: ${formatPatchValue(row.before)} から ${formatPatchValue(row.after)} へ変更`;
+      item.innerHTML = `<strong>${row.label}</strong><span class="rm-diff-values"><span>${formatPatchValue(row.before)}</span><b>${arrow}</b><span>${formatPatchValue(row.after)}</span></span><em>${delta}</em>`;
+      list.appendChild(item);
+    }
+    if (!rows.length) list.innerHTML = `<p class="rm-status">数値パラメータに差はありません。</p>`;
+    panel.appendChild(list);
+  }
+
   async function analyzeReferenceFile() {
     if (!state.file) return;
     const button = document.getElementById("referenceAnalyzeBtn");
@@ -552,6 +604,7 @@
       state.features = analyzeBuffer(buffer, start, duration, target);
       state.matchedPatch = matchPatch(state.basePatch, target, state.features);
       renderFeatures(state.features);
+      renderPatchDifferences(state.basePatch, state.matchedPatch);
       document.getElementById("referenceCompareActions").hidden = false;
       applyPatch(state.matchedPatch, "Reference Audioの特徴量に近づけたPatchを適用しました。元音声そのものは使用していません。");
       updateReferenceButtons("matched");
@@ -614,7 +667,8 @@
       .realistic-preset-button.selected{padding-top:31px}.realistic-preset-button.selected::after,.rm-compare button.active::after{content:"✓ 選択中";position:absolute;top:7px;right:8px;padding:2px 7px;border-radius:999px;background:#8999ff;color:#101528;font-size:.66rem;font-weight:900;letter-spacing:.02em}
       .rm-compare button{position:relative}.rm-compare button.active{padding-top:25px}
       .rm-local-badge{padding:6px 9px;border:1px solid #49745d;border-radius:999px;color:#9fe1b7;font-size:.72rem;font-weight:800}.rm-help{line-height:1.65}.rm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.rm-grid label{display:grid;gap:5px}.rm-wide{grid-column:1/-1}.rm-grid input,.rm-grid select{min-height:40px;color:#eef1ff;background:#0e1019;border:1px solid #343a56;border-radius:10px;padding:7px 9px}.rm-actions{display:flex;gap:8px;flex-wrap:wrap}.rm-features{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:12px}.rm-feature{padding:9px;border:1px solid #2e354d;border-radius:11px;background:#0d1018}.rm-feature>div:first-child{display:flex;justify-content:space-between;gap:8px}.rm-feature-bar{height:6px;margin-top:7px;border-radius:999px;background:#252c40;overflow:hidden}.rm-feature-bar i{display:block;height:100%;background:linear-gradient(90deg,#667eea,#9f7aea)}.rm-feature-meta small{display:block;color:#9ca6c4;margin-top:7px}.rm-compare{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #2e354d}
-      @media(max-width:760px){.rp-head,.rm-head{flex-direction:column}.rm-grid{grid-template-columns:1fr}.rm-wide{grid-column:1}.rm-actions,.rm-compare{display:grid;grid-template-columns:1fr}.rp-language{align-self:stretch;justify-content:center}}
+      .rm-patch-diff{margin-top:14px;padding:12px;border:1px solid #3c4668;border-radius:13px;background:#0c101b}.rm-diff-head{display:flex;justify-content:space-between;gap:12px;align-items:end}.rm-diff-head strong{display:block}.rm-diff-head>span{color:#aab6d8;font-size:.78rem}.rm-diff-list{display:grid;gap:6px;margin-top:10px}.rm-diff-row{display:grid;grid-template-columns:minmax(130px,1fr) minmax(170px,1.2fr) 72px;gap:10px;align-items:center;padding:8px 10px;border-radius:9px;background:#141a29}.rm-diff-values{display:grid;grid-template-columns:1fr 24px 1fr;align-items:center;text-align:center;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.rm-diff-values b{font-size:1.15rem}.rm-diff-row em{justify-self:end;font-style:normal;font-weight:800}.rm-diff-row.up b,.rm-diff-row.up em{color:#74d69b}.rm-diff-row.down b,.rm-diff-row.down em{color:#ff9b9b}
+      @media(max-width:760px){.rp-head,.rm-head,.rm-diff-head{flex-direction:column;align-items:flex-start}.rm-grid{grid-template-columns:1fr}.rm-wide{grid-column:1}.rm-actions,.rm-compare{display:grid;grid-template-columns:1fr}.rp-language{align-self:stretch;justify-content:center}.rm-diff-row{grid-template-columns:1fr auto}.rm-diff-values{grid-column:1/-1;grid-row:2}.rm-diff-row em{grid-column:2;grid-row:1}}
     `;
     document.head.appendChild(style);
   }
@@ -628,7 +682,7 @@
     if (eyebrow) eyebrow.textContent = "v0.11.0 audio · Preset-first · Local Reference Match";
     window.referenceAudioMatch = {
       presets: REALISTIC_PRESETS.map(item => ({ id: item.id, ja: item.ja, en: item.en, target: item.target })),
-      analyzeBuffer, matchPatch, applyPresetById(id) { const preset = REALISTIC_PRESETS.find(item => item.id === id); if (preset) return applyPreset(preset); return null; },
+      analyzeBuffer, matchPatch, patchDifferences, applyPresetById(id) { const preset = REALISTIC_PRESETS.find(item => item.id === id); if (preset) return applyPreset(preset); return null; },
       getFeatures() { return state.features ? { ...state.features } : null; },
     };
   }
