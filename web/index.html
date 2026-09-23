@@ -60,6 +60,7 @@
           <summary><span class="workflow-summary-step">STEP 2</span> 🎛 音源を選ぶ / VST3 Instrument <small>任意</small></summary>
           <div class="vst3-grid">
             <p class="humming-help custom-wide">通常は生成した内蔵音源を使います。外部VST3を使う場合だけ、ここで検索・ロードしてVST3ルーティングをONにします。</p>
+            <label class="custom-wide">追加検索フォルダ（任意）<input id="vst3ExtraScanPaths" type="text" placeholder="例: C:\Program Files\Kawai（複数は ; 区切り）" /></label>
             <div class="custom-wide vst3-actions"><button id="vst3ScanBtn">VST3を検索</button><select id="vst3PluginSelect"><option value="">VST3を検索してください</option></select><button id="vst3LoadBtn" class="primary" disabled>ロード</button><button id="vst3UnloadBtn" disabled>解除</button></div>
             <div class="custom-wide vst3-program-panel">
               <div class="vst3-program-copy"><span class="kicker">VST3 PROGRAM / PRESET</span><strong>VST3音色を切り替え</strong><span id="vst3ProgramStatus">VST3をロードすると、公開されているProgram/Presetを表示します。</span></div>

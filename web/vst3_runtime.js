@@ -8,6 +8,7 @@
   const testToneBtn=document.getElementById("vst3TestToneBtn"),diagBtn=document.getElementById("vst3DiagBtn");
   const route=document.getElementById("vst3RouteEnabled"),params=document.getElementById("vst3Parameters"),status=document.getElementById("vst3Status");
   const programSelect=document.getElementById("vst3ProgramSelect"),programPrev=document.getElementById("vst3ProgramPrevBtn"),programNext=document.getElementById("vst3ProgramNextBtn"),programStatus=document.getElementById("vst3ProgramStatus");
+  const extraScanPaths=document.getElementById("vst3ExtraScanPaths");
   if(!scanBtn||!select||!loadBtn||!route||!status)return;
 
   let editorBtn=document.getElementById("vst3EditorBtn");
@@ -60,7 +61,8 @@
   engine.noteOn=function(midiNote,velocity,whenSeconds=0){
     if(route.checked&&loaded){
       const note=Math.round(clamp(midiNote,0,127));
-      scheduleNative("/api/vst3/note-on",{note,velocity:clamp(velocity,.001,1)},whenSeconds,()=>setRoutedVisual(note,true),()=>setRoutedVisual(note,false));
+      const channel=engine.patch?.engine_type==="drum"?9:0;
+      scheduleNative("/api/vst3/note-on",{note,velocity:clamp(velocity,.001,1),channel},whenSeconds,()=>setRoutedVisual(note,true),()=>setRoutedVisual(note,false));
       return null;
     }
     return baseNoteOn(midiNote,velocity,whenSeconds);
@@ -68,7 +70,8 @@
   engine.noteOff=function(midiNote,whenSeconds=0){
     if(route.checked&&loaded){
       const note=Math.round(clamp(midiNote,0,127));
-      scheduleNative("/api/vst3/note-off",{note},whenSeconds,()=>setRoutedVisual(note,false));
+      const channel=engine.patch?.engine_type==="drum"?9:0;
+      scheduleNative("/api/vst3/note-off",{note,channel},whenSeconds,()=>setRoutedVisual(note,false));
       return;
     }
     return baseNoteOff(midiNote,whenSeconds);
@@ -123,10 +126,11 @@
   async function scan(){
     show("VST3を検索中…");scanBtn.disabled=true;
     try{
-      const data=await api("/api/vst3/scan",{});select.innerHTML="";
-      if(!data.plugins?.length){select.append(new Option("VST3が見つかりませんでした",""));show(data.native_host_available?"VST3が見つかりません。検索パスを確認してください。":"VST3は未検出です。ネイティブホストも未ビルドです。");return;}
+      const paths=String(extraScanPaths?.value||"").split(";").map(v=>v.trim()).filter(Boolean);
+      const data=await api("/api/vst3/scan",{scan_paths:paths});select.innerHTML="";
+      if(!data.plugins?.length){select.append(new Option("VST3が見つかりませんでした",""));const incompatible=Number(data.incompatible_count||0);show(data.native_host_available?`VST3が見つかりません。検索: ${(data.scan_roots||[]).join(" / ")}${incompatible?`。VST3ではないDLL等を${incompatible}件検出しました（VST2は非対応）。`:""}`:"VST3は未検出です。ネイティブホストも未ビルドです。");return;}
       select.append(new Option(`${data.count}件から選択…`,""));for(const p of data.plugins)select.append(new Option(p.name,p.id));
-      show(`${data.count}件のVST3を検出しました。${data.native_host_available?"":" 初回は build_vst3_host.cmd を実行してください。"}`);
+      show(`${data.count}件のVST3を検出しました。${Number(data.incompatible_count||0)?`VST3ではないDLL等 ${data.incompatible_count}件は除外しました。`:""}${data.native_host_available?"":" 初回は build_vst3_host.cmd を実行してください。"}`);
     }catch(err){show(`VST3検索エラー: ${err.message}`);}finally{scanBtn.disabled=false;loadBtn.disabled=!select.value;}
   }
 
