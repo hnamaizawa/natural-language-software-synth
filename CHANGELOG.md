@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.13.0
+
+- 7つの基本パートを独立管理するbounded Multi-track ProjectモデルとTrack UIを追加。
+- 選択トラックへPreset、Reference Match、自然言語生成、Patch Editor、演奏先を紐付け。
+- Sample PerformanceからNote Clipを作成し、16拍タイムラインと読み取り専用ピアノロールで可視化。
+- Project JSON保存／読込と、トラック・クリップ・ノート・Patchの読込時Clampを追加。
+- クリップ試聴は既存の単一AudioContextと `noteOn / noteOff` 経路を再利用。
+
 ## v0.12.2
 
 - Reference Match後に、元プリセットから変化したパラメータを旧値・新値・増減矢印・差分値で一覧表示。

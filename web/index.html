@@ -7,12 +7,13 @@
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/performance_editor.css" />
   <link rel="stylesheet" href="/keyboard_performance.css" />
+  <link rel="stylesheet" href="/multitrack.css" />
 </head>
 <body>
   <main>
     <header>
       <div>
-        <p class="eyebrow">v0.11.0 audio · core v0.7.2 · Preset-first · Local Reference Match · v0.10.0 audio Timbre Intent retained</p>
+        <p class="eyebrow">v0.13.0 · Multi-track Project · core v0.7.2 · Preset-first · Local Reference Match · v0.10.0 audio Timbre Intent retained · VST3</p>
         <h1>Natural Language Software Synth</h1>
         <p class="lead">まず実用的な楽器プリセットを選び、必要に応じて手元のMP3/WAVをReference Audioとしてローカル解析して音色を近づけます。自然言語は音色の選択・微調整に利用します。</p>
       </div>
@@ -25,6 +26,27 @@
       <a href="#performance"><span>3</span><strong>演奏・試聴</strong><small>鍵盤 / MIDI / Sample</small></a>
       <a href="#recordingStudio"><span>4</span><strong>録音する</strong><small>PCキー / 鼻歌</small></a>
     </nav>
+
+    <section id="arrangement" class="panel arrangement-panel">
+      <div class="arrangement-head">
+        <div><span class="kicker">v0.13 · MULTI-TRACK PROJECT</span><h2>パートごとに音色とフレーズを管理</h2><p>トラックを選ぶと、Preset・Reference Match・自然言語調整・演奏先がそのパートへ切り替わります。</p></div>
+        <div class="project-actions"><label>曲名<input id="projectName" maxlength="60" value="新しい曲" /></label><label>BPM<input id="projectBpm" type="number" min="40" max="240" value="100" /></label><button id="projectExportBtn">Project JSON保存</button><label class="file-btn">Project JSON読込<input id="projectImportInput" type="file" accept="application/json,.json" /></label></div>
+      </div>
+      <div class="arrangement-body">
+        <div class="track-list-wrap">
+          <div class="track-list-title"><strong>TRACKS</strong><button id="trackAddBtn" class="small-btn">＋ トラック</button></div>
+          <div id="trackList" class="track-list" role="listbox" aria-label="曲のトラック"></div>
+        </div>
+        <div class="sequence-workspace">
+          <div class="sequence-toolbar"><span id="selectedTrackSummary">トラックを選択してください</span><button id="clipFromSampleBtn" class="primary">選択中Sampleをクリップ化</button><button id="clipPreviewBtn">▶ 選択クリップ試聴</button><button id="clipStopBtn" disabled>■ 停止</button></div>
+          <div class="timeline-ruler" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span></div>
+          <div id="arrangementTimeline" class="arrangement-timeline" aria-label="16拍のアレンジメント"></div>
+          <div class="piano-roll-head"><strong>PIANO ROLL PREVIEW</strong><span>選択クリップのノートを表示（編集機能は次フェーズ）</span></div>
+          <div id="projectPianoRoll" class="project-piano-roll empty" aria-label="選択クリップのピアノロール"></div>
+          <p id="projectStatus" class="project-status">7つの基本パートを用意しました。トラックを選び、既存の音色機能で音を作ってください。</p>
+        </div>
+      </div>
+    </section>
 
     <section id="soundDesign" class="panel prompt-panel workflow-section">
       <div class="workflow-section-label"><span>STEP 1</span> SOUND DESIGN</div>
@@ -158,6 +180,7 @@
   <script src="/humming_runtime.js"></script>
   <script src="/keyboard_performance_runtime.js"></script>
   <script src="/recording_workspace_runtime.js"></script>
+  <script src="/multitrack_runtime.js"></script>
   <script src="/vst3_runtime.js"></script>
   <script src="/ui_help_runtime.js"></script>
 </body>
