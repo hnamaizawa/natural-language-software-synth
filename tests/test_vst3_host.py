@@ -38,6 +38,9 @@ def test_vst3_router_wraps_final_note_contract_and_preserves_scheduling():
     assert "scheduleNative" in js
     assert "whenSeconds" in js
     assert "if(route.checked&&loaded)" in js
+    assert 'engine.patch?.engine_type==="drum"?9:0' in js
+    assert '{note,velocity:clamp(velocity,.001,1),channel}' in js
+    assert '{note,channel}' in js
 
 
 def test_python_bridge_is_loopback_only_and_scans_standard_windows_paths():
@@ -49,6 +52,9 @@ def test_python_bridge_is_loopback_only_and_scans_standard_windows_paths():
     assert 'Path(local) / "Programs" / "Common" / "VST3"' in server
     assert 'os.environ.get("NLSS_VST3_PATHS"' in server
     assert 'os.environ.get("NLSS_VST3_HOST"' in server
+    assert 'payload.get("scan_paths", [])' in server
+    assert 'requested or [])[:16]' in server
+    assert 'endswith((".dll", ".exe"))' in server
 
 
 def test_plugin_load_is_limited_to_scanned_ids_and_values_are_bounded():
@@ -57,6 +63,7 @@ def test_plugin_load_is_limited_to_scanned_ids_and_values_are_bounded():
     assert "Unknown VST3 plug-in id" in server
     assert "midi_note = max(0, min(127" in server
     assert "velocity = max(0.0, min(1.0" in server
+    assert "channel = max(0, min(15" in server
     assert "parameter_id = max(0, min(0x7FFFFFFF" in server
     assert "value = max(0.0, min(1.0" in server
 
@@ -109,6 +116,19 @@ def test_native_host_uses_vst3_processing_events_parameters_and_audio_device():
         'parts[0] == "LOAD"', 'parts[0] == "NOTE_ON"', 'parts[0] == "NOTE_OFF"', 'parts[0] == "PARAMS"',
     ]:
         assert token in cpp
+    assert "event.noteOn.channel = note.channel" in cpp
+    assert "event.noteOff.channel = note.channel" in cpp
+    assert "std::min (15, channel)" in cpp
+
+
+def test_vst3_scan_ui_accepts_extra_local_folder_and_explains_vst2_files():
+    html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    js = (ROOT / "web" / "vst3_runtime.js").read_text(encoding="utf-8")
+    assert 'id="vst3ExtraScanPaths"' in html
+    assert "C:\\Program Files\\Kawai" in html
+    assert 'split(";")' in js
+    assert "{scan_paths:paths}" in js
+    assert "VST2は非対応" in js
 
 
 def test_native_host_negotiates_bus_arrangements_before_activation_and_marks_live_notes():
