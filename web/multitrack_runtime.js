@@ -103,5 +103,7 @@
     document.getElementById("projectName")?.addEventListener("change",event=>{project.name=String(event.target.value||"新しい曲").slice(0,60);render();});document.getElementById("projectBpm")?.addEventListener("change",event=>{project.bpm=Math.round(bounded(event.target.value,40,240,100));render();});
   }
   bind();applyTrack(selectedTrack());render();
+  const projectStatus=document.getElementById("projectStatus");
+  if(projectStatus){projectStatus.dataset.runtimeState="ready";projectStatus.textContent="7つの基本パートを用意しました。トラックを選び、既存の音色機能で音を作ってください。";}
   window.multitrackProject={get snapshot(){captureSelectedPatch();return clone(project);},selectTrack,addClipFromSample,exportProject,stopPreview};
 })();
