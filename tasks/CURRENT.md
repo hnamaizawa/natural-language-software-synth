@@ -1,12 +1,21 @@
 # CURRENT
 
+## v0.12.2 Reference Match Difference / SSD5 Setup Diagnostics
+
+- [x] 元プリセットとReference Matchの変更パラメータを一覧表示
+- [x] 旧値・新値・増減方向・差分値を視覚化
+- [x] VST3 MIDIチャンネルを自動／1／10から選択可能にする
+- [x] MIDI到達・出力0時にSSD5キット／Preset／Master／受信チャンネル確認を案内
+- [x] Reference Audioのローカル限定・validated Patch境界を維持
+- [x] `python -m pytest tests/` / Harness 最終確認（147 passed / HARNESS PASS）
+
 ## v0.12.1 SSD5 Drum Routing / Additional VST3 Scan Folder
 
 - [x] ドラムPatchのNote On/OffをMIDIチャンネル10へ送信
 - [x] サンプル演奏・ドラムパッド・PCキーで共通経路を維持
 - [x] 追加検索フォルダUIとbounded server scanを追加
 - [x] `.dll` / `.exe` を非VST3候補として診断表示
-- [ ] pytest / harness / Windows Native VST3 build 最終確認
+- [x] pytest / harness / Windows Native VST3 build 最終確認（145 passed / HARNESS PASS / CI 2 checks passed）
 
 ## v0.12.0 Practical Presets / Licensed PCM / Complete Hover Help
 
