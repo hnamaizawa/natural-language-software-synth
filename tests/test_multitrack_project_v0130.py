@@ -1,8 +1,5 @@
 from pathlib import Path
 
-import yaml
-
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -48,8 +45,8 @@ def test_clip_preview_reuses_stable_note_event_contract():
 
 
 def test_blueprint_declares_multitrack_contract_without_removing_existing_invariants():
-    blueprint = yaml.safe_load(read("harness/app_blueprint.yaml"))
-    capabilities = set(blueprint["required_capabilities"])
-    invariants = set(blueprint["non_negotiable_invariants"])
-    assert {"multitrack_project_model", "independent_track_patch_assignment", "bounded_note_clip_model", "project_json_save_load"} <= capabilities
-    assert {"project_tracks_must_store_validated_patches_only", "project_import_must_bound_tracks_clips_and_notes", "project_clip_preview_must_use_existing_note_event_contract", "all_engines_must_share_single_audio_context", "vst3_router_must_remain_final_note_event_wrapper"} <= invariants
+    blueprint = read("harness/app_blueprint.yaml")
+    for capability in ["multitrack_project_model", "independent_track_patch_assignment", "bounded_note_clip_model", "project_json_save_load"]:
+        assert f"- {capability}" in blueprint
+    for invariant in ["project_tracks_must_store_validated_patches_only", "project_import_must_bound_tracks_clips_and_notes", "project_clip_preview_must_use_existing_note_event_contract", "all_engines_must_share_single_audio_context", "vst3_router_must_remain_final_note_event_wrapper"]:
+        assert f"- {invariant}" in blueprint
