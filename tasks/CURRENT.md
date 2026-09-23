@@ -1,5 +1,16 @@
 # CURRENT
 
+## v0.13.0 Multi-track Project Foundation
+
+- [x] ドラム／ベース／キーボード／ギター／メロディー／コーラス／パッドの7トラック
+- [x] トラック単位のvalidated Patch／生成Patch／音源メタデータ保持
+- [x] Preset／Reference Match／自然言語調整／演奏を選択トラックへ紐付け
+- [x] Sample Performanceからbounded Note Clipを作成
+- [x] 16拍タイムラインと選択クリップのピアノロール表示
+- [x] Project JSON保存／読込と読込値Clamp
+- [x] 単一AudioContext／既存Note Event／VST3最終wrapperを維持
+- [x] `python -m pytest tests/` / Harness 最終確認（152 passed / HARNESS PASS）
+
 ## v0.12.2 Reference Match Difference / SSD5 Setup Diagnostics
 
 - [x] 元プリセットとReference Matchの変更パラメータを一覧表示
