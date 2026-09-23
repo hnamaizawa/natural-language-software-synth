@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.12.1
+
+- ドラムPatchを外部VST3へ送る際、GMドラム用MIDIチャンネル10を使用。
+- サンプル演奏、ドラムパッド、PCキーボードのVST3ドラム発音を修正。
+- UIから追加VST3検索フォルダを指定可能にし、VST2 DLL等の非対応形式を診断表示。
+- Native Hostプロトコルへbounded MIDI channelを追加。
+
 ## v0.12.0
 - CC0 1.0のVCSL実録音PCMを使う「スタジオ・テナーサックス」を追加し、出典・上流コミット・原パス・SHA-256を同梱ライセンス文書へ固定。
 - Pop Close Piano / Neo Soul FM EP / Pop Pocket Drumsを含む実用プリセットを追加。

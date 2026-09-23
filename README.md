@@ -2,6 +2,14 @@
 
 実用的な楽器プリセットを起点に、手元のReference Audioや自然言語で音色を調整し、その場で演奏・比較できるローカル優先のソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／Sample Performance／鼻歌メロディー／Windows VST3 Instrumentに対応しています。
 
+## v0.12.1 の主な変更
+
+- SSD5などのドラムVST3へ、ドラム音色時はGM標準のMIDIチャンネル10（内部値9）でNote On/Offを送信します。
+- サンプル演奏、ドラムパッド、PCキーボードのすべてが同じドラムチャンネル経路を利用します。
+- VST3検索に任意の追加フォルダを指定できます。例: `C:\Program Files\Kawai`。複数フォルダは `;` 区切りです。
+- 追加フォルダに `.dll` / `.exe` しかない場合は、VST3ではない形式として除外件数を表示します。
+- Native VST3 Hostを変更したため、更新後に `build_vst3_host.cmd` を再実行してください。
+
 ## v0.12.0 の主な変更
 
 - 実用プリセットとして **スタジオ・テナーサックス、ポップ・クローズピアノ、ネオソウルFMエレピ、ポップ・ポケットドラム** を追加しました。
@@ -366,11 +374,13 @@ check_harness.cmd
 start_synth.cmd
 ```
 
-Native VST3 HostのC++が変更されたバージョンのみ `build_vst3_host.cmd` を再実行します。v0.11.0ではNative C++変更はありません。
+Native VST3 HostのC++が変更されたバージョンのみ `build_vst3_host.cmd` を再実行します。v0.12.1ではMIDIチャンネル対応を追加したため再実行が必要です。
 
 # VST3 Instrument
 
 Step 2でVST3検索／ロード／Editor／Parameter／Program/Preset／ルーティング／診断を利用できます。VST3はブラウザへ直接ロードせず、別プロセスNative Hostを既存loopback server経由で利用します。
+
+標準フォルダ以外へ展開したVST3は「追加検索フォルダ」に入力してから検索します。`C:\Program Files\Kawai` のようなフォルダを指定できます。検出対象は `.vst3` バンドル／ファイルです。`.dll` のみのプラグインはVST2形式の可能性があり、このVST3ホストでは利用できません。
 
 # RECORDING STUDIO
 

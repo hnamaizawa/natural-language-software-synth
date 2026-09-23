@@ -97,6 +97,7 @@ struct PendingNote
     bool on {false};
     int32 pitch {60};
     float velocity {0.8f};
+    int16 channel {0};
 };
 
 struct PendingParam
@@ -293,16 +294,17 @@ public:
         unloadUnlocked ();
     }
 
-    void queueNote (bool on, int pitch, float velocity)
+    void queueNote (bool on, int pitch, float velocity, int channel = 0)
     {
         pitch = std::max (0, std::min (127, pitch));
         velocity = std::max (0.0f, std::min (1.0f, velocity));
+        channel = std::max (0, std::min (15, channel));
         if (on)
             noteOnQueued_.fetch_add (1);
         else
             noteOffQueued_.fetch_add (1);
         std::lock_guard<std::mutex> lock (queueMutex_);
-        pendingNotes_.push_back ({on, pitch, velocity});
+        pendingNotes_.push_back ({on, pitch, velocity, static_cast<int16> (channel)});
         if (pendingNotes_.size () > 1024)
             pendingNotes_.erase (pendingNotes_.begin (), pendingNotes_.begin () + 512);
     }
@@ -580,7 +582,7 @@ private:
             if (note.on)
             {
                 event.type = Event::kNoteOnEvent;
-                event.noteOn.channel = 0;
+                event.noteOn.channel = note.channel;
                 event.noteOn.pitch = static_cast<int16> (note.pitch);
                 event.noteOn.tuning = 0.0f;
                 event.noteOn.velocity = note.velocity;
@@ -590,7 +592,7 @@ private:
             else
             {
                 event.type = Event::kNoteOffEvent;
-                event.noteOff.channel = 0;
+                event.noteOff.channel = note.channel;
                 event.noteOff.pitch = static_cast<int16> (note.pitch);
                 event.noteOff.tuning = 0.0f;
                 event.noteOff.velocity = note.velocity;
@@ -795,12 +797,14 @@ bool processCommand (NativeVst3Host& host, const std::string& line)
         }
         else if (parts[0] == "NOTE_ON" && parts.size () >= 3)
         {
-            host.queueNote (true, std::stoi (parts[1]), static_cast<float> (std::stod (parts[2])));
+            const auto channel = parts.size () >= 4 ? std::stoi (parts[3]) : 0;
+            host.queueNote (true, std::stoi (parts[1]), static_cast<float> (std::stod (parts[2])), channel);
             std::cout << "{\"ok\":true}" << std::endl;
         }
         else if (parts[0] == "NOTE_OFF" && parts.size () >= 2)
         {
-            host.queueNote (false, std::stoi (parts[1]), 0.0f);
+            const auto channel = parts.size () >= 3 ? std::stoi (parts[2]) : 0;
+            host.queueNote (false, std::stoi (parts[1]), 0.0f, channel);
             std::cout << "{\"ok\":true}" << std::endl;
         }
         else if (parts[0] == "UNLOAD")
