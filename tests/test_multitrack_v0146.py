@@ -16,7 +16,7 @@ def test_each_track_picks_an_independent_scanned_vst3_plugin():
     assert 'id="trackVstScanBtn"' in html
     assert 'plugins.find(item=>item.id===id)' in track
     assert 'track.source={type:"vst3",plugin_id:plugin.id' in track
-    assert 'window.addEventListener("vst3-catalog-changed",renderTrackSoundPanel)' in track
+    assert 'window.addEventListener("vst3-catalog-changed",()=>{renderTrackList();renderTrackSoundPanel();})' in track
     assert 'function scannedPlugins()' in router
     assert 'window.dispatchEvent(new Event("vst3-catalog-changed"))' in router
 

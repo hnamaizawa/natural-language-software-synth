@@ -107,3 +107,7 @@ build_vst3_host.cmd
 ```
 
 Then start the normal app with `start_synth.cmd`, open the VST3 section, scan, select/load a plug-in, and enable VST3 routing.
+
+## v0.14.8 inline track VST3 editors
+
+- Every track row offers its own plugin picker, MIDI channel, native editor and parameters. Editor and parameter requests must carry the corresponding track instance ID; changing the STEP 2 plugin or another track must not change the existing track instance.
