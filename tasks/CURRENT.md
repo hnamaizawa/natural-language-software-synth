@@ -1,5 +1,16 @@
 # CURRENT
 
+## v0.14.2 Per-track Renderer / Independent Sources
+
+- [x] 再生開始前に全Note EventをAudioContextへ一括予約
+- [x] 再生中のlook-ahead intervalを廃止
+- [x] トラックPatchの事前検証・キャッシュ
+- [x] アレンジ再生中の鍵盤／ドラムDOM更新を抑止
+- [x] VST3予約イベントを単一の時刻順タイマーキューへ集約
+- [x] 各トラック行へ内蔵／CD・Reference調整／VST3セレクターを追加
+- [x] CD音声は特徴量のみ利用し、元録音を再生素材へ転用しない境界を維持
+- [x] `python -m pytest tests/` / Harness 最終確認（161 passed / HARNESS PASS）
+
 ## v0.14.1 Multi-track Playback Performance
 
 - [x] ピアノロールDOMと複数パート再生処理を分離

@@ -255,6 +255,8 @@ class SynthEngine{
     if(this.master)this.master.gain.setTargetAtTime(this.patch.master_gain,this.ctx.currentTime,.02);
     if(this.drumRoomGain)this.drumRoomGain.gain.setTargetAtTime(this.patch.drum_room_mix,this.ctx.currentTime,.02);
   }
+  preparePlaybackPatch(raw){return Object.freeze(validatePatch(raw));}
+  usePreparedPlaybackPatch(patch){this.patch=patch;}
   noteOn(midiNote,velocity=.85,whenSeconds=0){
     if(!this.ctx)return;
     if(this.patch.engine_type==="drum"){this.playDrumPCM(midiNote,velocity,whenSeconds);return;}
@@ -350,7 +352,7 @@ class SynthEngine{
     source.connect(filter);filter.connect(gain);gain.connect(this.master);if(this.drumRoomDelay)gain.connect(this.drumRoomDelay);
     let dur=region.duration;if(note===36)dur=Math.min(dur,.12+p.kick_decay_s*1.2);else if(note===38)dur=Math.min(dur,.10+p.snare_decay_s*1.4);
     else if(note===42||note===46)dur=Math.min(dur,.05+p.hat_decay_s*2.5);else if([45,48,50].includes(note))dur=Math.min(dur,.12+p.tom_decay_s*1.2);
-    source.start(now,region.offset,dur);setPerformanceActive(note,true);setTimeout(()=>setPerformanceActive(note,false),Math.max(80,dur*450));
+    source.start(now,region.offset,dur);if(!this.suppressPerformanceVisuals){setPerformanceActive(note,true);setTimeout(()=>setPerformanceActive(note,false),Math.max(80,dur*450));}
   }
   playFM(midiNote,velocity,whenSeconds){
     const note=clamp(Math.round(midiNote),0,127);this.limitVoices(note);
@@ -399,7 +401,7 @@ function canonicalDrumNote(note){
   if([42,44].includes(n))return 42;if([46].includes(n))return 46;if([41,43,45].includes(n))return 45;
   if([47,48].includes(n))return 48;if([50].includes(n))return 50;if([49,55,57].includes(n))return 49;if([51,53,59].includes(n))return 51;return null;
 }
-function setPerformanceActive(note,on){const el=document.querySelector(`[data-note="${note}"]`);if(el)el.classList.toggle("active",on);}
+function setPerformanceActive(note,on){if(engine?.suppressPerformanceVisuals)return;const el=document.querySelector(`[data-note="${note}"]`);if(el)el.classList.toggle("active",on);}
 function showError(err){document.getElementById("status").textContent=`エラー: ${err.message||err}`;}
 function engineDetail(p){
   if(p.engine_type==="sampler")return"PCM Multisample · Fretless Bass";

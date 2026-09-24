@@ -21,8 +21,8 @@
     ["studio_tenor_sax","Studio Tenor Sax"]
   ];
   const ROLE_SAMPLE={drums:"drum_straight",bass:"bass",keyboard:"chords",guitar:"chords",melody:"melody",chorus:"chords",pad:"chords",custom:"melody"};
-  const SCHEDULER_INTERVAL_MS=25,SCHEDULER_LOOKAHEAD_S=.10;
-  let serial=0,applyingTrack=false,selectedClipId=null,playbackTimer=0,completionTimer=0,playbackRunId=0,arrangementPlaying=false;
+  let serial=0,applyingTrack=false,selectedClipId=null,completionTimer=0,playbackRunId=0,arrangementPlaying=false;
+  const preparedTrackPatches=new Map();
   const uid=(prefix)=>`${prefix}-${Date.now().toString(36)}-${(++serial).toString(36)}`;
   const clone=(value)=>JSON.parse(JSON.stringify(value));
   const bounded=(value,min,max,fallback)=>Math.min(max,Math.max(min,Number.isFinite(Number(value))?Number(value):fallback));
@@ -45,6 +45,7 @@
     const track=selectedTrack();if(!track)return;
     track.patch=clone(validatePatch(engine.patch||currentPatch));
     track.generated_patch=clone(validatePatch(generatedPatch||track.patch));
+    preparedTrackPatches.delete(track.id);
     renderTrackList();renderSummary();
   }
   engine.setPatch=function(raw){const result=originalSetPatch(raw);captureSelectedPatch();return result;};
@@ -74,9 +75,10 @@
       const row=document.createElement("div");row.className=`track-row${track.id===project.selected_track_id?" selected":""}`;row.dataset.trackId=track.id;row.setAttribute("role","option");row.setAttribute("aria-selected",String(track.id===project.selected_track_id));
       const color=document.createElement("span");color.className="track-color";color.style.background=track.color;
       const copyNode=document.createElement("span");copyNode.className="track-copy";const title=document.createElement("strong");title.textContent=track.name;const detail=document.createElement("small");detail.textContent=`${track.patch.name} · ${track.source.name}`;copyNode.append(title,detail);
+      const sourceSelect=document.createElement("select");sourceSelect.className="track-source-select";sourceSelect.title=`${track.name}の音源を個別に選択`;for(const [value,label] of [["internal","内蔵音源"],["reference","CD/Reference調整"],["vst3","VST3音源"]])sourceSelect.append(new Option(label,value));sourceSelect.value=track.source.type;sourceSelect.addEventListener("click",event=>event.stopPropagation());sourceSelect.addEventListener("change",event=>{event.stopPropagation();if(project.selected_track_id!==track.id)selectTrack(track.id);setTrackSource(event.target.value);});
       const controls=document.createElement("span");controls.className="track-controls";
       for(const [key,label] of [["mute","M"],["solo","S"]]){const button=document.createElement("button");button.type="button";button.textContent=label;button.title=key==="mute"?"このトラックをミュート":"このトラックだけをソロ再生";button.classList.toggle("active",track[key]);button.addEventListener("click",event=>{event.stopPropagation();toggleTrack(track.id,key);});controls.append(button);}
-      row.append(color,copyNode,controls);row.addEventListener("click",()=>selectTrack(track.id));root.append(row);
+      row.append(color,copyNode,sourceSelect,controls);row.addEventListener("click",()=>selectTrack(track.id));root.append(row);
     }
   }
   function renderSummary(){const track=selectedTrack(),node=document.getElementById("selectedTrackSummary");if(node&&track)node.textContent=`選択中: ${track.name} · ${track.patch.name}`;renderTrackSoundPanel();}
@@ -103,15 +105,16 @@
     const select=document.getElementById("sampleSelect"),key=select&&select.value,perf=(typeof SAMPLE_PERFORMANCES!=="undefined"&&SAMPLE_PERFORMANCES[key])||SAMPLE_PERFORMANCES[ROLE_SAMPLE[track.role]]||SAMPLE_PERFORMANCES.melody;
     const clip=performanceToClip(perf,key);track.clips.push(clip);selectedClipId=clip.id;render();status(`「${clip.name}」を${track.name}のNote Clipとして追加しました。`);
   }
-  function playNote(track,event,on,whenSeconds=0){const router=window.vst3Router;if(track.source.type==="vst3"&&router?.isLoaded()){return on?router.trackNoteOn(event.note,event.velocity*track.volume,track.midi_channel,whenSeconds):router.trackNoteOff(event.note,track.midi_channel,whenSeconds);}applyingTrack=true;engine.setPatchForPlayback(track.patch);applyingTrack=false;const fn=on?(router?.baseNoteOn||engine.noteOn.bind(engine)):(router?.baseNoteOff||engine.noteOff.bind(engine));return on?fn(event.note,event.velocity*track.volume,whenSeconds):fn(event.note,whenSeconds);}
+  function preparedPatchFor(track){let patch=preparedTrackPatches.get(track.id);if(!patch){patch=engine.preparePlaybackPatch(track.patch);preparedTrackPatches.set(track.id,patch);}return patch;}
+  function playNote(track,event,on,whenSeconds=0){const router=window.vst3Router;if(track.source.type==="vst3"&&router?.isLoaded()&&router.loadedPlugin?.().id===track.source.plugin_id){return on?router.trackNoteOn(event.note,event.velocity*track.volume,track.midi_channel,whenSeconds):router.trackNoteOff(event.note,track.midi_channel,whenSeconds);}engine.usePreparedPlaybackPatch(preparedPatchFor(track));const fn=on?(router?.baseNoteOn||engine.noteOn.bind(engine)):(router?.baseNoteOff||engine.noteOff.bind(engine));return on?fn(event.note,event.velocity*track.volume,whenSeconds):fn(event.note,whenSeconds);}
   function buildPlaybackQueue(tracks){const queue=[];for(const track of tracks){for(const clip of track.clips){for(const event of clip.notes){const startBeat=clip.start_beats+event.start_beats;if(startBeat>=TIMELINE_BEATS)continue;queue.push({track,event,startBeat,endBeat:Math.min(TIMELINE_BEATS,startBeat+event.duration_beats)});}}}return queue.sort((a,b)=>a.startBeat-b.startBeat);}
-  function startInternalScheduler(queue,onCycleComplete,cycleBeats=TIMELINE_BEATS){const runId=++playbackRunId,secondsPerBeat=60/project.bpm,cycleStart=engine.ctx.currentTime+.06;let cursor=0;
-    const tick=()=>{if(runId!==playbackRunId||!arrangementPlaying)return;const now=engine.ctx.currentTime,horizon=now+SCHEDULER_LOOKAHEAD_S;while(cursor<queue.length){const item=queue[cursor],noteTime=cycleStart+item.startBeat*secondsPerBeat;if(noteTime>horizon)break;const delay=Math.max(0,noteTime-now),duration=Math.max(.01,(item.endBeat-item.startBeat)*secondsPerBeat);playNote(item.track,item.event,true,delay);playNote(item.track,item.event,false,delay+duration);cursor++;}if(cursor>=queue.length&&playbackTimer){clearInterval(playbackTimer);playbackTimer=0;}};
-    playbackTimer=setInterval(tick,SCHEDULER_INTERVAL_MS);tick();const remaining=Math.max(0,(cycleStart+cycleBeats*secondsPerBeat-engine.ctx.currentTime)*1000);completionTimer=setTimeout(()=>{completionTimer=0;if(runId===playbackRunId)onCycleComplete();},remaining+30);
+  function startInternalScheduler(queue,onCycleComplete,cycleBeats=TIMELINE_BEATS){const runId=++playbackRunId,secondsPerBeat=60/project.bpm,leadSeconds=.08,cycleStart=engine.ctx.currentTime+leadSeconds;
+    engine.suppressPerformanceVisuals=true;try{for(const item of queue){const delay=Math.max(0,cycleStart+item.startBeat*secondsPerBeat-engine.ctx.currentTime),duration=Math.max(.01,(item.endBeat-item.startBeat)*secondsPerBeat);playNote(item.track,item.event,true,delay);playNote(item.track,item.event,false,delay+duration);}}finally{engine.suppressPerformanceVisuals=false;}
+    completionTimer=setTimeout(()=>{completionTimer=0;if(runId===playbackRunId)onCycleComplete();},(leadSeconds+cycleBeats*secondsPerBeat)*1000+30);
   }
-  function stopPreview(){playbackRunId++;if(playbackTimer)clearInterval(playbackTimer);if(completionTimer)clearTimeout(completionTimer);playbackTimer=0;completionTimer=0;arrangementPlaying=false;const stop=document.getElementById("clipStopBtn");if(stop)stop.disabled=true;}
+  function stopPreview(){playbackRunId++;if(completionTimer)clearTimeout(completionTimer);completionTimer=0;arrangementPlaying=false;const stop=document.getElementById("clipStopBtn");if(stop)stop.disabled=true;}
   async function previewClip(){
-    const clip=selectedClip(),track=selectedTrack();if(!clip||!track){status("試聴するクリップを選択してください。");return;}stopPreview();if(track.mute){status("選択トラックはミュートされています。");return;}try{await engine.init();}catch(error){status(error.message);return;}applyTrack(track);const beatMs=60000/project.bpm;document.getElementById("clipStopBtn").disabled=false;
+    const clip=selectedClip(),track=selectedTrack();if(!clip||!track){status("試聴するクリップを選択してください。");return;}stopPreview();if(track.mute){status("選択トラックはミュートされています。");return;}try{await engine.init();}catch(error){status(error.message);return;}applyTrack(track);document.getElementById("clipStopBtn").disabled=false;
     arrangementPlaying=true;startInternalScheduler(buildPlaybackQueue([track]),()=>{stopPreview();applyTrack(track);status(`${track.name} · ${clip.name} の試聴が完了しました。`);},clip.length_beats);status(`${track.name} · ${clip.name} を共有BPM ${project.bpm}で内部スケジューラ再生中…`);
   }
   function ensureRoleClip(track){if(track.clips.length)return;const key=ROLE_SAMPLE[track.role]||"melody",perf=SAMPLE_PERFORMANCES[key]||SAMPLE_PERFORMANCES.melody;track.clips.push(performanceToClip(perf,key));}
@@ -120,7 +123,7 @@
     const scheduleCycle=()=>{if(!arrangementPlaying)return;startInternalScheduler(queue,()=>{if(document.getElementById("arrangementLoop")?.checked)scheduleCycle();else{stopPreview();applyTrack(selectedTrack());status("全パートの再生が完了しました。");}});};
     scheduleCycle();status(`${tracks.length}パートを共有BPM ${project.bpm}で内部同時再生中${document.getElementById("arrangementLoop")?.checked?"（ループ）":""}…`);
   }
-  function setTrackSource(type){const track=selectedTrack();if(!track)return;if(type==="vst3"){const plugin=window.vst3Router?.loadedPlugin?.();if(!plugin?.id){status("先にSTEP 2でVST3を検索・ロードしてください。");document.getElementById("soundSource")?.scrollIntoView({behavior:"smooth",block:"start"});return;}track.source={type:"vst3",plugin_id:plugin.id,name:`VST3: ${plugin.name}`};}else if(type==="reference"){track.source={type:"reference",plugin_id:"",name:"Reference調整済み内蔵音源"};document.getElementById("referenceAudioFile")?.scrollIntoView({behavior:"smooth",block:"center"});status(`${track.name}をReference Audio調整対象にしました。CD等から用意したMP3/WAV/M4Aを下のReference Audio Matchで解析してください。`);}else track.source={type:"internal",plugin_id:"",name:"内蔵音源"};render();}
+  function setTrackSource(type){const track=selectedTrack();if(!track)return;if(type==="vst3"){const plugin=window.vst3Router?.loadedPlugin?.();if(!plugin?.id){status("先にSTEP 2でVST3を検索・ロードしてください。");document.getElementById("soundSource")?.scrollIntoView({behavior:"smooth",block:"start"});renderTrackList();return;}track.source={type:"vst3",plugin_id:plugin.id,name:`VST3: ${plugin.name}`};}else if(type==="reference"){track.source={type:"reference",plugin_id:"",name:"CD/Reference調整済み内蔵音源"};document.getElementById("referenceAudioFile")?.scrollIntoView({behavior:"smooth",block:"center"});status(`${track.name}専用のReference Audio調整を行います。MP3/WAV/M4Aは特徴量解析だけに使い、録音そのものは音源としてコピーしません。`);}else track.source={type:"internal",plugin_id:"",name:"内蔵音源"};render();}
   function applyTrackPreset(){const id=document.getElementById("trackPresetSelect")?.value;if(!id||!window.referenceAudioMatch)return;setTrackSource("internal");window.referenceAudioMatch.applyPresetById(id);captureSelectedPatch();status(`${selectedTrack().name}へ内蔵プリセットを適用しました。`);}
   function applyTrackPrompt(){const input=document.getElementById("trackPromptInput"),prompt=String(input?.value||"").trim();if(!prompt){status("自然言語の調整内容を入力してください。");return;}setTrackSource("internal");document.getElementById("prompt").value=prompt;document.getElementById("generateBtn").click();status(`${selectedTrack().name}の内蔵音源を自然言語で調整しています…`);}
   function setupTrackSoundPanel(){const select=document.getElementById("trackPresetSelect");if(select&&!select.options.length)for(const [id,label] of TRACK_PRESETS)select.append(new Option(label,id));document.getElementById("trackInternalSourceBtn")?.addEventListener("click",()=>setTrackSource("internal"));document.getElementById("trackReferenceSourceBtn")?.addEventListener("click",()=>setTrackSource("reference"));document.getElementById("trackVstSourceBtn")?.addEventListener("click",()=>setTrackSource("vst3"));document.getElementById("trackPresetApplyBtn")?.addEventListener("click",applyTrackPreset);document.getElementById("trackPromptApplyBtn")?.addEventListener("click",applyTrackPrompt);}
