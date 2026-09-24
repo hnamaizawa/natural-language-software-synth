@@ -250,6 +250,11 @@ class SynthEngine{
     if(this.drumRoomGain)this.drumRoomGain.gain.setTargetAtTime(this.patch.drum_room_mix,this.ctx.currentTime,.02);
     renderPatch();
   }
+  setPatchForPlayback(raw){
+    this.patch=validatePatch(raw);
+    if(this.master)this.master.gain.setTargetAtTime(this.patch.master_gain,this.ctx.currentTime,.02);
+    if(this.drumRoomGain)this.drumRoomGain.gain.setTargetAtTime(this.patch.drum_room_mix,this.ctx.currentTime,.02);
+  }
   noteOn(midiNote,velocity=.85,whenSeconds=0){
     if(!this.ctx)return;
     if(this.patch.engine_type==="drum"){this.playDrumPCM(midiNote,velocity,whenSeconds);return;}
