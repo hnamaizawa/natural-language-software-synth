@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.14.1
+
+- マルチトラック再生をDOM／ピアノロールから分離した内部Audio Clockスケジューラへ変更。
+- ノート単位の大量タイマーを単一look-aheadタイマーへ集約し、UIを伴わない再生専用Patch切替を追加。
+- Mute／Solo、全パート再生、16拍ループ、既存Note Event／VST3境界を維持したままメインスレッド負荷を削減。
+
 ## v0.14.0
 
 - 選択トラックへ内蔵／Reference調整済み内蔵／現在ロード中VST3を割り当てるTRACK SOUND UIを追加。

@@ -1,5 +1,13 @@
 # CURRENT
 
+## v0.14.1 Multi-track Playback Performance
+
+- [x] ピアノロールDOMと複数パート再生処理を分離
+- [x] AudioContext clock基準の内部Note Eventキューを追加
+- [x] ノート単位の大量`setTimeout`を単一look-ahead schedulerへ置換
+- [x] 再生時のPatch UI再描画を抑止
+- [x] `python -m pytest tests/` / Harness 最終確認（160 passed / HARNESS PASS）
+
 ## v0.14.0 Per-track Sound Source / Arrangement Loop
 
 - [x] 各トラックにTRACK SOUND設定UIを追加
