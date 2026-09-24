@@ -256,7 +256,7 @@ def main() -> None:
     for control in vst_controls:
         if f'id="{control}"' not in html:
             fail(f"VST3 UI control missing: {control}")
-    if 'src="/vst3_runtime.js"' not in html or html.index('/humming_runtime.js') > html.index('/vst3_runtime.js'):
+    if 'src="/vst3_runtime.js?v=0.14.3"' not in html or html.index('/humming_runtime.js') > html.index('/vst3_runtime.js'):
         fail("VST3 router must load after humming and all audio wrappers")
     require_tokens(
         vst3_js,
