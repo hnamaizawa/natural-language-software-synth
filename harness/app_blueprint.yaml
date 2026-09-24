@@ -90,6 +90,11 @@ required_capabilities:
 - project_json_save_load
 - arrangement_timeline_preview
 - selected_clip_piano_roll_preview
+- per_track_sound_source_selector
+- per_track_internal_reference_and_vst3_assignment
+- extended_sample_phrase_note_clips
+- simultaneous_arrangement_playback
+- bounded_arrangement_loop_playback
 - stable_note_event_contract
 - future_sequencer_adapter_boundary
 - future_native_vst3_host_boundary
@@ -182,6 +187,9 @@ non_negotiable_invariants:
 - project_import_must_bound_tracks_clips_and_notes
 - project_clip_preview_must_use_existing_note_event_contract
 - multitrack_runtime_must_use_existing_audio_context
+- arrangement_playback_must_use_existing_audio_context
+- arrangement_playback_must_use_bounded_note_events
+- vst3_track_assignment_must_use_current_scanned_loaded_plugin
 - eval_and_dynamic_script_injection_forbidden
 required_files:
 - AGENTS.md
@@ -286,6 +294,10 @@ ui_requirements:
   note_clip_from_sample_performance: true
   arrangement_timeline_preview: true
   selected_clip_piano_roll_preview: true
+  per_track_sound_source_selector: [internal, reference_adjusted_internal, vst3]
+  arrangement_play_all_tracks: true
+  arrangement_loop: true
+  generated_clip_length_beats: 16
 engine_routing:
   fretless_bass: sampler
   electric_guitar: sampler
