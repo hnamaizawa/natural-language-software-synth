@@ -18,7 +18,7 @@
     diagBtn.parentElement.append(editorBtn);
   }
 
-  let loaded=false,loadedPluginId="",loadedPluginName="",scheduledTimers=new Set(),routedVisualNotes=new Set(),programParameter=null;
+  let loaded=false,loadedPluginId="",loadedPluginName="",scheduledQueue=[],scheduledTimer=0,routedVisualNotes=new Set(),programParameter=null;
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
   function routedChannel(){const selected=String(midiChannel?.value||"auto");return selected==="auto"?(engine.patch?.engine_type==="drum"?9:0):Math.round(clamp(selected,0,15));}
 
@@ -46,7 +46,8 @@
     for(const note of routedVisualNotes){if(typeof setPerformanceActive==="function")setPerformanceActive(note,false);}
     routedVisualNotes.clear();
   }
-  function cancelScheduled(){for(const id of scheduledTimers)clearTimeout(id);scheduledTimers.clear();clearRoutedVisuals();}
+  function cancelScheduled(){if(scheduledTimer)clearTimeout(scheduledTimer);scheduledTimer=0;scheduledQueue=[];clearRoutedVisuals();}
+  function armScheduledQueue(){if(scheduledTimer||!scheduledQueue.length)return;const wait=Math.max(0,scheduledQueue[0].due-performance.now());scheduledTimer=setTimeout(()=>{scheduledTimer=0;const now=performance.now()+1,due=[];while(scheduledQueue.length&&scheduledQueue[0].due<=now)due.push(scheduledQueue.shift());for(const item of due)item.fire();armScheduledQueue();},wait);}
   function scheduleNative(path,payload,whenSeconds=0,onFire=null,onFailure=null){
     const delay=Math.max(0,Number(whenSeconds)||0)*1000;
     const fire=()=>{
@@ -56,7 +57,7 @@
         show(`VST3イベント送信エラー: ${err.message}`);route.checked=false;clearRoutedVisuals();
       });
     };
-    if(delay<2){fire();return;}const id=setTimeout(()=>{scheduledTimers.delete(id);fire();},delay);scheduledTimers.add(id);
+    if(delay<2){fire();return;}scheduledQueue.push({due:performance.now()+delay,fire});scheduledQueue.sort((a,b)=>a.due-b.due);armScheduledQueue();
   }
 
   const baseNoteOn=engine.noteOn.bind(engine),baseNoteOff=engine.noteOff.bind(engine);
