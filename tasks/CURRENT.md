@@ -1,5 +1,14 @@
 # CURRENT
 
+## v0.14.7 Per-track VST3 Loading / MIDI Channel Assignment
+
+- [x] 各トラック専用のVST3インスタンスを個別ロード・維持
+- [x] STEP 2 のプラグイン切替、他トラック試聴、ソロ／ミュートから設定を保護
+- [x] トラック別Native EditorとMIDI空きチャンネル自動選択／手動上書き
+- [x] 先読みスケジューラの休符処理、Native単一音源ミックスを軽量化
+- [x] ローカル回帰テスト関数171件／JavaScript構文／Harness静的検査（ローカル環境にpytestパッケージなし）
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.14.6 Track VST3 Selection / Playback Load
 
 - [x] 各トラック内のVST3一覧で検出済みの異なる音源を指定

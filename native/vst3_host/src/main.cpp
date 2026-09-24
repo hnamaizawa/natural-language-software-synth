@@ -791,6 +791,7 @@ public:
         config.pUserData = this;
         if (ma_device_init (nullptr, &config, &device_) != MA_SUCCESS) return false;
         sampleRate_ = device_.sampleRate ? device_.sampleRate : kPreferredSampleRate;
+        scratch_.resize (static_cast<size_t> (kBlockSize) * kChannels * 4);
         if (ma_device_start (&device_) != MA_SUCCESS)
         {
             ma_device_uninit (&device_);
@@ -879,14 +880,22 @@ private:
         const auto samples = static_cast<size_t> (frames) * kChannels;
         std::fill (output, output + samples, 0.0f);
         std::lock_guard<std::mutex> lock (mutex_);
-        scratch_.resize (samples);
+        bool hasActiveOutput = false;
         for (auto& pair : instances_)
         {
             if (pair.second->isIdleSuspended ()) continue;
+            if (!hasActiveOutput)
+            {
+                pair.second->render (output, frames);
+                hasActiveOutput = true;
+                continue;
+            }
+            if (scratch_.size () < samples) scratch_.resize (samples);
             pair.second->render (scratch_.data (), frames);
             for (size_t i = 0; i < samples; ++i) output[i] += scratch_[i];
         }
-        for (size_t i = 0; i < samples; ++i) output[i] = std::max (-1.0f, std::min (1.0f, output[i]));
+        if (hasActiveOutput)
+            for (size_t i = 0; i < samples; ++i) output[i] = std::max (-1.0f, std::min (1.0f, output[i]));
     }
 
     std::mutex mutex_;

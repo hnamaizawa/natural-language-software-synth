@@ -102,8 +102,9 @@ required_capabilities:
 - per_track_scanned_vst3_picker
 - bounded_arrangement_lookahead
 - shared_vst3_instance_event_batching
-- shared_native_vst3_instance_per_plugin
-- loaded_main_vst3_state_reuse
+- isolated_native_vst3_instance_per_track
+- persistent_track_vst3_state_on_main_plugin_switch
+- automatic_unique_track_midi_channel_assignment
 - multitrack_vst3_drum_channel_alignment
 - simultaneous_multi_vst3_arrangement_playback
 - bounded_vst3_instance_pool
@@ -210,7 +211,7 @@ non_negotiable_invariants:
 - arrangement_scheduler_must_not_render_patch_per_note
 - arrangement_scheduler_must_not_validate_patch_per_note
 - reference_audio_must_remain_feature_only_not_playback_pcm
-- vst3_track_assignment_must_use_current_scanned_loaded_plugin
+- vst3_track_assignment_must_not_replace_other_track_sources
 - vst3_track_assignment_must_use_scanned_plugin_ids_only
 - arrangement_scheduler_must_bound_lookahead
 - vst3_track_instances_must_load_scanned_plugin_ids_only
@@ -219,8 +220,9 @@ non_negotiable_invariants:
 - vst3_track_instances_must_share_one_native_host_process
 - vst3_native_instances_must_share_one_audio_output_device
 - vst3_arrangement_events_must_be_bounded_and_batched
-- vst3_tracks_with_same_plugin_must_share_one_instance
-- vst3_loaded_main_instance_state_must_be_reused
+- vst3_track_instancing_must_survive_main_plugin_switch
+- vst3_track_editor_must_target_selected_instance
+- vst3_track_channels_must_be_bounded_and_auto_assigned
 - vst3_auto_drum_channel_must_be_channel_ten
 - eval_and_dynamic_script_injection_forbidden
 required_files:
