@@ -1,0 +1,73 @@
+from pathlib import Path
+
+from server import Vst3Bridge, Vst3InstanceManager
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def read(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8")
+
+
+def test_manager_creates_isolated_bounded_track_instances(monkeypatch, tmp_path):
+    manager = Vst3InstanceManager()
+    plugin = tmp_path / "example.vst3"
+    manager._catalog._plugins = {"plugin-a": plugin}
+
+    def fake_load(bridge, plugin_id):
+        bridge._loaded_plugin_id = plugin_id
+        return {"ok": True, "name": "Example"}
+
+    monkeypatch.setattr(Vst3Bridge, "load", fake_load)
+    assert manager.load("plugin-a", "track-one")["ok"]
+    assert manager.load("plugin-a", "track-two")["ok"]
+    assert manager._instances["track-one"] is not manager._instances["track-two"]
+    assert manager._instances["track-one"]._loaded_plugin_id == "plugin-a"
+    assert manager._instance_id("../unsafe track") == "unsafetrack"
+    assert manager.MAX_INSTANCES == 24
+
+
+def test_server_routes_each_note_to_requested_native_instance():
+    server = read("server.py")
+    for token in [
+        "class Vst3InstanceManager",
+        'payload.get("instance_id")',
+        "self._instances",
+        "MAX_INSTANCES = 24",
+        "bridge._plugins = dict(self._catalog._plugins)",
+    ]:
+        assert token in server
+    assert 'VST3.note_on(' in server
+    assert 'VST3.note_off(' in server
+
+
+def test_arrangement_preloads_and_routes_all_vst3_tracks_independently():
+    html = read("web/index.html")
+    router = read("web/vst3_runtime.js")
+    multitrack = read("web/multitrack_runtime.js")
+    assert "async function prepareTracks(tracks)" in router
+    assert 'api("/api/vst3/load",{plugin_id:track.source.plugin_id,instance_id:track.id})' in router
+    assert "trackInstances.set(track.id,track.source.plugin_id)" in router
+    assert "await releaseTrack(instanceId)" in router
+    assert 'api("/api/vst3/unload",{instance_id:instanceId})' in router
+    assert "trackNoteOn(instanceId,note,velocity" in router
+    assert "trackNoteOff(instanceId,note,channel" in router
+    assert "await window.vst3Router?.prepareTracks(tracks)" in multitrack
+    assert "router?.trackNoteOn(track.id" in multitrack
+    assert "router?.trackNoteOff(track.id" in multitrack
+    assert '/vst3_runtime.js?v=0.14.3' in html
+    assert '/multitrack_runtime.js?v=0.14.3' in html
+
+
+def test_blueprint_requires_bounded_isolated_vst3_instances():
+    blueprint = read("harness/app_blueprint.yaml")
+    for token in [
+        "isolated_native_vst3_instance_per_track",
+        "simultaneous_multi_vst3_arrangement_playback",
+        "bounded_vst3_instance_pool",
+        "vst3_track_instances_must_load_scanned_plugin_ids_only",
+        "vst3_track_instance_count_must_be_bounded",
+        "vst3_track_notes_must_route_by_bounded_instance_id",
+    ]:
+        assert f"- {token}" in blueprint

@@ -1,5 +1,16 @@
 # CURRENT
 
+## v0.14.3 Multi-instance VST3 Tracks
+
+- [x] トラックごとに独立したNative VST3 Hostプロセスを割り当て
+- [x] 同一／異なるVST3を複数パートで同時利用
+- [x] 再生開始前に全VST3トラックのインスタンスを準備
+- [x] Note On／OffをboundedトラックインスタンスIDへルーティング
+- [x] 最大24インスタンス、スキャン済みローカルID限定を維持
+- [x] VST3／マルチトラックRuntimeのキャッシュ識別子をv0.14.3へ更新
+- [x] `python -m pytest tests/` / Harness 最終確認（165 passed / HARNESS PASS）
+- [ ] GitHub Actions Windows Native VST3 build 最終確認
+
 ## v0.14.2 Per-track Renderer / Independent Sources
 
 - [x] 再生開始前に全Note EventをAudioContextへ一括予約

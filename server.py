@@ -336,7 +336,128 @@ class Vst3Bridge:
                 pass
 
 
-VST3 = Vst3Bridge()
+class Vst3InstanceManager:
+    """Bounded collection of isolated native hosts, one per arrangement track."""
+
+    MAX_INSTANCES = 24
+    DEFAULT_INSTANCE = "main"
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._catalog = Vst3Bridge()
+        self._instances: dict[str, Vst3Bridge] = {}
+
+    @classmethod
+    def _instance_id(cls, value: str | None) -> str:
+        raw = str(value or cls.DEFAULT_INSTANCE)[:80]
+        clean = "".join(char for char in raw if char.isalnum() or char in "-_")
+        return clean or cls.DEFAULT_INSTANCE
+
+    def _bridge(self, instance_id: str | None, create: bool = True) -> Vst3Bridge | None:
+        key = self._instance_id(instance_id)
+        with self._lock:
+            bridge = self._instances.get(key)
+            if bridge is None and create:
+                if len(self._instances) >= self.MAX_INSTANCES:
+                    return None
+                bridge = Vst3Bridge()
+                bridge._plugins = dict(self._catalog._plugins)
+                self._instances[key] = bridge
+            return bridge
+
+    def scan(self, requested_roots: list[str] | None = None) -> dict:
+        response = self._catalog.scan(requested_roots)
+        with self._lock:
+            for bridge in self._instances.values():
+                bridge._plugins = dict(self._catalog._plugins)
+        return response
+
+    def plugins_response(self) -> dict:
+        return self._catalog.plugins_response()
+
+    def load(self, plugin_id: str, instance_id: str | None = None) -> dict:
+        if not self._catalog._plugins:
+            self.scan()
+        bridge = self._bridge(instance_id)
+        if bridge is None:
+            return {"ok": False, "error": f"VST3 instances are limited to {self.MAX_INSTANCES}."}
+        bridge._plugins = dict(self._catalog._plugins)
+        if bridge._loaded_plugin_id == plugin_id and bridge.status().get("running"):
+            response = bridge.status()
+            response.update({"ok": True, "already_loaded": True})
+            return response
+        return bridge.load(plugin_id)
+
+    def _call(self, instance_id: str | None, method: str, *args) -> dict:
+        bridge = self._bridge(instance_id, create=False)
+        if bridge is None:
+            return {"ok": False, "error": "VST3 instance is not loaded."}
+        return getattr(bridge, method)(*args)
+
+    def note_on(self, note: int, velocity: float, channel: int = 0, instance_id: str | None = None) -> dict:
+        return self._call(instance_id, "note_on", note, velocity, channel)
+
+    def note_off(self, note: int, channel: int = 0, instance_id: str | None = None) -> dict:
+        return self._call(instance_id, "note_off", note, channel)
+
+    def parameters(self, instance_id: str | None = None) -> dict:
+        return self._call(instance_id, "parameters")
+
+    def set_parameter(self, parameter_id: int, value: float, instance_id: str | None = None) -> dict:
+        return self._call(instance_id, "set_parameter", parameter_id, value)
+
+    def diagnostics(self, instance_id: str | None = None) -> dict:
+        return self._call(instance_id, "diagnostics")
+
+    def test_tone(self, instance_id: str | None = None) -> dict:
+        return self._call(instance_id, "test_tone")
+
+    def open_editor(self, instance_id: str | None = None) -> dict:
+        return self._call(instance_id, "open_editor")
+
+    def close_editor(self, instance_id: str | None = None) -> dict:
+        return self._call(instance_id, "close_editor")
+
+    def unload(self, instance_id: str | None = None) -> dict:
+        key = self._instance_id(instance_id)
+        with self._lock:
+            bridge = self._instances.pop(key, None)
+        if bridge is None:
+            return {"ok": True}
+        response = bridge.unload()
+        bridge.shutdown()
+        return response
+
+    def status(self) -> dict:
+        with self._lock:
+            instances = {
+                key: bridge.status().get("loaded_plugin_id")
+                for key, bridge in self._instances.items()
+                if bridge.status().get("running")
+            }
+        executable = self._catalog.host_executable()
+        return {
+            "ok": True,
+            "native_host_available": executable is not None,
+            "native_host_path": str(executable) if executable else None,
+            "running": bool(instances),
+            "loaded_plugin_id": instances.get(self.DEFAULT_INSTANCE),
+            "plugin_count": len(self._catalog._plugins),
+            "instances": instances,
+            "instance_count": len(instances),
+            "max_instances": self.MAX_INSTANCES,
+        }
+
+    def shutdown(self) -> None:
+        with self._lock:
+            bridges = list(self._instances.values())
+            self._instances.clear()
+        for bridge in bridges:
+            bridge.shutdown()
+        self._catalog.shutdown()
+
+
+VST3 = Vst3InstanceManager()
 atexit.register(VST3.shutdown)
 
 
@@ -414,15 +535,15 @@ class Handler(BaseHTTPRequestHandler):
                 scan_paths = raw_paths if isinstance(raw_paths, list) else []
                 return self._json(VST3.scan([str(item) for item in scan_paths]))
             if parsed.path == "/api/vst3/load":
-                return self._json(VST3.load(str(payload.get("plugin_id", ""))[:64]))
+                return self._json(VST3.load(str(payload.get("plugin_id", ""))[:64], payload.get("instance_id")))
             if parsed.path == "/api/vst3/note-on":
-                return self._json(VST3.note_on(int(payload.get("note", 60)), float(payload.get("velocity", 0.8)), int(payload.get("channel", 0))))
+                return self._json(VST3.note_on(int(payload.get("note", 60)), float(payload.get("velocity", 0.8)), int(payload.get("channel", 0)), payload.get("instance_id")))
             if parsed.path == "/api/vst3/note-off":
-                return self._json(VST3.note_off(int(payload.get("note", 60)), int(payload.get("channel", 0))))
+                return self._json(VST3.note_off(int(payload.get("note", 60)), int(payload.get("channel", 0)), payload.get("instance_id")))
             if parsed.path == "/api/vst3/parameters":
-                return self._json(VST3.parameters())
+                return self._json(VST3.parameters(payload.get("instance_id")))
             if parsed.path == "/api/vst3/parameter":
-                return self._json(VST3.set_parameter(int(payload.get("id", 0)), float(payload.get("value", 0.0))))
+                return self._json(VST3.set_parameter(int(payload.get("id", 0)), float(payload.get("value", 0.0)), payload.get("instance_id")))
             if parsed.path == "/api/vst3/test-tone":
                 return self._json(VST3.test_tone())
             if parsed.path == "/api/vst3/editor/open":
@@ -430,7 +551,7 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/vst3/editor/close":
                 return self._json(VST3.close_editor())
             if parsed.path == "/api/vst3/unload":
-                return self._json(VST3.unload())
+                return self._json(VST3.unload(payload.get("instance_id")))
         except (TypeError, ValueError) as exc:
             return self._json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
