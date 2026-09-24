@@ -56,6 +56,13 @@ This harness keeps the synth reproducible and safe to evolve through natural-lan
 - Native build outputs are ignored by Git and are produced locally/CI only.
 - GitHub Actions must successfully compile `native/vst3_host/build/Release/nlss_vst3_host.exe` on `windows-latest` before the PR is considered complete.
 
+## v0.14.5 shared VST3 and drum routing checks
+
+- Tracks assigned to the same plug-in ID share one native plug-in instance; tracks assigned to different plug-ins retain separate instances.
+- The currently loaded main VST3 instance is reused by matching tracks, preserving the kit or preset selected in the plug-in editor.
+- With VST3 MIDI channel set to Auto, drum-role tracks use zero-based channel 9 (MIDI Channel 10) in live preview and batched arrangement playback.
+- Clearing or releasing one track never clears or unloads a shared instance still referenced by another track.
+
 ## v0.14.4 multi-instance performance checks
 
 - All logical track VST3 instances run inside one separate native host process and share exactly one miniaudio output device.
