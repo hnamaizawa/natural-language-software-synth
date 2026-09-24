@@ -49,14 +49,31 @@ def test_multitrack_playback_uses_audio_clock_queue_without_per_note_dom_timers(
     assert "function buildPlaybackQueue(tracks)" in runtime
     assert "function startInternalScheduler(queue,onCycleComplete,cycleBeats=TIMELINE_BEATS)" in runtime
     assert "engine.ctx.currentTime" in runtime
-    assert "SCHEDULER_LOOKAHEAD_S=.10" in runtime
-    assert "setInterval(tick,SCHEDULER_INTERVAL_MS)" in runtime
-    assert "engine.setPatchForPlayback(track.patch)" in runtime
-    assert "setPatchForPlayback(raw)" in app
-    assert "renderPatch();" not in app.split("setPatchForPlayback(raw)", 1)[1].split("noteOn(", 1)[0]
+    assert "for(const item of queue)" in runtime
+    assert "setInterval(" not in runtime
+    assert "engine.usePreparedPlaybackPatch(preparedPatchFor(track))" in runtime
+    assert "preparePlaybackPatch(raw)" in app
+    assert "usePreparedPlaybackPatch(patch)" in app
+    assert "engine.suppressPerformanceVisuals=true" in runtime
+    assert "if(!this.suppressPerformanceVisuals){setPerformanceActive(note,true);setTimeout" in app
     playback = runtime.split("function playNote", 1)[1].split("function setTrackSource", 1)[0]
     assert "renderPianoRoll()" not in playback
     assert "previewNotes" not in runtime
+
+
+def test_each_track_exposes_and_persists_an_independent_source_selector():
+    html = read("web/index.html")
+    runtime = read("web/multitrack_runtime.js")
+    css = read("web/multitrack.css")
+    assert "track-source-select" in runtime
+    assert '[["internal","内蔵音源"],["reference","CD/Reference調整"],["vst3","VST3音源"]]' in runtime
+    assert "track.source.type" in runtime
+    assert "track.source.plugin_id" in runtime
+    assert "CD/Reference調整済み内蔵音源" in runtime
+    assert "特徴量解析だけに使い" in runtime
+    assert ".track-source-select" in css
+    assert "/multitrack.css?v=0.14.2" in html
+    assert "/multitrack_runtime.js?v=0.14.2" in html
 
 
 def test_track_vst3_playback_uses_loaded_scanned_host_boundary():
