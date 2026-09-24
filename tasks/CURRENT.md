@@ -1,5 +1,18 @@
 # CURRENT
 
+## v0.14.4 Single-host Multi-instance VST3 Performance
+
+- [x] 複数トラックのVST3を単一Native Hostプロセスへ統合
+- [x] 全VST3インスタンスで単一Windows音声デバイスを共有
+- [x] トラックごとの独立VST3／Preset／MIDIチャンネルを維持
+- [x] Native Host内部ステレオミキサーを追加
+- [x] Note Off後の余韻を保持した無音インスタンス自動休止
+- [x] アレンジVST3イベントをトラック単位で一括送信
+- [x] Host負荷／音切れ候補／休止インスタンス診断を追加
+- [x] boundedインスタンスID／最大24／スキャン済みID限定を維持
+- [ ] `python -m pytest tests/` / Harness 最終確認
+- [ ] GitHub Actions Windows Native VST3 build 最終確認
+
 ## v0.14.3 Multi-instance VST3 Tracks
 
 - [x] トラックごとに独立したNative VST3 Hostプロセスを割り当て
