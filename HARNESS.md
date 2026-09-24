@@ -56,6 +56,14 @@ This harness keeps the synth reproducible and safe to evolve through natural-lan
 - Native build outputs are ignored by Git and are produced locally/CI only.
 - GitHub Actions must successfully compile `native/vst3_host/build/Release/nlss_vst3_host.exe` on `windows-latest` before the PR is considered complete.
 
+## v0.14.4 multi-instance performance checks
+
+- All logical track VST3 instances run inside one separate native host process and share exactly one miniaudio output device.
+- Track IDs remain bounded and each logical instance retains independent plug-in/controller state.
+- Arrangement Note On/Off events are bounded and sent as one batch per VST3 track; live playing retains the single-event path.
+- The native host mixes all active instance outputs into the shared stereo stream and hard-clamps the final samples.
+- An instance with no active notes is processed for a bounded four-second release tail and is then suspended until a new event arrives.
+
 ## Retained instrument checks
 - Grand Piano uses generated PCM roots plus hammer/damper/resonance layers and no second AudioContext.
 - Fretless explicit finger-style prompts keep enhanced Finger Noise / Attack PCM.
