@@ -18,7 +18,7 @@
     diagBtn.parentElement.append(editorBtn);
   }
 
-  let loaded=false,scheduledTimers=new Set(),routedVisualNotes=new Set(),programParameter=null;
+  let loaded=false,loadedPluginId="",loadedPluginName="",scheduledTimers=new Set(),routedVisualNotes=new Set(),programParameter=null;
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
   function routedChannel(){const selected=String(midiChannel?.value||"auto");return selected==="auto"?(engine.patch?.engine_type==="drum"?9:0):Math.round(clamp(selected,0,15));}
 
@@ -142,10 +142,10 @@
     show("VST3をロード中…");loadBtn.disabled=true;route.checked=false;clearRoutedVisuals();resetProgramUi();if(editorBtn)editorBtn.disabled=true;
     try{
       const data=await api("/api/vst3/load",{plugin_id:select.value});if(!data.ok)throw new Error(data.error||"ロード失敗");
-      loaded=true;route.disabled=false;unloadBtn.disabled=false;if(editorBtn)editorBtn.disabled=false;
+      loaded=true;loadedPluginId=select.value;loadedPluginName=data.name||select.selectedOptions[0]?.text||"loaded";route.disabled=false;unloadBtn.disabled=false;if(editorBtn)editorBtn.disabled=false;
       if(resumeRouting)route.checked=true;
       const channels=Number(data.main_output_channels||0),eventBus=Number(data.main_event_input_bus??-1);
-      const pluginName=data.name||select.selectedOptions[0]?.text||"loaded",ssdHint=/ssd|steven slate/i.test(pluginName)?" SSD5本体画面を開き、ドラムキットがロード済みか確認してください。":"";
+      const pluginName=loadedPluginName,ssdHint=/ssd|steven slate/i.test(pluginName)?" SSD5本体画面を開き、ドラムキットがロード済みか確認してください。":"";
       show(`VST3: ${pluginName} をロードしました。出力 ${channels}ch / Event Bus ${eventBus}。${ssdHint}`);
       await refreshParameters();
       restorePerformanceFocusSoon();
@@ -155,7 +155,7 @@
   }
   async function unload(){
     cancelScheduled();route.checked=false;route.disabled=true;if(editorBtn)editorBtn.disabled=true;
-    try{await api("/api/vst3/unload",{});}catch(_){}loaded=false;unloadBtn.disabled=true;params.innerHTML="";resetProgramUi();show("VST3を解除しました。");restorePerformanceFocusSoon();
+    try{await api("/api/vst3/unload",{});}catch(_){}loaded=false;loadedPluginId="";loadedPluginName="";unloadBtn.disabled=true;params.innerHTML="";resetProgramUi();show("VST3を解除しました。");restorePerformanceFocusSoon();
   }
 
   async function refreshParameters({preserveProgramMessage=false}={}){
@@ -198,5 +198,7 @@
 
   resetProgramUi();
   api("/api/vst3/status").then(data=>{show(data.native_host_available?"VST3ネイティブホストを利用できます。「VST3を検索」を押してください。":"VST3を使う場合は build_vst3_host.cmd を一度実行してください。");}).catch(()=>show("VST3状態を確認できませんでした。"));
-  window["vst3Router"]={scan,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked};
+  function trackNoteOn(note,velocity,channel=0,whenSeconds=0){if(!loaded)return false;scheduleNative("/api/vst3/note-on",{note:Math.round(clamp(note,0,127)),velocity:clamp(velocity,.001,1),channel:Math.round(clamp(channel,0,15))},whenSeconds);return true;}
+  function trackNoteOff(note,channel=0,whenSeconds=0){if(!loaded)return false;scheduleNative("/api/vst3/note-off",{note:Math.round(clamp(note,0,127)),channel:Math.round(clamp(channel,0,15))},whenSeconds);return true;}
+  window["vst3Router"]={scan,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),trackNoteOn,trackNoteOff,baseNoteOn,baseNoteOff};
 })();
