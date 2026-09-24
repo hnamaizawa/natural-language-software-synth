@@ -586,9 +586,9 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/vst3/test-tone":
                 return self._json(VST3.test_tone())
             if parsed.path == "/api/vst3/editor/open":
-                return self._json(VST3.open_editor())
+                return self._json(VST3.open_editor(payload.get("instance_id")))
             if parsed.path == "/api/vst3/editor/close":
-                return self._json(VST3.close_editor())
+                return self._json(VST3.close_editor(payload.get("instance_id")))
             if parsed.path == "/api/vst3/unload":
                 return self._json(VST3.unload(payload.get("instance_id")))
         except (TypeError, ValueError) as exc:

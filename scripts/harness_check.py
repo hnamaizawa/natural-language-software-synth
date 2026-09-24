@@ -256,7 +256,7 @@ def main() -> None:
     for control in vst_controls:
         if f'id="{control}"' not in html:
             fail(f"VST3 UI control missing: {control}")
-    if 'src="/vst3_runtime.js?v=0.14.6"' not in html or html.index('/humming_runtime.js') > html.index('/vst3_runtime.js'):
+    if 'src="/vst3_runtime.js?v=0.14.7"' not in html or html.index('/humming_runtime.js') > html.index('/vst3_runtime.js'):
         fail("VST3 router must load after humming and all audio wrappers")
     require_tokens(
         vst3_js,
@@ -266,8 +266,8 @@ def main() -> None:
             '"/api/vst3/editor/open"', "function isHostControl(active)", "function restorePerformanceFocusSoon()",
             "requestAnimationFrame", "await refreshParameters();", "const baseNoteOn=engine.noteOn.bind(engine)",
             "if(route.checked&&loaded)", "scheduleNative", "whenSeconds", "max_output_peak", "process_failures", "note_on_queued",
-            'sharedInstance=loaded&&pluginId===loadedPluginId?"main":`shared-${pluginId}`',
-            'track?.role==="drums"?9', "new Set([...trackInstances.values()]",
+            'api("/api/vst3/load",{plugin_id:pluginId,instance_id:trackId})',
+            'track?.midi_channel,0,15', "new Set([...trackInstances.values()]",
         ],
         "browser VST3 routing",
     )

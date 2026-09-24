@@ -56,6 +56,12 @@ This harness keeps the synth reproducible and safe to evolve through natural-lan
 - Native build outputs are ignored by Git and are produced locally/CI only.
 - GitHub Actions must successfully compile `native/vst3_host/build/Release/nlss_vst3_host.exe` on `windows-latest` before the PR is considered complete.
 
+## v0.14.7 independent VST3 track instances and channels
+
+- Each VST3 track owns a persistent native instance. Loading a different STEP 2 plug-in, previewing one clip, and muting other tracks must preserve other track instances and editors.
+- The selected track's editor endpoint receives its bounded instance ID. MIDI channel assignment favors free channels and keeps drum Channel 10 where available, with explicit manual override and bounded JSON persistence.
+- Idle scheduler polls are reduced, and the Native Host mixes directly into the output buffer when one instance is active.
+
 ## v0.14.6 track VST3 selection and bounded scheduling
 
 - Track sound settings list scanned VST3 IDs independently for each selected track and retain assignments in the bounded project model.
