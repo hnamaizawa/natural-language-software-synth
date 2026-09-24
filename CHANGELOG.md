@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.14.3
+
+- トラックごとに独立したNative VST3 Hostプロセスを持つ、最大24個のboundedインスタンス管理を追加。
+- 同じVST3または異なるVST3を複数パートへ割り当て、アレンジで同時再生可能にした。
+- 再生前に必要なトラックインスタンスを準備し、トラックID付きNote On／Offを対応するホストへ送信。
+- VST3割り当てはスキャン済みローカルプラグインIDに限定し、ブラウザー／localhost／値Clamp境界を維持。
+- マルチトラックとVST3 Runtimeのキャッシュ識別子をv0.14.3へ更新。Native Host C++の再ビルドは不要。
+
 ## v0.14.2
 
 - アレンジ全体を再生開始前にAudioContextへ予約し、再生中のlook-ahead intervalを廃止。
