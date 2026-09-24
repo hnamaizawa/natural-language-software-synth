@@ -43,6 +43,22 @@ def test_arrangement_can_play_all_tracks_and_loop_with_mute_solo():
     assert "scheduleCycle()" in runtime
 
 
+def test_multitrack_playback_uses_audio_clock_queue_without_per_note_dom_timers():
+    runtime = read("web/multitrack_runtime.js")
+    app = read("web/app.js")
+    assert "function buildPlaybackQueue(tracks)" in runtime
+    assert "function startInternalScheduler(queue,onCycleComplete,cycleBeats=TIMELINE_BEATS)" in runtime
+    assert "engine.ctx.currentTime" in runtime
+    assert "SCHEDULER_LOOKAHEAD_S=.10" in runtime
+    assert "setInterval(tick,SCHEDULER_INTERVAL_MS)" in runtime
+    assert "engine.setPatchForPlayback(track.patch)" in runtime
+    assert "setPatchForPlayback(raw)" in app
+    assert "renderPatch();" not in app.split("setPatchForPlayback(raw)", 1)[1].split("noteOn(", 1)[0]
+    playback = runtime.split("function playNote", 1)[1].split("function setTrackSource", 1)[0]
+    assert "renderPianoRoll()" not in playback
+    assert "previewNotes" not in runtime
+
+
 def test_track_vst3_playback_uses_loaded_scanned_host_boundary():
     runtime = read("web/multitrack_runtime.js")
     vst3 = read("web/vst3_runtime.js")
