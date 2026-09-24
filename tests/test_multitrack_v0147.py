@@ -52,3 +52,28 @@ def test_native_mixer_avoids_scratch_buffer_for_single_active_instance():
     assert "bool hasActiveOutput = false;" in native
     assert "pair.second->render (output, frames);" in native
     assert "if (scratch_.size () < samples) scratch_.resize (samples);" in native
+
+
+def test_inline_track_settings_route_editor_and_parameters_by_track_instance(monkeypatch, tmp_path):
+    manager = Vst3InstanceManager()
+    manager._catalog._plugins = {name: tmp_path / f"{name}.vst3" for name in ("a", "b")}
+    calls = []
+    monkeypatch.setattr(Vst3Bridge, "load", lambda bridge, plugin_id, instance_id=None: {"ok": True})
+    monkeypatch.setattr(Vst3Bridge, "status", lambda bridge: {"running": True})
+    monkeypatch.setattr(Vst3Bridge, "open_editor", lambda bridge, instance_id=None: calls.append(("editor", instance_id)) or {"ok": True})
+    monkeypatch.setattr(Vst3Bridge, "parameters", lambda bridge, instance_id=None: calls.append(("parameters", instance_id)) or {"ok": True, "parameters": []})
+    monkeypatch.setattr(Vst3Bridge, "set_parameter", lambda bridge, parameter_id, value, instance_id=None: calls.append(("set", instance_id, parameter_id, value)) or {"ok": True})
+    manager.load("a", "track-drums")
+    manager.load("b", "track-bass")
+    manager.open_editor("track-drums")
+    manager.open_editor("track-bass")
+    manager.parameters("track-drums")
+    manager.set_parameter(7, 0.4, "track-bass")
+    assert calls == [("editor", "track-drums"), ("editor", "track-bass"), ("parameters", "track-drums"), ("set", "track-bass", 7, 0.4)]
+    runtime = read("web/multitrack_runtime.js")
+    router = read("web/vst3_runtime.js")
+    assert 'row.append(color,copyNode,sourceSelect,controls,inlineVstSettings(track))' in runtime
+    assert 'openTrackVstEditor(track)' in runtime
+    assert 'trackSetParameter(track,param.id' in runtime
+    assert 'api("/api/vst3/parameters",{instance_id:track.id})' in router
+    assert 'api("/api/vst3/parameter",{instance_id:track.id' in router

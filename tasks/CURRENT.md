@@ -1,5 +1,10 @@
 # CURRENT
 
+## v0.14.8 Inline VST3 track editor
+
+- [x] 各パート行に VST3 詳細設定・本体画面・パラメータ調整を設置
+- [x] 各操作をパート固有の VST3 インスタンスへ送信
+
 ## v0.14.7 Per-track VST3 Loading / MIDI Channel Assignment
 
 - [x] 各トラック専用のVST3インスタンスを個別ロード・維持
