@@ -73,10 +73,10 @@ def test_each_track_exposes_and_persists_an_independent_source_selector():
     assert "特徴量解析だけに使い" in runtime
     assert ".track-source-select" in css
     assert "/multitrack.css?v=0.14.3" in html
-    assert "/multitrack_runtime.js?v=0.14.4" in html
+    assert "/multitrack_runtime.js?v=0.14.5" in html
 
 
-def test_track_vst3_playback_uses_isolated_scanned_host_instances():
+def test_track_vst3_playback_uses_shared_scanned_host_instances():
     runtime = read("web/multitrack_runtime.js")
     vst3 = read("web/vst3_runtime.js")
     assert "router?.trackNoteOn(track.id" in runtime
@@ -84,7 +84,10 @@ def test_track_vst3_playback_uses_isolated_scanned_host_instances():
     assert "prepareTracks(tracks)" in runtime
     assert "loadedPlugin:()=>" in vst3
     assert "const trackInstances=new Map()" in vst3
-    assert 'instance_id:track.id' in vst3
+    assert "instance_id:target.instanceId" in vst3
+    assert "channelForTrack" in vst3
+    assert 'track?.role==="drums"?9' in vst3
+    assert "const channel=vstChannel(track)" in runtime
     assert "trackNoteOn,trackNoteOff,trackEvents,clearTrackEvents,baseNoteOn,baseNoteOff" in vst3
     assert 'import(".vst3")' not in runtime
     assert "fetch(" not in runtime

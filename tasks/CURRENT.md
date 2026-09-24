@@ -1,5 +1,13 @@
 # CURRENT
 
+## v0.14.5 Shared VST3 / SSD5 Drum Routing
+
+- [x] 同じVST3を使うトラックをプラグインID単位の共有インスタンスへ集約
+- [x] STEP 2で設定済みのメインVST3／SSD5キットをマルチトラック再生で再利用
+- [x] マルチトラックのドラムを自動MIDI Channel 10へ統一
+- [x] 異なるVST3の同時再生とboundedインスタンス管理を維持
+- [x] 回帰テスト関数166件／JavaScript構文／Harness静的検査（ローカル環境にpytestパッケージなし）
+
 ## v0.14.4 Single-host Multi-instance VST3 Performance
 
 - [x] 複数トラックのVST3を単一Native Hostプロセスへ統合

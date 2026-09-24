@@ -45,17 +45,18 @@ def test_server_routes_each_note_to_requested_logical_instance_in_one_host():
     assert 'VST3.note_off(' in server
 
 
-def test_arrangement_preloads_and_routes_all_vst3_tracks_independently():
+def test_arrangement_reuses_one_instance_per_plugin_and_routes_each_track():
     html = read("web/index.html")
     router = read("web/vst3_runtime.js")
     multitrack = read("web/multitrack_runtime.js")
     assert "async function prepareTracks(tracks)" in router
-    assert 'api("/api/vst3/load",{plugin_id:track.source.plugin_id,instance_id:track.id})' in router
-    assert "trackInstances.set(track.id,track.source.plugin_id)" in router
+    assert 'sharedInstance=loaded&&pluginId===loadedPluginId?"main":`shared-${pluginId}`' in router
+    assert "current.pluginId!==pluginId||current.instanceId!==sharedInstance" in router
+    assert "trackInstances.set(track.id,{pluginId,instanceId:sharedInstance})" in router
     assert "await releaseTrack(instanceId)" in router
-    assert 'api("/api/vst3/unload",{instance_id:instanceId})' in router
-    assert "trackNoteOn(instanceId,note,velocity" in router
-    assert "trackNoteOff(instanceId,note,channel" in router
+    assert 'api("/api/vst3/unload",{instance_id:released.instanceId})' in router
+    assert "trackNoteOn(trackId,note,velocity" in router
+    assert "trackNoteOff(trackId,note,channel" in router
     assert "function trackEvents(instanceId,events)" in router
     assert 'api("/api/vst3/events"' in router
     assert 'api("/api/vst3/clear-events"' in router
@@ -65,14 +66,16 @@ def test_arrangement_preloads_and_routes_all_vst3_tracks_independently():
     assert "const vstEvents=new Map()" in multitrack
     assert "window.vst3Router?.trackEvents?.(trackId,events)" in multitrack
     assert "window.vst3Router?.clearTrackEvents?.()" in multitrack
-    assert '/vst3_runtime.js?v=0.14.4' in html
-    assert '/multitrack_runtime.js?v=0.14.4' in html
+    assert '/vst3_runtime.js?v=0.14.5' in html
+    assert '/multitrack_runtime.js?v=0.14.5' in html
 
 
-def test_blueprint_requires_bounded_isolated_vst3_instances():
+def test_blueprint_requires_bounded_shared_vst3_instances():
     blueprint = read("harness/app_blueprint.yaml")
     for token in [
-        "isolated_native_vst3_instance_per_track",
+        "shared_native_vst3_instance_per_plugin",
+        "loaded_main_vst3_state_reuse",
+        "multitrack_vst3_drum_channel_alignment",
         "simultaneous_multi_vst3_arrangement_playback",
         "bounded_vst3_instance_pool",
         "vst3_track_instances_must_load_scanned_plugin_ids_only",
