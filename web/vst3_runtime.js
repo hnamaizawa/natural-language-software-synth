@@ -198,10 +198,11 @@
   async function diagnostics(){
     show("VST3診断を取得中…");
     try{
-      const d=await api("/api/vst3/diagnostics");if(!d.ok)throw new Error(d.error||"診断失敗");
+      const [d,host]=await Promise.all([api("/api/vst3/diagnostics"),api("/api/vst3/status")]);if(!d.ok)throw new Error(d.error||"診断失敗");
       const peakValue=Number(d.max_output_peak||0),peak=peakValue.toFixed(6),failures=Number(d.process_failures||0),routeState=route.checked?"ON":"OFF",events=Number(d.events_delivered||0);
       const guidance=events>0&&peakValue<0.000001?" MIDIイベントは到達していますが音声出力が0です。VST3本体画面でキット／Presetのロード、Master音量、MIDI受信チャンネルを確認し、SSD5ではチャンネル1も試してください。":events===0?" 演奏後もEventが0ならVST3ルーティングとEvent Busを確認してください。":"";
-      show(`VST3診断: Route ${routeState} / MIDI Ch ${routedChannel()+1} / NoteOn ${d.note_on_queued||0} / Event ${events} / process ${d.process_calls||0} (失敗 ${failures}) / peak ${peak} / output ${d.main_output_channels||0}ch / Event Bus ${d.main_event_input_bus??-1}${d.editor_open?" / Editor OPEN":""}。${guidance}`);
+      const hostLoad=Number(host.cpu_load_percent||0).toFixed(1),overruns=Number(host.audio_overruns||0),suspended=Number(host.idle_suspended_count||0);
+      show(`VST3診断: Route ${routeState} / MIDI Ch ${routedChannel()+1} / NoteOn ${d.note_on_queued||0} / Event ${events} / process ${d.process_calls||0} (失敗 ${failures}) / peak ${peak} / output ${d.main_output_channels||0}ch / Event Bus ${d.main_event_input_bus??-1} / Host負荷 ${hostLoad}% / 音切れ候補 ${overruns} / 休止 ${suspended}${d.editor_open?" / Editor OPEN":""}。${guidance}`);
     }catch(err){show(`VST3診断エラー: ${err.message}`);}finally{restorePerformanceFocusSoon();}
   }
 
@@ -219,5 +220,12 @@
   function selectedPlugin(){const id=select.value,name=select.selectedOptions[0]?.text||"";return id?{id,name}:loaded?{id:loadedPluginId,name:loadedPluginName}:null;}
   function trackNoteOn(instanceId,note,velocity,channel=0,whenSeconds=0){if(!trackInstances.has(instanceId))return false;scheduleNative("/api/vst3/note-on",{instance_id:instanceId,note:Math.round(clamp(note,0,127)),velocity:clamp(velocity,.001,1),channel:Math.round(clamp(channel,0,15))},whenSeconds);return true;}
   function trackNoteOff(instanceId,note,channel=0,whenSeconds=0){if(!trackInstances.has(instanceId))return false;scheduleNative("/api/vst3/note-off",{instance_id:instanceId,note:Math.round(clamp(note,0,127)),channel:Math.round(clamp(channel,0,15))},whenSeconds);return true;}
-  window["vst3Router"]={scan,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,releaseTrack,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,trackNoteOn,trackNoteOff,baseNoteOn,baseNoteOff};
+  function trackEvents(instanceId,events){
+    if(!trackInstances.has(instanceId))return false;
+    const bounded=(events||[]).slice(0,1024).map(event=>({on:Boolean(event.on),note:Math.round(clamp(event.note,0,127)),velocity:clamp(event.velocity,0,1),channel:Math.round(clamp(event.channel,0,15)),delay_ms:clamp(event.delay_ms,0,120000)}));
+    api("/api/vst3/events",{instance_id:instanceId,events:bounded}).then(data=>{if(!data.ok)throw new Error(data.error||"VST3一括イベント送信失敗");}).catch(err=>show(`VST3一括イベント送信エラー: ${err.message}`));
+    return true;
+  }
+  function clearTrackEvents(){for(const instanceId of trackInstances.keys())api("/api/vst3/clear-events",{instance_id:instanceId}).catch(()=>{});}
+  window["vst3Router"]={scan,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,releaseTrack,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,trackNoteOn,trackNoteOff,trackEvents,clearTrackEvents,baseNoteOn,baseNoteOff};
 })();

@@ -256,12 +256,12 @@ def main() -> None:
     for control in vst_controls:
         if f'id="{control}"' not in html:
             fail(f"VST3 UI control missing: {control}")
-    if 'src="/vst3_runtime.js?v=0.14.3"' not in html or html.index('/humming_runtime.js') > html.index('/vst3_runtime.js'):
+    if 'src="/vst3_runtime.js?v=0.14.4"' not in html or html.index('/humming_runtime.js') > html.index('/vst3_runtime.js'):
         fail("VST3 router must load after humming and all audio wrappers")
     require_tokens(
         vst3_js,
         [
-            'fetch(path,options)', '"/api/vst3/scan"', '"/api/vst3/load"', '"/api/vst3/note-on"', '"/api/vst3/note-off"',
+            'fetch(path,options)', '"/api/vst3/scan"', '"/api/vst3/load"', '"/api/vst3/note-on"', '"/api/vst3/note-off"', '"/api/vst3/events"', '"/api/vst3/clear-events"',
             '"/api/vst3/parameters"', '"/api/vst3/parameter"', '"/api/vst3/test-tone"', '"/api/vst3/diagnostics"',
             '"/api/vst3/editor/open"', "function isHostControl(active)", "function restorePerformanceFocusSoon()",
             "requestAnimationFrame", "await refreshParameters();", "const baseNoteOn=engine.noteOn.bind(engine)",
@@ -280,9 +280,9 @@ def main() -> None:
             'os.environ.get("NLSS_VST3_PATHS"', 'os.environ.get("NLSS_VST3_HOST"', "self._plugins.get(plugin_id)",
             'subprocess.Popen(', 'creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)',
             "midi_note = max(0, min(127", "velocity = max(0.0, min(1.0", "value = max(0.0, min(1.0",
-            '"/api/vst3/scan"', '"/api/vst3/load"', '"/api/vst3/note-on"', '"/api/vst3/parameter"',
+            '"/api/vst3/scan"', '"/api/vst3/load"', '"/api/vst3/note-on"', '"/api/vst3/events"', '"/api/vst3/parameter"',
             '"/api/vst3/diagnostics"', '"/api/vst3/test-tone"', '"/api/vst3/editor/open"',
-            "DIAGNOSTICS", "TEST_TONE", 'self._command("EDITOR_OPEN")',
+            "DIAGNOSTICS", "TEST_TONE", 'self._command(f"EDITOR_OPEN',
             "from ai_synth.timbre_variants import generate_patch",
         ],
         "Python VST3 bridge",
@@ -308,9 +308,12 @@ def main() -> None:
             "mainOutputBus_", "clearProcessOutputs", "maxOutputPeak_", "processFailures_", "diagnosticsJson",
             "startTestTone", "ma_device_init", "ma_device_start", "NOTE_ON", "NOTE_OFF", "PARAMS", "LOAD",
             'parts[0] == "EDITOR_OPEN"', "editor_.bind", "queueProcessorParameter", "kParamValuesChanged",
+            "class NativeVst3Rack", "kMaxInstances = 24", "single_audio_device", "isIdleSuspended", 'parts[0] == "BATCH"', 'parts[0] == "CLEAR"',
         ],
         "native VST3 host",
     )
+    if native_cpp.count("ma_device_init") != 1 or native_cpp.count("ma_device_start") != 1:
+        fail("multi-track VST3 must share one native audio device")
     require_tokens(
         native_editor_h + "\n" + native_editor_cpp,
         [

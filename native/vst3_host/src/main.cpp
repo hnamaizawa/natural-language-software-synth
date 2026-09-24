@@ -28,6 +28,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -98,6 +99,7 @@ struct PendingNote
     int32 pitch {60};
     float velocity {0.8f};
     int16 channel {0};
+    uint64_t delayFrames {0};
 };
 
 struct PendingParam
@@ -117,38 +119,10 @@ public:
 
     ~NativeVst3Host ()
     {
-        stopAudio ();
         unload ();
     }
 
-    bool startAudio ()
-    {
-        ma_device_config config = ma_device_config_init (ma_device_type_playback);
-        config.playback.format = ma_format_f32;
-        config.playback.channels = kChannels;
-        config.sampleRate = kPreferredSampleRate;
-        config.periodSizeInFrames = kBlockSize;
-        config.dataCallback = &NativeVst3Host::dataCallback;
-        config.pUserData = this;
-        if (ma_device_init (nullptr, &config, &device_) != MA_SUCCESS)
-            return false;
-        sampleRate_ = device_.sampleRate ? device_.sampleRate : kPreferredSampleRate;
-        if (ma_device_start (&device_) != MA_SUCCESS)
-        {
-            ma_device_uninit (&device_);
-            return false;
-        }
-        audioStarted_ = true;
-        return true;
-    }
-
-    void stopAudio ()
-    {
-        if (!audioStarted_)
-            return;
-        ma_device_uninit (&device_);
-        audioStarted_ = false;
-    }
+    void setSampleRate (uint32_t value) { sampleRate_ = value ? value : kPreferredSampleRate; }
 
     bool load (const std::string& path, std::string& error)
     {
@@ -285,6 +259,7 @@ public:
             [this] (ParamID id, ParamValue value) { queueProcessorParameter (id, value); },
             [this] (int32 flags) { onEditorRestart (flags); });
         loaded_.store (true);
+        idleFramesRemaining_.store (static_cast<int64_t> (sampleRate_));
         return true;
     }
 
@@ -294,17 +269,28 @@ public:
         unloadUnlocked ();
     }
 
-    void queueNote (bool on, int pitch, float velocity, int channel = 0)
+    void queueNote (bool on, int pitch, float velocity, int channel = 0, uint64_t delayFrames = 0)
     {
         pitch = std::max (0, std::min (127, pitch));
         velocity = std::max (0.0f, std::min (1.0f, velocity));
         channel = std::max (0, std::min (15, channel));
         if (on)
+        {
             noteOnQueued_.fetch_add (1);
+            activeNotes_.fetch_add (1);
+        }
         else
+        {
             noteOffQueued_.fetch_add (1);
+            auto active = activeNotes_.load ();
+            while (active > 0 && !activeNotes_.compare_exchange_weak (active, active - 1)) {}
+        }
+        const auto keepAlive = static_cast<int64_t> (delayFrames) + static_cast<int64_t> (sampleRate_) * 4;
+        auto currentKeepAlive = idleFramesRemaining_.load ();
+        while (keepAlive > currentKeepAlive &&
+               !idleFramesRemaining_.compare_exchange_weak (currentKeepAlive, keepAlive)) {}
         std::lock_guard<std::mutex> lock (queueMutex_);
-        pendingNotes_.push_back ({on, pitch, velocity, static_cast<int16> (channel)});
+        pendingNotes_.push_back ({on, pitch, velocity, static_cast<int16> (channel), delayFrames});
         if (pendingNotes_.size () > 1024)
             pendingNotes_.erase (pendingNotes_.begin (), pendingNotes_.begin () + 512);
     }
@@ -317,6 +303,17 @@ public:
         controller_->setParamNormalized (static_cast<ParamID> (id), value);
         queueProcessorParameter (static_cast<ParamID> (id), value);
         return true;
+    }
+
+    void clearScheduledEvents ()
+    {
+        std::lock_guard<std::mutex> lock (queueMutex_);
+        pendingNotes_.clear ();
+        for (int channel = 0; channel < 16; ++channel)
+            for (int pitch = 0; pitch < 128; ++pitch)
+                pendingNotes_.push_back ({false, pitch, 0.0f, static_cast<int16> (channel), 0});
+        activeNotes_.store (0);
+        idleFramesRemaining_.store (static_cast<int64_t> (sampleRate_) * 4);
     }
 
     bool openEditor (std::string& error)
@@ -341,6 +338,7 @@ public:
     void startTestTone ()
     {
         testToneFramesRemaining_.store (static_cast<int64_t> (sampleRate_ / 2));
+        idleFramesRemaining_.store (static_cast<int64_t> (sampleRate_));
     }
 
     std::string pluginJson () const
@@ -398,7 +396,8 @@ public:
         std::lock_guard<std::mutex> lock (stateMutex_);
         std::ostringstream out;
         out << "{\"ok\":true"
-            << ",\"audio_started\":" << (audioStarted_ ? "true" : "false")
+            << ",\"audio_started\":true"
+            << ",\"idle_suspended\":" << (isIdleSuspended () ? "true" : "false")
             << ",\"loaded\":" << (loaded_.load () ? "true" : "false")
             << ",\"editor_open\":" << (editor_.isOpen () ? "true" : "false")
             << ",\"sample_rate\":" << sampleRate_
@@ -422,7 +421,13 @@ public:
         return out.str ();
     }
 
-private:
+public:
+    bool isIdleSuspended () const
+    {
+        return activeNotes_.load () <= 0 && idleFramesRemaining_.load () <= 0 &&
+               testToneFramesRemaining_.load () <= 0;
+    }
+
     static void dataCallback (ma_device* device, void* output, const void*, ma_uint32 frameCount)
     {
         auto* self = static_cast<NativeVst3Host*> (device->pUserData);
@@ -532,7 +537,7 @@ private:
     void render (float* output, ma_uint32 frameCount)
     {
         std::fill (output, output + static_cast<size_t> (frameCount) * kChannels, 0.0f);
-        if (loaded_.load ())
+        if (loaded_.load () && !isIdleSuspended ())
         {
             std::lock_guard<std::mutex> stateLock (stateMutex_);
             if (processor_ && component_)
@@ -543,7 +548,7 @@ private:
                     const int32 chunk = static_cast<int32> (std::min<ma_uint32> (kBlockSize, frameCount - rendered));
                     events_.clear ();
                     parameterChanges_.clearQueue ();
-                    drainPendingChanges ();
+                    drainPendingChanges (chunk);
                     clearProcessInputs (chunk);
                     clearProcessOutputs (chunk);
                     processData_.numSamples = chunk;
@@ -559,24 +564,33 @@ private:
                     rendered += static_cast<ma_uint32> (chunk);
                 }
             }
+            if (activeNotes_.load () <= 0)
+                idleFramesRemaining_.fetch_sub (static_cast<int64_t> (frameCount));
         }
         addTestTone (output, frameCount);
     }
 
-    void drainPendingChanges ()
+    void drainPendingChanges (int32 chunkFrames)
     {
         std::vector<PendingNote> notes;
         std::vector<PendingParam> params;
         {
             std::lock_guard<std::mutex> lock (queueMutex_);
-            notes.swap (pendingNotes_);
+            const auto dueEnd = std::stable_partition (pendingNotes_.begin (), pendingNotes_.end (),
+                [chunkFrames] (const PendingNote& note) {
+                    return note.delayFrames < static_cast<uint64_t> (chunkFrames);
+                });
+            notes.assign (pendingNotes_.begin (), dueEnd);
+            for (auto it = dueEnd; it != pendingNotes_.end (); ++it)
+                it->delayFrames -= static_cast<uint64_t> (chunkFrames);
+            pendingNotes_.erase (pendingNotes_.begin (), dueEnd);
             params.swap (pendingParams_);
         }
         for (const auto& note : notes)
         {
             Event event {};
             event.busIndex = mainEventInputBus_ >= 0 ? mainEventInputBus_ : 0;
-            event.sampleOffset = 0;
+            event.sampleOffset = static_cast<int32> (note.delayFrames);
             event.ppqPosition = 0.0;
             event.flags = Event::kIsLive;
             if (note.on)
@@ -697,6 +711,8 @@ private:
     void unloadUnlocked ()
     {
         loaded_.store (false);
+        activeNotes_.store (0);
+        idleFramesRemaining_.store (0);
         editor_.unbind ();
         {
             std::lock_guard<std::mutex> lock (queueMutex_);
@@ -723,8 +739,6 @@ private:
     std::mutex queueMutex_;
     std::vector<PendingNote> pendingNotes_;
     std::vector<PendingParam> pendingParams_;
-    ma_device device_ {};
-    bool audioStarted_ {false};
     uint32_t sampleRate_ {kPreferredSampleRate};
     std::atomic<bool> loaded_ {false};
     VST3::Hosting::Module::Ptr module_;
@@ -751,13 +765,141 @@ private:
     std::atomic<float> lastOutputPeak_ {0.0f};
     std::atomic<float> maxOutputPeak_ {0.0f};
     std::atomic<int64_t> testToneFramesRemaining_ {0};
+    std::atomic<int32_t> activeNotes_ {0};
+    std::atomic<int64_t> idleFramesRemaining_ {0};
     double testTonePhase_ {0.0};
     std::string pluginName_;
     std::string pluginSubcategory_;
     std::string pluginPath_;
 };
 
-bool processCommand (NativeVst3Host& host, const std::string& line)
+class NativeVst3Rack
+{
+public:
+    static constexpr size_t kMaxInstances = 24;
+
+    ~NativeVst3Rack () { stopAudio (); }
+
+    bool startAudio ()
+    {
+        ma_device_config config = ma_device_config_init (ma_device_type_playback);
+        config.playback.format = ma_format_f32;
+        config.playback.channels = kChannels;
+        config.sampleRate = kPreferredSampleRate;
+        config.periodSizeInFrames = kBlockSize;
+        config.dataCallback = &NativeVst3Rack::dataCallback;
+        config.pUserData = this;
+        if (ma_device_init (nullptr, &config, &device_) != MA_SUCCESS) return false;
+        sampleRate_ = device_.sampleRate ? device_.sampleRate : kPreferredSampleRate;
+        if (ma_device_start (&device_) != MA_SUCCESS)
+        {
+            ma_device_uninit (&device_);
+            return false;
+        }
+        audioStarted_ = true;
+        return true;
+    }
+
+    void stopAudio ()
+    {
+        if (!audioStarted_) return;
+        ma_device_uninit (&device_);
+        audioStarted_ = false;
+    }
+
+    NativeVst3Host* find (const std::string& id)
+    {
+        std::lock_guard<std::mutex> lock (mutex_);
+        const auto it = instances_.find (id);
+        return it == instances_.end () ? nullptr : it->second.get ();
+    }
+
+    uint32_t sampleRate () const { return sampleRate_; }
+
+    NativeVst3Host* create (const std::string& id, std::string& error)
+    {
+        std::lock_guard<std::mutex> lock (mutex_);
+        const auto existing = instances_.find (id);
+        if (existing != instances_.end ()) return existing->second.get ();
+        if (instances_.size () >= kMaxInstances)
+        {
+            error = "VST3 instance limit reached.";
+            return nullptr;
+        }
+        auto host = std::make_unique<NativeVst3Host> ();
+        host->setSampleRate (sampleRate_);
+        auto* result = host.get ();
+        instances_.emplace (id, std::move (host));
+        return result;
+    }
+
+    void remove (const std::string& id)
+    {
+        std::lock_guard<std::mutex> lock (mutex_);
+        instances_.erase (id);
+    }
+
+    void pumpEditorMessages ()
+    {
+        std::lock_guard<std::mutex> lock (mutex_);
+        for (auto& pair : instances_) pair.second->pumpEditorMessages ();
+    }
+
+    std::string statusJson ()
+    {
+        std::lock_guard<std::mutex> lock (mutex_);
+        size_t suspended = 0;
+        for (const auto& pair : instances_) if (pair.second->isIdleSuspended ()) ++suspended;
+        std::ostringstream out;
+        out << "{\"ok\":true,\"audio_started\":" << (audioStarted_ ? "true" : "false")
+            << ",\"instance_count\":" << instances_.size ()
+            << ",\"idle_suspended_count\":" << suspended
+            << ",\"cpu_load_percent\":" << cpuLoadPercent_.load ()
+            << ",\"audio_overruns\":" << audioOverruns_.load ()
+            << ",\"single_audio_device\":true}";
+        return out.str ();
+    }
+
+private:
+    static void dataCallback (ma_device* device, void* output, const void*, ma_uint32 frames)
+    {
+        auto* rack = static_cast<NativeVst3Rack*> (device->pUserData);
+        const auto started = std::chrono::steady_clock::now ();
+        rack->render (static_cast<float*> (output), frames);
+        const auto elapsed = std::chrono::duration<double> (std::chrono::steady_clock::now () - started).count ();
+        const auto budget = static_cast<double> (frames) / static_cast<double> (rack->sampleRate_);
+        const float percent = budget > 0.0 ? static_cast<float> (elapsed / budget * 100.0) : 0.0f;
+        const float previous = rack->cpuLoadPercent_.load ();
+        rack->cpuLoadPercent_.store (previous * 0.9f + percent * 0.1f);
+        if (elapsed > budget) rack->audioOverruns_.fetch_add (1);
+    }
+
+    void render (float* output, ma_uint32 frames)
+    {
+        const auto samples = static_cast<size_t> (frames) * kChannels;
+        std::fill (output, output + samples, 0.0f);
+        std::lock_guard<std::mutex> lock (mutex_);
+        scratch_.resize (samples);
+        for (auto& pair : instances_)
+        {
+            if (pair.second->isIdleSuspended ()) continue;
+            pair.second->render (scratch_.data (), frames);
+            for (size_t i = 0; i < samples; ++i) output[i] += scratch_[i];
+        }
+        for (size_t i = 0; i < samples; ++i) output[i] = std::max (-1.0f, std::min (1.0f, output[i]));
+    }
+
+    std::mutex mutex_;
+    std::unordered_map<std::string, std::unique_ptr<NativeVst3Host>> instances_;
+    std::vector<float> scratch_;
+    ma_device device_ {};
+    uint32_t sampleRate_ {kPreferredSampleRate};
+    bool audioStarted_ {false};
+    std::atomic<float> cpuLoadPercent_ {0.0f};
+    std::atomic<uint64_t> audioOverruns_ {0};
+};
+
+bool processCommand (NativeVst3Rack& rack, const std::string& line)
 {
     const auto parts = splitTabs (line);
     if (parts.empty ()) return true;
@@ -765,51 +907,98 @@ bool processCommand (NativeVst3Host& host, const std::string& line)
     {
         if (parts[0] == "PING")
             std::cout << "{\"ok\":true,\"pong\":true}" << std::endl;
-        else if (parts[0] == "LOAD" && parts.size () >= 2)
+        else if (parts[0] == "LOAD" && parts.size () >= 3)
         {
             std::string error;
-            std::cout << (host.load (parts[1], error) ? host.pluginJson () : errorJson (error)) << std::endl;
+            auto* host = rack.create (parts[1], error);
+            std::cout << (host && host->load (parts[2], error) ? host->pluginJson () : errorJson (error)) << std::endl;
         }
-        else if (parts[0] == "STATUS") std::cout << host.pluginJson () << std::endl;
-        else if (parts[0] == "DIAGNOSTICS") std::cout << host.diagnosticsJson () << std::endl;
-        else if (parts[0] == "TEST_TONE")
+        else if (parts[0] == "STATUS") std::cout << rack.statusJson () << std::endl;
+        else if (parts[0] == "DIAGNOSTICS" && parts.size () >= 2)
         {
-            host.startTestTone ();
-            std::cout << "{\"ok\":true,\"test_tone\":true}" << std::endl;
+            auto* host = rack.find (parts[1]);
+            std::cout << (host ? host->diagnosticsJson () : errorJson ("Unknown VST3 instance")) << std::endl;
         }
-        else if (parts[0] == "EDITOR_OPEN")
+        else if (parts[0] == "TEST_TONE" && parts.size () >= 2)
+        {
+            auto* host = rack.find (parts[1]);
+            if (host) { host->startTestTone (); std::cout << "{\"ok\":true,\"test_tone\":true}" << std::endl; }
+            else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
+        }
+        else if (parts[0] == "EDITOR_OPEN" && parts.size () >= 2)
         {
             std::string error;
-            if (host.openEditor (error)) std::cout << "{\"ok\":true,\"editor_open\":true}" << std::endl;
+            auto* host = rack.find (parts[1]);
+            if (host && host->openEditor (error)) std::cout << "{\"ok\":true,\"editor_open\":true}" << std::endl;
             else std::cout << errorJson (error) << std::endl;
         }
-        else if (parts[0] == "EDITOR_CLOSE")
+        else if (parts[0] == "EDITOR_CLOSE" && parts.size () >= 2)
         {
-            host.closeEditor ();
-            std::cout << "{\"ok\":true,\"editor_open\":false}" << std::endl;
+            auto* host = rack.find (parts[1]);
+            if (host) { host->closeEditor (); std::cout << "{\"ok\":true,\"editor_open\":false}" << std::endl; }
+            else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
-        else if (parts[0] == "PARAMS") std::cout << host.parametersJson () << std::endl;
-        else if (parts[0] == "PARAM" && parts.size () >= 3)
+        else if (parts[0] == "PARAMS" && parts.size () >= 2)
         {
-            const auto id = static_cast<uint32_t> (std::stoul (parts[1]));
-            const auto value = std::stod (parts[2]);
-            std::cout << (host.queueParameter (id, value) ? "{\"ok\":true}" : errorJson ("No controller loaded")) << std::endl;
+            auto* host = rack.find (parts[1]);
+            std::cout << (host ? host->parametersJson () : errorJson ("Unknown VST3 instance")) << std::endl;
         }
-        else if (parts[0] == "NOTE_ON" && parts.size () >= 3)
+        else if (parts[0] == "PARAM" && parts.size () >= 4)
         {
+            auto* host = rack.find (parts[1]);
+            const auto id = static_cast<uint32_t> (std::stoul (parts[2]));
+            const auto value = std::stod (parts[3]);
+            std::cout << (host && host->queueParameter (id, value) ? "{\"ok\":true}" : errorJson ("No controller loaded")) << std::endl;
+        }
+        else if (parts[0] == "NOTE_ON" && parts.size () >= 4)
+        {
+            auto* host = rack.find (parts[1]);
+            const auto channel = parts.size () >= 5 ? std::stoi (parts[4]) : 0;
+            if (host) { host->queueNote (true, std::stoi (parts[2]), static_cast<float> (std::stod (parts[3])), channel); std::cout << "{\"ok\":true}" << std::endl; }
+            else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
+        }
+        else if (parts[0] == "NOTE_OFF" && parts.size () >= 3)
+        {
+            auto* host = rack.find (parts[1]);
             const auto channel = parts.size () >= 4 ? std::stoi (parts[3]) : 0;
-            host.queueNote (true, std::stoi (parts[1]), static_cast<float> (std::stod (parts[2])), channel);
-            std::cout << "{\"ok\":true}" << std::endl;
+            if (host) { host->queueNote (false, std::stoi (parts[2]), 0.0f, channel); std::cout << "{\"ok\":true}" << std::endl; }
+            else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
-        else if (parts[0] == "NOTE_OFF" && parts.size () >= 2)
+        else if (parts[0] == "BATCH" && parts.size () >= 3)
         {
-            const auto channel = parts.size () >= 3 ? std::stoi (parts[2]) : 0;
-            host.queueNote (false, std::stoi (parts[1]), 0.0f, channel);
-            std::cout << "{\"ok\":true}" << std::endl;
+            auto* host = rack.find (parts[1]);
+            if (!host) std::cout << errorJson ("Unknown VST3 instance") << std::endl;
+            else
+            {
+                size_t accepted = 0;
+                std::stringstream eventStream (parts[2]);
+                std::string encoded;
+                while (accepted < 1024 && std::getline (eventStream, encoded, ';'))
+                {
+                    std::stringstream fields (encoded);
+                    std::vector<std::string> values;
+                    std::string value;
+                    while (std::getline (fields, value, ',')) values.push_back (value);
+                    if (values.size () < 5) continue;
+                    const bool on = values[0] == "1";
+                    const auto delayFrames = static_cast<uint64_t> (
+                        std::max (0.0, std::stod (values[4])) * static_cast<double> (rack.sampleRate ()) / 1000.0);
+                    host->queueNote (on, std::stoi (values[1]), static_cast<float> (std::stod (values[2])),
+                                     std::stoi (values[3]), delayFrames);
+                    ++accepted;
+                }
+                std::cout << "{\"ok\":true,\"accepted\":" << accepted << "}" << std::endl;
+            }
         }
-        else if (parts[0] == "UNLOAD")
+        else if (parts[0] == "CLEAR" && parts.size () >= 2)
         {
-            host.unload ();
+            auto* host = rack.find (parts[1]);
+            if (host) { host->clearScheduledEvents (); std::cout << "{\"ok\":true}" << std::endl; }
+            else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
+        }
+        else if (parts[0] == "UNLOAD" && parts.size () >= 2)
+        {
+            rack.remove (parts[1]);
             std::cout << "{\"ok\":true}" << std::endl;
         }
         else if (parts[0] == "QUIT")
@@ -830,8 +1019,8 @@ bool processCommand (NativeVst3Host& host, const std::string& line)
 
 int main ()
 {
-    NativeVst3Host host;
-    if (!host.startAudio ())
+    NativeVst3Rack rack;
+    if (!rack.startAudio ())
     {
         std::cout << errorJson ("Could not open the default audio output device.") << std::endl;
         return 2;
@@ -855,11 +1044,11 @@ int main ()
         commandCv.notify_one ();
     });
 
-    std::cout << "{\"ok\":true,\"ready\":true,\"protocol\":3}" << std::endl;
+    std::cout << "{\"ok\":true,\"ready\":true,\"protocol\":4,\"single_audio_device\":true}" << std::endl;
     bool running = true;
     while (running)
     {
-        host.pumpEditorMessages ();
+        rack.pumpEditorMessages ();
         std::string line;
         {
             std::unique_lock<std::mutex> lock (commandMutex);
@@ -875,7 +1064,7 @@ int main ()
                 break;
         }
         if (!line.empty ())
-            running = processCommand (host, line);
+            running = processCommand (rack, line);
     }
 
     if (reader.joinable ())

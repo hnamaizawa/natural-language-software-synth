@@ -12,7 +12,7 @@ def test_vst3_ui_and_router_are_loaded_last():
         "vst3TestToneBtn", "vst3DiagBtn", "vst3RouteEnabled", "vst3Parameters", "vst3Status",
     ]:
         assert f'id="{control_id}"' in html
-    assert 'src="/vst3_runtime.js?v=0.14.3"' in html
+    assert 'src="/vst3_runtime.js?v=0.14.4"' in html
     assert html.index('/humming_runtime.js') < html.index('/vst3_runtime.js')
 
 
@@ -23,6 +23,8 @@ def test_browser_never_loads_vst3_binary_directly():
     assert "fetch(path,options)" in js
     for endpoint in [
         "/api/vst3/scan", "/api/vst3/load", "/api/vst3/note-on", "/api/vst3/note-off",
+        "/api/vst3/events",
+        "/api/vst3/clear-events",
         "/api/vst3/parameters", "/api/vst3/parameter", "/api/vst3/test-tone", "/api/vst3/diagnostics",
         "/api/vst3/unload",
     ]:
@@ -119,6 +121,25 @@ def test_native_host_uses_vst3_processing_events_parameters_and_audio_device():
     assert "event.noteOn.channel = note.channel" in cpp
     assert "event.noteOff.channel = note.channel" in cpp
     assert "std::min (15, channel)" in cpp
+
+
+def test_native_host_uses_one_audio_device_for_bounded_logical_instances_and_suspends_idle_plugins():
+    cpp = (ROOT / "native" / "vst3_host" / "src" / "main.cpp").read_text(encoding="utf-8")
+    server = (ROOT / "server.py").read_text(encoding="utf-8")
+    for token in [
+        "class NativeVst3Rack", "kMaxInstances = 24", "single_audio_device",
+        "std::unordered_map<std::string, std::unique_ptr<NativeVst3Host>>",
+        "isIdleSuspended", "idleFramesRemaining_", "rack.startAudio ()",
+        'parts[0] == "BATCH"', 'parts[0] == "CLEAR"', "delayFrames",
+        "cpu_load_percent", "audio_overruns",
+    ]:
+        assert token in cpp
+    assert cpp.count("ma_device_init") == 1
+    assert cpp.count("ma_device_start") == 1
+    assert "logical instances inside one native host and one audio device" in server
+    assert "self._catalog.load(plugin_id, key)" in server
+    assert 'self._command(f"BATCH' in server
+    assert '"cpu_load_percent"' in server
 
 
 def test_vst3_scan_ui_accepts_extra_local_folder_and_explains_vst2_files():

@@ -102,6 +102,11 @@ required_capabilities:
 - isolated_native_vst3_instance_per_track
 - simultaneous_multi_vst3_arrangement_playback
 - bounded_vst3_instance_pool
+- single_native_vst3_host_process
+- single_shared_native_audio_device
+- native_vst3_internal_mixer
+- idle_vst3_processing_suspension
+- batched_vst3_arrangement_events
 - stable_note_event_contract
 - future_sequencer_adapter_boundary
 - future_native_vst3_host_boundary
@@ -204,6 +209,9 @@ non_negotiable_invariants:
 - vst3_track_instances_must_load_scanned_plugin_ids_only
 - vst3_track_instance_count_must_be_bounded
 - vst3_track_notes_must_route_by_bounded_instance_id
+- vst3_track_instances_must_share_one_native_host_process
+- vst3_native_instances_must_share_one_audio_output_device
+- vst3_arrangement_events_must_be_bounded_and_batched
 - eval_and_dynamic_script_injection_forbidden
 required_files:
 - AGENTS.md

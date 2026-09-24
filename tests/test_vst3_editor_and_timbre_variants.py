@@ -31,7 +31,7 @@ def test_same_instance_native_vst3_editor_is_exposed_only_through_native_host():
 
     assert '"/api/vst3/editor/open"' in js
     assert '"/api/vst3/editor/open"' in server
-    assert 'self._command("EDITOR_OPEN")' in server
+    assert 'self._command(f"EDITOR_OPEN\\t{self._instance_id(instance_id)}")' in server
     assert 'parts[0] == "EDITOR_OPEN"' in native
     for token in [
         "createView (Steinberg::Vst::ViewType::kEditor)",
