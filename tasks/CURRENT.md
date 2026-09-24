@@ -1,5 +1,13 @@
 # CURRENT
 
+## v0.14.6 Track VST3 Selection / Playback Load
+
+- [x] 各トラック内のVST3一覧で検出済みの異なる音源を指定
+- [x] マルチトラックの一括ノート生成を短い先読み予約へ分散
+- [x] 共有VST3インスタンス単位でイベントを集約
+- [x] 回帰テスト関数168件／JavaScript構文／Harness静的検査（ローカル環境にpytestパッケージなし）
+- [ ] GitHub CI の pytest／Harness／Windows Native VST3 build
+
 ## v0.14.5 Shared VST3 / SSD5 Drum Routing
 
 - [x] 同じVST3を使うトラックをプラグインID単位の共有インスタンスへ集約
