@@ -12,7 +12,7 @@ def test_vst3_ui_and_router_are_loaded_last():
         "vst3TestToneBtn", "vst3DiagBtn", "vst3RouteEnabled", "vst3Parameters", "vst3Status",
     ]:
         assert f'id="{control_id}"' in html
-    assert 'src="/vst3_runtime.js"' in html
+    assert 'src="/vst3_runtime.js?v=0.14.3"' in html
     assert html.index('/humming_runtime.js') < html.index('/vst3_runtime.js')
 
 
