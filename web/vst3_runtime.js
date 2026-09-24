@@ -19,6 +19,7 @@
   }
 
   let loaded=false,loadedPluginId="",loadedPluginName="",scheduledQueue=[],scheduledTimer=0,routedVisualNotes=new Set(),programParameter=null;
+  const trackInstances=new Map();
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
   function routedChannel(){const selected=String(midiChannel?.value||"auto");return selected==="auto"?(engine.patch?.engine_type==="drum"?9:0):Math.round(clamp(selected,0,15));}
 
@@ -154,6 +155,22 @@
     catch(err){loaded=false;route.disabled=true;if(editorBtn)editorBtn.disabled=true;resetProgramUi("VST3をロードできませんでした。");show(`VST3ロードエラー: ${err.message}`);}
     finally{loadBtn.disabled=!select.value;restorePerformanceFocusSoon();}
   }
+  async function prepareTracks(tracks){
+    const requested=(tracks||[]).filter(track=>track?.source?.type==="vst3"&&track.source.plugin_id);
+    const requestedIds=new Set(requested.map(track=>track.id));
+    for(const instanceId of [...trackInstances.keys()])if(!requestedIds.has(instanceId))await releaseTrack(instanceId);
+    for(const track of requested){
+      const data=await api("/api/vst3/load",{plugin_id:track.source.plugin_id,instance_id:track.id});
+      if(!data.ok)throw new Error(`${track.name||"Track"}: ${data.error||"VST3ロード失敗"}`);
+      trackInstances.set(track.id,track.source.plugin_id);
+    }
+    return requested.length;
+  }
+  async function releaseTrack(instanceId){
+    if(!trackInstances.has(instanceId))return;
+    trackInstances.delete(instanceId);
+    try{await api("/api/vst3/unload",{instance_id:instanceId});}catch(_){}
+  }
   async function unload(){
     cancelScheduled();route.checked=false;route.disabled=true;if(editorBtn)editorBtn.disabled=true;
     try{await api("/api/vst3/unload",{});}catch(_){}loaded=false;loadedPluginId="";loadedPluginName="";unloadBtn.disabled=true;params.innerHTML="";resetProgramUi();show("VST3を解除しました。");restorePerformanceFocusSoon();
@@ -199,7 +216,8 @@
 
   resetProgramUi();
   api("/api/vst3/status").then(data=>{show(data.native_host_available?"VST3ネイティブホストを利用できます。「VST3を検索」を押してください。":"VST3を使う場合は build_vst3_host.cmd を一度実行してください。");}).catch(()=>show("VST3状態を確認できませんでした。"));
-  function trackNoteOn(note,velocity,channel=0,whenSeconds=0){if(!loaded)return false;scheduleNative("/api/vst3/note-on",{note:Math.round(clamp(note,0,127)),velocity:clamp(velocity,.001,1),channel:Math.round(clamp(channel,0,15))},whenSeconds);return true;}
-  function trackNoteOff(note,channel=0,whenSeconds=0){if(!loaded)return false;scheduleNative("/api/vst3/note-off",{note:Math.round(clamp(note,0,127)),channel:Math.round(clamp(channel,0,15))},whenSeconds);return true;}
-  window["vst3Router"]={scan,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),trackNoteOn,trackNoteOff,baseNoteOn,baseNoteOff};
+  function selectedPlugin(){const id=select.value,name=select.selectedOptions[0]?.text||"";return id?{id,name}:loaded?{id:loadedPluginId,name:loadedPluginName}:null;}
+  function trackNoteOn(instanceId,note,velocity,channel=0,whenSeconds=0){if(!trackInstances.has(instanceId))return false;scheduleNative("/api/vst3/note-on",{instance_id:instanceId,note:Math.round(clamp(note,0,127)),velocity:clamp(velocity,.001,1),channel:Math.round(clamp(channel,0,15))},whenSeconds);return true;}
+  function trackNoteOff(instanceId,note,channel=0,whenSeconds=0){if(!trackInstances.has(instanceId))return false;scheduleNative("/api/vst3/note-off",{instance_id:instanceId,note:Math.round(clamp(note,0,127)),channel:Math.round(clamp(channel,0,15))},whenSeconds);return true;}
+  window["vst3Router"]={scan,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,releaseTrack,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,trackNoteOn,trackNoteOff,baseNoteOn,baseNoteOff};
 })();
