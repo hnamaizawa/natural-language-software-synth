@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/performance_editor.css" />
   <link rel="stylesheet" href="/keyboard_performance.css" />
-  <link rel="stylesheet" href="/multitrack.css?v=0.14.3" />
+  <link rel="stylesheet" href="/multitrack.css?v=0.14.6" />
 </head>
 <body>
   <main>
@@ -45,6 +45,7 @@
               <button id="trackReferenceSourceBtn" type="button">CD/Reference調整音源</button>
               <button id="trackVstSourceBtn" type="button">VST3音源</button>
             </div>
+            <div class="track-vst-picker"><label>このトラックのVST3<select id="trackVstPluginSelect"><option value="">VST3を検索してください</option></select></label><button id="trackVstScanBtn" type="button">VST3を検索</button><p>各トラックで別の音源を選択できます。同じ音源を使うトラックは処理を共有します。</p></div>
             <div class="track-source-grid">
               <label>内蔵プリセット<select id="trackPresetSelect"></select></label>
               <button id="trackPresetApplyBtn" type="button">選択音色を適用</button>
@@ -195,8 +196,8 @@
   <script src="/humming_runtime.js"></script>
   <script src="/keyboard_performance_runtime.js"></script>
   <script src="/recording_workspace_runtime.js"></script>
-<script src="/multitrack_runtime.js?v=0.14.5"></script>
-<script src="/vst3_runtime.js?v=0.14.5"></script>
+<script src="/multitrack_runtime.js?v=0.14.6"></script>
+<script src="/vst3_runtime.js?v=0.14.6"></script>
   <script src="/ui_help_runtime.js"></script>
 </body>
 </html>

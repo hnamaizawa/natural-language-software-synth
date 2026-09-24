@@ -56,6 +56,11 @@ This harness keeps the synth reproducible and safe to evolve through natural-lan
 - Native build outputs are ignored by Git and are produced locally/CI only.
 - GitHub Actions must successfully compile `native/vst3_host/build/Release/nlss_vst3_host.exe` on `windows-latest` before the PR is considered complete.
 
+## v0.14.6 track VST3 selection and bounded scheduling
+
+- Track sound settings list scanned VST3 IDs independently for each selected track and retain assignments in the bounded project model.
+- Internal note preparation is bounded by a short AudioContext lookahead; shared VST3 events are grouped per instance and sent in batches of up to 1024.
+
 ## v0.14.5 shared VST3 and drum routing checks
 
 - Tracks assigned to the same plug-in ID share one native plug-in instance; tracks assigned to different plug-ins retain separate instances.

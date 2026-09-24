@@ -132,8 +132,9 @@
     try{
       const paths=String(extraScanPaths?.value||"").split(";").map(v=>v.trim()).filter(Boolean);
       const data=await api("/api/vst3/scan",{scan_paths:paths});select.innerHTML="";
-      if(!data.plugins?.length){select.append(new Option("VST3が見つかりませんでした",""));const incompatible=Number(data.incompatible_count||0);show(data.native_host_available?`VST3が見つかりません。検索: ${(data.scan_roots||[]).join(" / ")}${incompatible?`。VST3ではないDLL等を${incompatible}件検出しました（VST2は非対応）。`:""}`:"VST3は未検出です。ネイティブホストも未ビルドです。");return;}
+      if(!data.plugins?.length){select.append(new Option("VST3が見つかりませんでした",""));window.dispatchEvent(new Event("vst3-catalog-changed"));const incompatible=Number(data.incompatible_count||0);show(data.native_host_available?`VST3が見つかりません。検索: ${(data.scan_roots||[]).join(" / ")}${incompatible?`。VST3ではないDLL等を${incompatible}件検出しました（VST2は非対応）。`:""}`:"VST3は未検出です。ネイティブホストも未ビルドです。");return;}
       select.append(new Option(`${data.count}件から選択…`,""));for(const p of data.plugins)select.append(new Option(p.name,p.id));
+      window.dispatchEvent(new Event("vst3-catalog-changed"));
       show(`${data.count}件のVST3を検出しました。${Number(data.incompatible_count||0)?`VST3ではないDLL等 ${data.incompatible_count}件は除外しました。`:""}${data.native_host_available?"":" 初回は build_vst3_host.cmd を実行してください。"}`);
     }catch(err){show(`VST3検索エラー: ${err.message}`);}finally{scanBtn.disabled=false;loadBtn.disabled=!select.value;}
   }
@@ -227,6 +228,7 @@
   resetProgramUi();
   api("/api/vst3/status").then(data=>{show(data.native_host_available?"VST3ネイティブホストを利用できます。「VST3を検索」を押してください。":"VST3を使う場合は build_vst3_host.cmd を一度実行してください。");}).catch(()=>show("VST3状態を確認できませんでした。"));
   function selectedPlugin(){const id=select.value,name=select.selectedOptions[0]?.text||"";return id?{id,name}:loaded?{id:loadedPluginId,name:loadedPluginName}:null;}
+  function scannedPlugins(){return [...select.options].filter(option=>option.value).map(option=>({id:option.value,name:option.text}));}
   function channelForTrack(track){const selected=String(midiChannel?.value||"auto");return selected==="auto"?(track?.role==="drums"?9:Math.round(clamp(track?.midi_channel,0,15))):Math.round(clamp(selected,0,15));}
   function trackNoteOn(trackId,note,velocity,channel=0,whenSeconds=0){const target=trackInstances.get(trackId);if(!target)return false;scheduleNative("/api/vst3/note-on",{instance_id:target.instanceId,note:Math.round(clamp(note,0,127)),velocity:clamp(velocity,.001,1),channel:Math.round(clamp(channel,0,15))},whenSeconds);return true;}
   function trackNoteOff(trackId,note,channel=0,whenSeconds=0){const target=trackInstances.get(trackId);if(!target)return false;scheduleNative("/api/vst3/note-off",{instance_id:target.instanceId,note:Math.round(clamp(note,0,127)),channel:Math.round(clamp(channel,0,15))},whenSeconds);return true;}
@@ -236,6 +238,7 @@
     api("/api/vst3/events",{instance_id:target.instanceId,events:bounded}).then(data=>{if(!data.ok)throw new Error(data.error||"VST3一括イベント送信失敗");}).catch(err=>show(`VST3一括イベント送信エラー: ${err.message}`));
     return true;
   }
+  function trackEventsBatch(byTrack){const groups=new Map();for(const [trackId,events] of byTrack){const target=trackInstances.get(trackId);if(!target)continue;const group=groups.get(target.instanceId)||[];group.push(...events);groups.set(target.instanceId,group);}for(const [instanceId,events] of groups){events.sort((a,b)=>a.delay_ms-b.delay_ms);(async()=>{for(let i=0;i<events.length;i+=1024){const data=await api("/api/vst3/events",{instance_id:instanceId,events:events.slice(i,i+1024)});if(!data.ok)throw new Error(data.error||"VST3一括イベント送信失敗");}})().catch(err=>show(`VST3一括イベント送信エラー: ${err.message}`));}}
   function clearTrackEvents(){for(const instanceId of new Set([...trackInstances.values()].map(value=>value.instanceId)))api("/api/vst3/clear-events",{instance_id:instanceId}).catch(()=>{});}
-  window["vst3Router"]={scan,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,releaseTrack,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,clearTrackEvents,baseNoteOn,baseNoteOff};
+  window["vst3Router"]={scan,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,releaseTrack,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,baseNoteOn,baseNoteOff};
 })();

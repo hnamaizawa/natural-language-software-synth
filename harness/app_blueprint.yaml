@@ -99,6 +99,9 @@ required_capabilities:
 - render_free_playback_patch_switching
 - prevalidated_per_track_playback_patches
 - per_track_inline_source_selector
+- per_track_scanned_vst3_picker
+- bounded_arrangement_lookahead
+- shared_vst3_instance_event_batching
 - shared_native_vst3_instance_per_plugin
 - loaded_main_vst3_state_reuse
 - multitrack_vst3_drum_channel_alignment
@@ -208,6 +211,8 @@ non_negotiable_invariants:
 - arrangement_scheduler_must_not_validate_patch_per_note
 - reference_audio_must_remain_feature_only_not_playback_pcm
 - vst3_track_assignment_must_use_current_scanned_loaded_plugin
+- vst3_track_assignment_must_use_scanned_plugin_ids_only
+- arrangement_scheduler_must_bound_lookahead
 - vst3_track_instances_must_load_scanned_plugin_ids_only
 - vst3_track_instance_count_must_be_bounded
 - vst3_track_notes_must_route_by_bounded_instance_id

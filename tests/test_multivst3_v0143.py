@@ -63,11 +63,11 @@ def test_arrangement_reuses_one_instance_per_plugin_and_routes_each_track():
     assert "await window.vst3Router?.prepareTracks(tracks)" in multitrack
     assert "router?.trackNoteOn(track.id" in multitrack
     assert "router?.trackNoteOff(track.id" in multitrack
-    assert "const vstEvents=new Map()" in multitrack
-    assert "window.vst3Router?.trackEvents?.(trackId,events)" in multitrack
+    assert "vstEvents=new Map()" in multitrack
+    assert "window.vst3Router?.trackEventsBatch?.(vstEvents)" in multitrack
     assert "window.vst3Router?.clearTrackEvents?.()" in multitrack
-    assert '/vst3_runtime.js?v=0.14.5' in html
-    assert '/multitrack_runtime.js?v=0.14.5' in html
+    assert '/vst3_runtime.js?v=0.14.6' in html
+    assert '/multitrack_runtime.js?v=0.14.6' in html
 
 
 def test_blueprint_requires_bounded_shared_vst3_instances():
