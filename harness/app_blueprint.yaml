@@ -97,6 +97,8 @@ required_capabilities:
 - bounded_arrangement_loop_playback
 - audio_clock_multitrack_event_scheduler
 - render_free_playback_patch_switching
+- prevalidated_per_track_playback_patches
+- per_track_inline_source_selector
 - stable_note_event_contract
 - future_sequencer_adapter_boundary
 - future_native_vst3_host_boundary
@@ -193,6 +195,8 @@ non_negotiable_invariants:
 - arrangement_playback_must_use_bounded_note_events
 - arrangement_playback_must_not_drive_piano_roll_dom
 - arrangement_scheduler_must_not_render_patch_per_note
+- arrangement_scheduler_must_not_validate_patch_per_note
+- reference_audio_must_remain_feature_only_not_playback_pcm
 - vst3_track_assignment_must_use_current_scanned_loaded_plugin
 - eval_and_dynamic_script_injection_forbidden
 required_files:
