@@ -1,5 +1,14 @@
 # CURRENT
 
+## v0.14.0 Per-track Sound Source / Arrangement Loop
+
+- [x] 各トラックにTRACK SOUND設定UIを追加
+- [x] 内蔵プリセット／自然言語調整／Reference Audio調整／VST3割当を明示
+- [x] Sample Performanceを16拍Note Clipへ拡張
+- [x] 全トラック同時再生、Mute／Solo、停止、ループを追加
+- [x] 内蔵音源と現在ロード中VST3をトラックsourceに従って呼び分け
+- [x] `python -m pytest tests/` / Harness 最終確認（159 passed / HARNESS PASS）
+
 ## v0.13.1 Multi-track Visibility / Cache Safety
 
 - [x] マージ済みmainに7パート／Note Clip／Timeline／Piano Roll実装が存在することを再確認

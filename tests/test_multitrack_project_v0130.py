@@ -39,8 +39,10 @@ def test_project_and_note_clip_imports_are_bounded_and_validated():
 
 def test_clip_preview_reuses_stable_note_event_contract():
     runtime = read("web/multitrack_runtime.js")
-    assert "engine.noteOn(event.note,event.velocity*track.volume)" in runtime
-    assert "engine.noteOff(event.note)" in runtime
+    assert "router?.baseNoteOn||engine.noteOn.bind(engine)" in runtime
+    assert "router?.baseNoteOff||engine.noteOff.bind(engine)" in runtime
+    assert "playNote(track,event,true)" in runtime
+    assert "playNote(track,event,false)" in runtime
     assert "await engine.init()" in runtime
 
 
