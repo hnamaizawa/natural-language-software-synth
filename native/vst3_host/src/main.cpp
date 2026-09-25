@@ -517,6 +517,7 @@ public:
     void queueProcessorParameter (ParamID id, ParamValue value)
     {
         value = std::max<ParamValue> (0.0, std::min<ParamValue> (1.0, value));
+        idleFramesRemaining_.store (std::max<int64_t> (idleFramesRemaining_.load (), sampleRate_ / 2));
         std::lock_guard<std::mutex> lock (queueMutex_);
         pendingParams_.push_back ({id, value});
         if (pendingParams_.size () > 1024)
@@ -628,7 +629,7 @@ public:
                     const int32 chunk = static_cast<int32> (std::min<ma_uint32> (kBlockSize, frameCount - rendered));
                     events_.clear ();
                     parameterChanges_.clearQueue ();
-                    drainPendingChanges (chunk);
+                    const bool queueEmpty = drainPendingChanges (chunk);
                     clearProcessInputs (chunk);
                     clearProcessOutputs (chunk);
                     processData_.numSamples = chunk;
@@ -643,9 +644,6 @@ public:
                     processedSamples_ += chunk;
                     // Only suspend after a sustained inaudible tail. A scheduled note still
                     // waiting in the queue must keep the processor alive.
-                    bool queueEmpty;
-                    { std::lock_guard<std::mutex> queueLock (queueMutex_);
-                      queueEmpty = pendingNotes_.empty () && pendingParams_.empty (); }
                     if (activeNotes_.load () <= 0 && queueEmpty &&
                         lastOutputPeak_.load () < 0.0001f)
                         quietFrames_ += static_cast<uint32_t> (chunk);
@@ -679,10 +677,11 @@ public:
         addTestTone (output, frameCount);
     }
 
-    void drainPendingChanges (int32 chunkFrames)
+    bool drainPendingChanges (int32 chunkFrames)
     {
         std::vector<PendingNote> notes;
         std::vector<PendingParam> params;
+        bool queueEmpty = false;
         {
             std::lock_guard<std::mutex> lock (queueMutex_);
             const auto dueEnd = std::stable_partition (pendingNotes_.begin (), pendingNotes_.end (),
@@ -694,6 +693,7 @@ public:
                 it->delayFrames -= static_cast<uint64_t> (chunkFrames);
             pendingNotes_.erase (pendingNotes_.begin (), dueEnd);
             params.swap (pendingParams_);
+            queueEmpty = pendingNotes_.empty () && notes.empty () && params.empty ();
         }
         for (const auto& note : notes)
         {
@@ -734,6 +734,7 @@ public:
                 queue->addPoint (0, param.value, pointIndex);
             }
         }
+        return queueEmpty;
     }
 
     void clearProcessInputs (int32 frames)
