@@ -50,7 +50,7 @@ def test_arrangement_uses_one_native_instance_per_track_and_routes_notes():
     router = read("web/vst3_runtime.js")
     multitrack = read("web/multitrack_runtime.js")
     assert "async function prepareTracks(tracks)" in router
-    assert "for(const track of requested)await loadTrack(track)" in router
+    assert "for(const track of requested){try{await loadTrack(track);}catch(error)" in router
     assert 'api("/api/vst3/load",{plugin_id:pluginId,instance_id:trackId})' in router
     assert "trackInstances.set(trackId,{pluginId,instanceId:trackId})" in router
     assert 'api("/api/vst3/unload",{instance_id:trackId})' in router
@@ -65,8 +65,8 @@ def test_arrangement_uses_one_native_instance_per_track_and_routes_notes():
     assert "vstEvents=new Map()" in multitrack
     assert "window.vst3Router?.trackEventsBatch?.(vstEvents)" in multitrack
     assert "window.vst3Router?.clearTrackEvents?.()" in multitrack
-    assert '/vst3_runtime.js?v=0.14.9' in html
-    assert '/multitrack_runtime.js?v=0.14.9' in html
+    assert '/vst3_runtime.js?v=0.15.0' in html
+    assert '/multitrack_runtime.js?v=0.15.0' in html
 
 
 def test_blueprint_requires_bounded_independent_vst3_instances():

@@ -402,6 +402,7 @@ class Vst3InstanceManager:
         self._lock = threading.RLock()
         self._catalog = Vst3Bridge()
         self._instances: dict[str, str] = {}
+        self._frozen_instances: set[str] = set()
         self._freeze_dir = tempfile.TemporaryDirectory(prefix="nlss-freeze-")
         self._freeze_files: dict[str, Path] = {}
 
@@ -425,7 +426,14 @@ class Vst3InstanceManager:
             if key not in self._instances and len(self._instances) >= self.MAX_INSTANCES:
                 return {"ok": False, "error": f"VST3 instances are limited to {self.MAX_INSTANCES}."}
             already_loaded = self._instances.get(key) == plugin_id
+            was_frozen = key in self._frozen_instances
         if already_loaded and self._catalog.status().get("running"):
+            if was_frozen:
+                resumed = self._catalog.freeze_resume(key)
+                if not resumed.get("ok"):
+                    return resumed
+                with self._lock:
+                    self._frozen_instances.discard(key)
             response = self._catalog.status()
             response.update({"ok": True, "already_loaded": True})
             return response
@@ -433,6 +441,7 @@ class Vst3InstanceManager:
         if response.get("ok"):
             with self._lock:
                 self._instances[key] = plugin_id
+                self._frozen_instances.discard(key)
         return response
 
     def _call(self, instance_id: str | None, method: str, *args) -> dict:
@@ -485,14 +494,17 @@ class Vst3InstanceManager:
             result = self._catalog.freeze_prepare(frames, key)
             if not result.get("ok"):
                 return result
+            self._frozen_instances.add(key)
             for offset in range(0, len(events), 1024):
                 result = self._catalog.events(events[offset:offset + 1024], key)
                 if not result.get("ok"):
                     self._catalog.freeze_resume(key)
+                    self._frozen_instances.discard(key)
                     return result
             result = self._catalog.freeze_arm(key)
             if not result.get("ok"):
                 self._catalog.freeze_resume(key)
+                self._frozen_instances.discard(key)
             return result
 
     def freeze_status(self, instance_id: str | None) -> dict:
@@ -517,12 +529,18 @@ class Vst3InstanceManager:
             return path.read_bytes() if path and path.is_file() else None
 
     def freeze_resume(self, instance_id: str | None) -> dict:
-        return self._call(instance_id, "freeze_resume")
+        key = self._instance_id(instance_id)
+        result = self._call(key, "freeze_resume")
+        if result.get("ok"):
+            with self._lock:
+                self._frozen_instances.discard(key)
+        return result
 
     def unload(self, instance_id: str | None = None) -> dict:
         key = self._instance_id(instance_id)
         with self._lock:
             plugin_id = self._instances.pop(key, None)
+            self._frozen_instances.discard(key)
             self._freeze_files.pop(key, None)
         if plugin_id is None:
             return {"ok": True}
@@ -552,6 +570,7 @@ class Vst3InstanceManager:
     def shutdown(self) -> None:
         with self._lock:
             self._instances.clear()
+            self._frozen_instances.clear()
         self._catalog.shutdown()
         self._freeze_dir.cleanup()
 
