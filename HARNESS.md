@@ -127,3 +127,8 @@ Then start the normal app with `start_synth.cmd`, open the VST3 section, scan, s
 
 - Native audio period and maximum VST3 processing block agree at 512 frames. Scheduled MIDI events retain their order and frame offsets across each period; the render callback reuses bounded scratch capacity.
 - Diagnostics continue to expose host CPU load and overrun count. Per-plugin DSP load can still exceed the available CPU budget; frozen or explicitly shared unchanged tracks remain available.
+
+## v0.16.0 project state and sequencer
+
+- Project JSON exports only after every independent VST3 track successfully returns a bounded Component state. On import, scan the original local plug-in roots, resolve scanned IDs, restore per-instance state before playback, and report missing plug-ins without dropping internal tracks.
+- Note editing writes bounded Note Clip events and does not route through DOM during playback. Editing a frozen track requires unfreezing that track; audio/microphone privacy and the single AudioContext remain unchanged.

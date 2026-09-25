@@ -2,6 +2,7 @@
 #include "public.sdk/source/vst/hosting/eventlist.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
 #include "public.sdk/source/vst/hosting/module.h"
+#include "public.sdk/source/common/memorystream.h"
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
 #include "public.sdk/source/vst/hosting/plugprovider.h"
 #include "public.sdk/source/vst/hosting/processdata.h"
@@ -276,6 +277,60 @@ public:
     {
         std::lock_guard<std::mutex> stateLock (stateMutex_);
         unloadUnlocked ();
+    }
+
+    bool saveState (const std::string& path)
+    {
+        std::lock_guard<std::mutex> lock (stateMutex_);
+        if (!component_ || !controller_) return false;
+        MemoryStream componentState, controllerState;
+        if (component_->getState (&componentState) != kResultOk) return false;
+        controller_->getState (&controllerState);
+        constexpr uint32_t limit = 4 * 1024 * 1024;
+        if (componentState.getSize () > limit || controllerState.getSize () > limit) return false;
+        const auto componentSize = static_cast<uint32_t> (componentState.getSize ());
+        const auto controllerSize = static_cast<uint32_t> (controllerState.getSize ());
+        std::ofstream file (path, std::ios::binary | std::ios::trunc);
+        file.write (reinterpret_cast<const char*> (&componentSize), sizeof (componentSize));
+        file.write (reinterpret_cast<const char*> (&controllerSize), sizeof (controllerSize));
+        file.write (componentState.getData (), componentSize);
+        file.write (controllerState.getData (), controllerSize);
+        return file.good ();
+    }
+
+    bool loadState (const std::string& path)
+    {
+        std::lock_guard<std::mutex> lock (stateMutex_);
+        if (!component_ || !controller_) return false;
+        std::ifstream file (path, std::ios::binary | std::ios::ate);
+        if (!file || file.tellg () < 8 || file.tellg () > 8 + 8 * 1024 * 1024) return false;
+        const auto total = file.tellg ();
+        file.seekg (0);
+        uint32_t componentSize = 0, controllerSize = 0;
+        file.read (reinterpret_cast<char*> (&componentSize), sizeof (componentSize));
+        file.read (reinterpret_cast<char*> (&controllerSize), sizeof (controllerSize));
+        if (componentSize > 4 * 1024 * 1024 || controllerSize > 4 * 1024 * 1024 ||
+            static_cast<std::streamoff> (8 + componentSize + controllerSize) != total) return false;
+        std::vector<char> componentBytes (componentSize), controllerBytes (controllerSize);
+        file.read (componentBytes.data (), componentSize);
+        file.read (controllerBytes.data (), controllerSize);
+        if (!file) return false;
+        MemoryStream componentState (componentBytes.data (), componentSize);
+        if (processor_) processor_->setProcessing (false);
+        component_->setActive (false);
+        const auto restored = component_->setState (&componentState) == kResultOk;
+        componentState.seek (0, IBStream::kIBSeekSet, nullptr);
+        if (restored)
+        {
+            controller_->setComponentState (&componentState);
+            MemoryStream controllerState (controllerBytes.data (), controllerSize);
+            if (controllerSize) controller_->setState (&controllerState);
+        }
+        component_->setActive (true);
+        if (processor_) processor_->setProcessing (true);
+        if (!restored) return false;
+        idleFramesRemaining_.store (static_cast<int64_t> (sampleRate_));
+        return true;
     }
 
     void queueNote (bool on, int pitch, float velocity, int channel = 0, uint64_t delayFrames = 0)
@@ -1091,6 +1146,18 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
             const auto id = static_cast<uint32_t> (std::stoul (parts[2]));
             const auto value = std::stod (parts[3]);
             std::cout << (host && host->queueParameter (id, value) ? "{\"ok\":true}" : errorJson ("No controller loaded")) << std::endl;
+        }
+        else if (parts[0] == "STATE_SAVE" && parts.size () >= 3)
+        {
+            auto* host = rack.find (parts[1]);
+            std::cout << (host && host->saveState (parts[2]) ? "{\"ok\":true}" :
+                          errorJson ("VST3 state could not be saved")) << std::endl;
+        }
+        else if (parts[0] == "STATE_LOAD" && parts.size () >= 3)
+        {
+            auto* host = rack.find (parts[1]);
+            std::cout << (host && host->loadState (parts[2]) ? "{\"ok\":true}" :
+                          errorJson ("VST3 state could not be restored")) << std::endl;
         }
         else if (parts[0] == "FREEZE_PREPARE" && parts.size () >= 3)
         {

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import atexit
 import hashlib
+import base64
+import binascii
 import json
 import mimetypes
 import os
@@ -300,6 +302,37 @@ class Vst3Bridge:
     def clear_events(self, instance_id: str | None = None) -> dict:
         return self._command(f"CLEAR\t{self._instance_id(instance_id)}")
 
+    def save_state(self, instance_id: str | None = None) -> dict:
+        with tempfile.NamedTemporaryFile(suffix=".vst-state", delete=False) as file:
+            path = Path(file.name)
+        try:
+            result = self._command(f"STATE_SAVE\t{self._instance_id(instance_id)}\t{path}")
+            if not result.get("ok"):
+                return result
+            data = path.read_bytes()
+            if len(data) > 8 * 1024 * 1024 + 8:
+                return {"ok": False, "error": "VST3 state exceeds the project limit."}
+            return {"ok": True, "state": base64.b64encode(data).decode("ascii")}
+        finally:
+            path.unlink(missing_ok=True)
+
+    def load_state(self, state: str, instance_id: str | None = None) -> dict:
+        if not isinstance(state, str) or len(state) > 12_000_000:
+            return {"ok": False, "error": "VST3 state exceeds the project limit."}
+        try:
+            data = base64.b64decode(state, validate=True)
+        except (binascii.Error, ValueError):
+            return {"ok": False, "error": "Invalid VST3 state."}
+        if len(data) > 8 * 1024 * 1024 + 8 or len(data) < 8:
+            return {"ok": False, "error": "Invalid VST3 state size."}
+        with tempfile.NamedTemporaryFile(suffix=".vst-state", delete=False) as file:
+            path = Path(file.name)
+            file.write(data)
+        try:
+            return self._command(f"STATE_LOAD\t{self._instance_id(instance_id)}\t{path}")
+        finally:
+            path.unlink(missing_ok=True)
+
     def parameters(self, instance_id: str | None = None) -> dict:
         return self._command(f"PARAMS\t{self._instance_id(instance_id)}")
 
@@ -467,6 +500,12 @@ class Vst3InstanceManager:
     def parameters(self, instance_id: str | None = None) -> dict:
         return self._call(instance_id, "parameters")
 
+    def save_state(self, instance_id: str | None = None) -> dict:
+        return self._call(instance_id, "save_state")
+
+    def load_state(self, state: str, instance_id: str | None = None) -> dict:
+        return self._call(instance_id, "load_state", state)
+
     def set_parameter(self, parameter_id: int, value: float, instance_id: str | None = None) -> dict:
         return self._call(instance_id, "set_parameter", parameter_id, value)
 
@@ -592,7 +631,11 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _read_json(self) -> dict | None:
-        length = min(int(self.headers.get("Content-Length", "0") or 0), 512_000)
+        raw_length = int(self.headers.get("Content-Length", "0") or 0)
+        if raw_length > 12_000_000:
+            self._json({"error": "request is too large"}, HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+            return None
+        length = raw_length
         try:
             value = json.loads(self.rfile.read(length) or b"{}")
         except json.JSONDecodeError:
@@ -688,6 +731,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(VST3.freeze_resume(payload.get("instance_id")))
             if parsed.path == "/api/vst3/parameters":
                 return self._json(VST3.parameters(payload.get("instance_id")))
+            if parsed.path == "/api/vst3/state/save":
+                return self._json(VST3.save_state(payload.get("instance_id")))
+            if parsed.path == "/api/vst3/state/load":
+                return self._json(VST3.load_state(payload.get("state"), payload.get("instance_id")))
             if parsed.path == "/api/vst3/parameter":
                 return self._json(VST3.set_parameter(int(payload.get("id", 0)), float(payload.get("value", 0.0)), payload.get("instance_id")))
             if parsed.path == "/api/vst3/test-tone":
