@@ -47,7 +47,8 @@ def test_multitrack_playback_uses_audio_clock_queue_without_per_note_dom_timers(
     runtime = read("web/multitrack_runtime.js")
     app = read("web/app.js")
     assert "function buildPlaybackQueue(tracks)" in runtime
-    assert "function startInternalScheduler(queue,onCycleComplete,cycleBeats=TIMELINE_BEATS)" in runtime
+    assert "function startInternalScheduler(queue,onCycleComplete,cycleBeats=TIMELINE_BEATS,scheduledStart=null,loopAhead=false)" in runtime
+    assert "cycleStart+cycleBeats*secondsPerBeat" in runtime
     assert "engine.ctx.currentTime" in runtime
     assert "while(cursor<queue.length" in runtime
     assert "setInterval(" not in runtime
