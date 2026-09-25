@@ -40,6 +40,7 @@ def test_project_restores_vst3_state_and_edits_bounded_note_clips():
     runtime = (ROOT / "web/multitrack_runtime.js").read_text(encoding="utf-8")
     html = (ROOT / "web/index.html").read_text(encoding="utf-8")
     native = (ROOT / "native/vst3_host/src/main.cpp").read_text(encoding="utf-8")
+    cmake = (ROOT / "native/vst3_host/CMakeLists.txt").read_text(encoding="utf-8")
     assert 'api("/api/vst3/state/save"' in router
     assert 'api("/api/vst3/state/load"' in router
     assert "scanForTracks(vstTracks)" in runtime
@@ -51,3 +52,4 @@ def test_project_restores_vst3_state_and_edits_bounded_note_clips():
     assert 'id="rollSnap"' in html and 'id="rollUndo"' in html
     assert 'component_->getState (&componentState)' in native
     assert 'component_->setState (&componentState)' in native
+    assert 'public.sdk/source/common/memorystream.cpp' in cmake

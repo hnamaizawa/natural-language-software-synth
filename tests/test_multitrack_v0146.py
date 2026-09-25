@@ -24,7 +24,7 @@ def test_each_track_picks_an_independent_scanned_vst3_plugin():
 def test_lookahead_limits_synchronous_work_and_batches_shared_vst_events():
     track = read("web/multitrack_runtime.js")
     router = read("web/vst3_runtime.js")
-    assert 'horizon=now+.45' in track
+    assert 'horizon=now+.8' in track
     assert 'while(cursor<queue.length&&cycleStart+queue[cursor].startBeat*secondsPerBeat<=horizon)' in track
     assert 'playbackTimer=setTimeout(pump,Math.max(25,Math.min(100,untilNext)))' in track
     assert 'clearTimeout(playbackTimer)' in track

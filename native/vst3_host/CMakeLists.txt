@@ -33,6 +33,7 @@ FetchContent_MakeAvailable(miniaudio)
 add_executable(nlss_vst3_host
   src/main.cpp
   src/plugin_editor_win32.cpp
+  ${vst3sdk_SOURCE_DIR}/public.sdk/source/common/memorystream.cpp
   ${vst3sdk_SOURCE_DIR}/public.sdk/source/vst/hosting/plugprovider.cpp
   ${vst3sdk_SOURCE_DIR}/public.sdk/source/vst/hosting/module_win32.cpp
 )
