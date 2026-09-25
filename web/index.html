@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/performance_editor.css" />
   <link rel="stylesheet" href="/keyboard_performance.css" />
-  <link rel="stylesheet" href="/multitrack.css?v=0.17.0" />
+  <link rel="stylesheet" href="/multitrack.css?v=0.18.0" />
 </head>
 <body>
   <main>
@@ -54,7 +54,7 @@
               <p id="trackSourceHelp" class="track-source-help track-source-wide">内蔵音源を選び、必要なら自然言語で微調整します。</p>
             </div>
           </section>
-          <div class="sequence-toolbar"><span id="selectedTrackSummary">トラックを選択してください</span><button id="clipNewBtn">＋ 空のクリップ</button><button id="clipDuplicateBtn">クリップ複製</button><button id="clipDeleteBtn">クリップ削除</button><button id="clipFromSampleBtn" class="primary">長いSampleをクリップ化</button><button id="clipPreviewBtn">▶ 選択クリップ試聴</button><button id="arrangementPlayBtn" class="primary">▶ 全パート再生</button><label>開始小節<select id="playStartBar"></select></label><label class="loop-toggle"><input id="arrangementLoop" type="checkbox" /> ループ</label><label>ループ開始<select id="loopStartBar"></select></label><label>ループ終了<select id="loopEndBar"></select></label><button id="clipStopBtn" disabled>■ 停止</button></div>
+          <div class="sequence-toolbar"><span id="selectedTrackSummary">トラックを選択してください</span><button id="clipNewBtn">＋ 空のクリップ</button><button id="clipDuplicateBtn">クリップ複製</button><button id="clipDeleteBtn">クリップ削除</button><button id="clipFromSampleBtn" class="primary">長いSampleをクリップ化</button><label>サンプル曲<select id="demoSongSelect"><option value="pop">ポップ · Cメジャー</option><option value="fusion">フュージョン · Aマイナー</option><option value="ballad">バラード · Gメジャー</option></select></label><button id="demoSongBtn" type="button">8小節の曲を配置</button><button id="clipPreviewBtn">▶ 選択クリップ試聴</button><button id="arrangementPlayBtn" class="primary">▶ 全パート再生</button><span id="playPosition" role="status" aria-live="off">停止 · 1小節 1拍</span><label>開始小節<select id="playStartBar"></select></label><label class="loop-toggle"><input id="arrangementLoop" type="checkbox" /> ループ</label><label>ループ開始<select id="loopStartBar"></select></label><label>ループ終了<select id="loopEndBar"></select></label><button id="clipStopBtn" disabled>■ 停止</button></div>
           <div class="arrangement-scroll"><div id="timelineRuler" class="timeline-ruler" aria-label="小節をクリックして再生位置を指定"></div>
           <div id="arrangementTimeline" class="arrangement-timeline" aria-label="曲のアレンジメント"></div></div>
           <div class="piano-roll-head"><strong>PIANO ROLL EDITOR</strong><span>空欄クリックで追加・ドラッグで移動・右端で長さ変更・選択後 Delete で削除</span></div>
@@ -197,8 +197,9 @@
   <script src="/humming_runtime.js"></script>
   <script src="/keyboard_performance_runtime.js"></script>
   <script src="/recording_workspace_runtime.js"></script>
-<script src="/multitrack_runtime.js?v=0.17.0"></script>
-<script src="/vst3_runtime.js?v=0.17.0"></script>
+<script src="/sequencer_samples.js?v=0.18.0"></script>
+<script src="/multitrack_runtime.js?v=0.18.0"></script>
+<script src="/vst3_runtime.js?v=0.18.0"></script>
   <script src="/ui_help_runtime.js"></script>
 </body>
 </html>
