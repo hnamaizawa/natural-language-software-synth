@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.18.0 Playhead and harmonized demo arrangements
+
+- [x] AudioContext基準の再生ヘッドと小節・拍表示
+- [x] 3曲調・8小節の7パート共通キー／共通コード進行のサンプル曲
+- [x] 既存クリップ置換前の確認、音源とVST3設定の維持
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.17.0 Multi-bar sequencer
 
 - [x] 最大64小節のタイムライン、曲長と再生位置・ループ範囲のProject JSON保存

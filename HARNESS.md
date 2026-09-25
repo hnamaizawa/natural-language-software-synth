@@ -1,5 +1,11 @@
 # Development Harness
 
+## v0.18.0 playhead and keyed demos
+
+- Playback display follows the existing AudioContext clock via animation frames. It must not schedule notes through the piano roll or create a second audio engine.
+- Each eight-bar factory demo has seven role clips sharing one key and per-bar chords. Notes are generated locally and remain bounded by the existing clip validator and event limits.
+- Replacing existing clips requires confirmation; track sources and VST3 settings remain intact.
+
 ## Purpose
 This harness keeps the synth reproducible and safe to evolve through natural-language change requests. v0.7.0 adds post-capture humming correction/notation and an explicitly separated Windows native VST3 host without weakening the browser audio/data boundaries.
 
