@@ -224,6 +224,10 @@ non_negotiable_invariants:
 - vst3_track_editor_must_target_selected_instance
 - vst3_track_channels_must_be_bounded_and_auto_assigned
 - vst3_auto_drum_channel_must_be_channel_ten
+- vst3_freeze_audio_must_remain_local_and_bounded
+- vst3_frozen_playback_must_use_existing_audio_context_and_master
+- vst3_shared_instances_must_require_explicit_same_plugin_selection
+- vst3_idle_suspend_must_preserve_queued_notes_and_audible_tails
 - eval_and_dynamic_script_injection_forbidden
 required_files:
 - AGENTS.md

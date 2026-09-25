@@ -22,6 +22,8 @@
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -260,6 +262,7 @@ public:
             [this] (int32 flags) { onEditorRestart (flags); });
         loaded_.store (true);
         idleFramesRemaining_.store (static_cast<int64_t> (sampleRate_));
+        quietFrames_ = 0;
         return true;
     }
 
@@ -424,8 +427,85 @@ public:
 public:
     bool isIdleSuspended () const
     {
+        if (manualSuspended_.load ()) return true;
+        if (captureActive_.load ()) return false;
         return activeNotes_.load () <= 0 && idleFramesRemaining_.load () <= 0 &&
                testToneFramesRemaining_.load () <= 0;
+    }
+
+    bool prepareCapture (uint32_t frames)
+    {
+        if (!loaded_.load () || captureActive_.load () || frames == 0 || frames > sampleRate_ * 42) return false;
+        manualSuspended_.store (true);
+        std::lock_guard<std::mutex> stateLock (stateMutex_);
+        std::lock_guard<std::mutex> queueLock (queueMutex_);
+        pendingNotes_.clear ();
+        pendingParams_.clear ();
+        activeNotes_.store (0);
+        captureBuffer_.assign (static_cast<size_t> (frames) * kChannels, 0.0f);
+        capturedFrames_.store (0);
+        captureTargetFrames_ = frames;
+        captureActive_.store (false);
+        return true;
+    }
+
+    void armCapture ()
+    {
+        captureActive_.store (true);
+        manualSuspended_.store (false);
+    }
+
+    uint32_t capturedFrames () const { return capturedFrames_.load (); }
+    uint32_t captureTargetFrames () const { return captureTargetFrames_; }
+    void resume ()
+    {
+        std::lock_guard<std::mutex> stateLock (stateMutex_);
+        std::lock_guard<std::mutex> queueLock (queueMutex_);
+        captureActive_.store (false);
+        manualSuspended_.store (false);
+        pendingNotes_.clear ();
+        activeNotes_.store (0);
+        captureBuffer_.clear ();
+        captureTargetFrames_ = 0;
+        idleFramesRemaining_.store (static_cast<int64_t> (sampleRate_));
+    }
+
+    bool saveCapture (const std::string& path)
+    {
+        if (captureActive_.load () || capturedFrames_.load () != captureTargetFrames_ ||
+            captureTargetFrames_ == 0) return false;
+        std::vector<float> samples;
+        { std::lock_guard<std::mutex> stateLock (stateMutex_); samples = captureBuffer_; }
+        std::ofstream file (std::filesystem::u8path (path), std::ios::binary | std::ios::trunc);
+        if (!file) return false;
+        const auto write16 = [&file] (uint16_t n) {
+            const char bytes[] = {static_cast<char> (n), static_cast<char> (n >> 8)};
+            file.write (bytes, 2);
+        };
+        const auto write32 = [&file] (uint32_t n) {
+            const char bytes[] = {static_cast<char> (n), static_cast<char> (n >> 8),
+                                  static_cast<char> (n >> 16), static_cast<char> (n >> 24)};
+            file.write (bytes, 4);
+        };
+        const uint32_t dataBytes = static_cast<uint32_t> (samples.size () * 2);
+        file.write ("RIFF", 4); write32 (36 + dataBytes); file.write ("WAVEfmt ", 8);
+        write32 (16); write16 (1); write16 (kChannels); write32 (sampleRate_);
+        write32 (sampleRate_ * kChannels * 2); write16 (kChannels * 2); write16 (16);
+        file.write ("data", 4); write32 (dataBytes);
+        for (float sample : samples)
+        {
+            const auto value = static_cast<int16_t> (std::lround (
+                std::max (-1.0f, std::min (1.0f, sample)) * 32767.0f));
+            write16 (static_cast<uint16_t> (value));
+        }
+        const bool saved = file.good ();
+        if (saved)
+        {
+            std::lock_guard<std::mutex> stateLock (stateMutex_);
+            captureBuffer_.clear ();
+            captureTargetFrames_ = 0;
+        }
+        return saved;
     }
 
     static void dataCallback (ma_device* device, void* output, const void*, ma_uint32 frameCount)
@@ -561,11 +641,40 @@ public:
                     else
                         processFailures_.fetch_add (1);
                     processedSamples_ += chunk;
+                    // Only suspend after a sustained inaudible tail. A scheduled note still
+                    // waiting in the queue must keep the processor alive.
+                    bool queueEmpty;
+                    { std::lock_guard<std::mutex> queueLock (queueMutex_);
+                      queueEmpty = pendingNotes_.empty () && pendingParams_.empty (); }
+                    if (activeNotes_.load () <= 0 && queueEmpty &&
+                        lastOutputPeak_.load () < 0.0001f)
+                        quietFrames_ += static_cast<uint32_t> (chunk);
+                    else
+                        quietFrames_ = 0;
+                    if (quietFrames_ >= sampleRate_ / 2)
+                        idleFramesRemaining_.store (0);
                     rendered += static_cast<ma_uint32> (chunk);
                 }
             }
             if (activeNotes_.load () <= 0)
                 idleFramesRemaining_.fetch_sub (static_cast<int64_t> (frameCount));
+        }
+        if (captureActive_.load ())
+        {
+            std::lock_guard<std::mutex> stateLock (stateMutex_);
+            if (captureActive_.load () && captureTargetFrames_ > capturedFrames_.load ())
+            {
+                const uint32_t captured = capturedFrames_.load ();
+                const auto count = std::min (frameCount, captureTargetFrames_ - captured);
+                std::copy_n (output, static_cast<size_t> (count) * kChannels,
+                             captureBuffer_.begin () + static_cast<size_t> (captured) * kChannels);
+                capturedFrames_.store (captured + count);
+                if (captured + count >= captureTargetFrames_)
+                {
+                    captureActive_.store (false);
+                    manualSuspended_.store (true);
+                }
+            }
         }
         addTestTone (output, frameCount);
     }
@@ -711,8 +820,13 @@ public:
     void unloadUnlocked ()
     {
         loaded_.store (false);
+        captureActive_.store (false);
+        manualSuspended_.store (false);
+        captureTargetFrames_ = 0;
+        captureBuffer_.clear ();
         activeNotes_.store (0);
         idleFramesRemaining_.store (0);
+        quietFrames_ = 0;
         editor_.unbind ();
         {
             std::lock_guard<std::mutex> lock (queueMutex_);
@@ -740,6 +854,12 @@ public:
     std::vector<PendingNote> pendingNotes_;
     std::vector<PendingParam> pendingParams_;
     uint32_t sampleRate_ {kPreferredSampleRate};
+    uint32_t quietFrames_ {0};
+    std::atomic<bool> manualSuspended_ {false};
+    std::atomic<bool> captureActive_ {false};
+    std::atomic<uint32_t> capturedFrames_ {0};
+    uint32_t captureTargetFrames_ {0};
+    std::vector<float> captureBuffer_;
     std::atomic<bool> loaded_ {false};
     VST3::Hosting::Module::Ptr module_;
     IPtr<PlugProvider> provider_;
@@ -853,6 +973,7 @@ public:
         for (const auto& pair : instances_) if (pair.second->isIdleSuspended ()) ++suspended;
         std::ostringstream out;
         out << "{\"ok\":true,\"audio_started\":" << (audioStarted_ ? "true" : "false")
+            << ",\"sample_rate\":" << sampleRate_
             << ",\"instance_count\":" << instances_.size ()
             << ",\"idle_suspended_count\":" << suspended
             << ",\"cpu_load_percent\":" << cpuLoadPercent_.load ()
@@ -958,6 +1079,38 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
             const auto id = static_cast<uint32_t> (std::stoul (parts[2]));
             const auto value = std::stod (parts[3]);
             std::cout << (host && host->queueParameter (id, value) ? "{\"ok\":true}" : errorJson ("No controller loaded")) << std::endl;
+        }
+        else if (parts[0] == "FREEZE_PREPARE" && parts.size () >= 3)
+        {
+            auto* host = rack.find (parts[1]);
+            const auto frames = std::stoul (parts[2]);
+            std::cout << (host && host->prepareCapture (frames) ? "{\"ok\":true}" :
+                          errorJson ("Capture duration or VST3 instance is invalid")) << std::endl;
+        }
+        else if (parts[0] == "FREEZE_ARM" && parts.size () >= 2)
+        {
+            auto* host = rack.find (parts[1]);
+            if (host) { host->armCapture (); std::cout << "{\"ok\":true}" << std::endl; }
+            else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
+        }
+        else if (parts[0] == "FREEZE_STATUS" && parts.size () >= 2)
+        {
+            auto* host = rack.find (parts[1]);
+            if (host) std::cout << "{\"ok\":true,\"frames\":" << host->capturedFrames ()
+                                << ",\"target_frames\":" << host->captureTargetFrames () << "}" << std::endl;
+            else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
+        }
+        else if (parts[0] == "FREEZE_SAVE" && parts.size () >= 3)
+        {
+            auto* host = rack.find (parts[1]);
+            std::cout << (host && host->saveCapture (parts[2]) ? "{\"ok\":true}" :
+                          errorJson ("Capture is incomplete or cannot be saved")) << std::endl;
+        }
+        else if (parts[0] == "FREEZE_RESUME" && parts.size () >= 2)
+        {
+            auto* host = rack.find (parts[1]);
+            if (host) { host->resume (); std::cout << "{\"ok\":true}" << std::endl; }
+            else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "NOTE_ON" && parts.size () >= 4)
         {

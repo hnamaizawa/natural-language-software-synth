@@ -158,42 +158,58 @@
     finally{loadBtn.disabled=!select.value;restorePerformanceFocusSoon();}
   }
   async function prepareTracks(tracks){
-    const requested=(tracks||[]).filter(track=>track?.source?.type==="vst3"&&track.source.plugin_id);
+    const requested=(tracks||[]).filter(track=>track?.source?.type==="vst3"&&track.source.plugin_id&&!window.multitrackProject?.isFrozen?.(track.id));
     for(const track of requested)await loadTrack(track);
     return requested.length;
   }
   async function loadTrack(track){
     const trackId=track?.id,pluginId=track?.source?.plugin_id;
     if(!trackId||track.source.type!=="vst3"||!pluginId)throw new Error("VST3を再検索し、トラックの音源を選択してください。");
+    const masterId=track.source.shared_with;
+    if(masterId){
+      const master=window.multitrackProject?.trackById?.(masterId);
+      if(!master||master.id===trackId||master.source?.type!=="vst3"||master.source.plugin_id!==pluginId||master.source.shared_with||window.multitrackProject?.isFrozen?.(master.id))throw new Error("共有元のVST3が変更されました。共有を解除してください。");
+      await loadTrack(master);
+      const previous=trackInstances.get(trackId);
+      if(previous?.instanceId===masterId&&previous.pluginId===pluginId)return previous;
+      if(previous?.instanceId===trackId)await releaseTrack(trackId);
+      const alias={pluginId,instanceId:masterId};trackInstances.set(trackId,alias);return alias;
+    }
     if(loadingTracks.has(trackId))await loadingTracks.get(trackId);
     if(track.source.type!=="vst3"||track.source.plugin_id!==pluginId)throw new Error("ロード中にトラックの音源が変更されました。");
-    if(trackInstances.get(trackId)?.pluginId===pluginId)return trackInstances.get(trackId);
+    if(trackInstances.get(trackId)?.pluginId===pluginId&&trackInstances.get(trackId)?.instanceId===trackId)return trackInstances.get(trackId);
     if(!scannedPlugins().some(plugin=>plugin.id===pluginId))throw new Error("VST3を再検索し、トラックの音源を選択してください。");
     const job=(async()=>{
       const previous=trackInstances.get(trackId);
-      if(previous){trackInstances.delete(trackId);await api("/api/vst3/unload",{instance_id:trackId});}
+      if(previous){trackInstances.delete(trackId);if(previous.instanceId===trackId)await api("/api/vst3/unload",{instance_id:trackId});}
       const data=await api("/api/vst3/load",{plugin_id:pluginId,instance_id:trackId});
       if(!data.ok)throw new Error(`${track.name||"Track"}: ${data.error||"VST3ロード失敗"}`);
+      // A new browser session may reconnect to an instance left frozen in the
+      // native host; make the newly attached track playable again.
+      const resumed=await api("/api/vst3/freeze/resume",{instance_id:trackId});
+      if(!resumed.ok)throw new Error(resumed.error||"VST3再開失敗");
       trackInstances.set(trackId,{pluginId,instanceId:trackId});
       return data;
     })();
     loadingTracks.set(trackId,job);
-    try{return await job;}finally{if(loadingTracks.get(trackId)===job)loadingTracks.delete(trackId);}
+    try{await job;return trackInstances.get(trackId);}finally{if(loadingTracks.get(trackId)===job)loadingTracks.delete(trackId);}
   }
   async function releaseTrack(trackId){
     const previous=loadingTracks.get(trackId);
     const job=(async()=>{
       if(previous)try{await previous;}catch(_){}
       if(!trackInstances.has(trackId))return;
-      trackInstances.delete(trackId);
-      await api("/api/vst3/unload",{instance_id:trackId});
+      const target=trackInstances.get(trackId);trackInstances.delete(trackId);
+      if(target.instanceId===trackId)await api("/api/vst3/unload",{instance_id:trackId});
     })();
     loadingTracks.set(trackId,job);
     try{await job;}finally{if(loadingTracks.get(trackId)===job)loadingTracks.delete(trackId);}
   }
-  async function openTrackEditor(track){await loadTrack(track);const data=await api("/api/vst3/editor/open",{instance_id:track.id});if(!data.ok)throw new Error(data.error||"VST3本体画面を開けませんでした");return data;}
-  async function trackParameters(track){await loadTrack(track);const data=await api("/api/vst3/parameters",{instance_id:track.id});if(!data.ok)throw new Error(data.error||"パラメータ取得失敗");return data;}
-  async function trackSetParameter(track,id,value){await loadTrack(track);const data=await api("/api/vst3/parameter",{instance_id:track.id,id:Math.round(clamp(id,0,0x7fffffff)),value:clamp(value,0,1)});if(!data.ok)throw new Error(data.error||"パラメータ設定失敗");return data;}
+  async function openTrackEditor(track){const target=await loadTrack(track);const data=await api("/api/vst3/editor/open",{instance_id:target.instanceId});if(!data.ok)throw new Error(data.error||"VST3本体画面を開けませんでした");return data;}
+  async function trackParameters(track){const target=await loadTrack(track);const data=await api("/api/vst3/parameters",{instance_id:target.instanceId});if(!data.ok)throw new Error(data.error||"パラメータ取得失敗");return data;}
+  async function trackSetParameter(track,id,value){const target=await loadTrack(track);const data=await api("/api/vst3/parameter",{instance_id:target.instanceId,id:Math.round(clamp(id,0,0x7fffffff)),value:clamp(value,0,1)});if(!data.ok)throw new Error(data.error||"パラメータ設定失敗");return data;}
+  async function freezeTrack(track,events,durationMs){const target=await loadTrack(track);if(target.instanceId!==track.id)throw new Error("共有中のパートは先に共有を解除してください。");const started=await api("/api/vst3/freeze/start",{instance_id:target.instanceId,events,duration_ms:durationMs});if(!started.ok)throw new Error(started.error||"フリーズ開始失敗");try{let state;for(let i=0;i<Math.ceil(durationMs/250)+24;i++){await new Promise(resolve=>setTimeout(resolve,250));state=await api("/api/vst3/freeze/status",{instance_id:target.instanceId});if(!state.ok)throw new Error(state.error||"録音状態を確認できません");if(state.target_frames>0&&state.frames>=state.target_frames)break;}if(!state||state.frames<state.target_frames)throw new Error("音声の記録が時間内に完了しませんでした");const done=await api("/api/vst3/freeze/finish",{instance_id:target.instanceId});if(!done.ok)throw new Error(done.error||"フリーズ音声保存失敗");const response=await fetch(done.audio_url,{cache:"no-store"});if(!response.ok)throw new Error(`音声読込エラー: ${response.status}`);return await engine.ctx.decodeAudioData(await response.arrayBuffer());}catch(error){await api("/api/vst3/freeze/resume",{instance_id:target.instanceId}).catch(()=>{});throw error;}}
+  async function resumeTrack(track){const target=trackInstances.get(track.id);if(target?.instanceId===track.id){const data=await api("/api/vst3/freeze/resume",{instance_id:track.id});if(!data.ok)throw new Error(data.error||"フリーズ解除失敗");}}
   async function unload(){
     cancelScheduled();route.checked=false;route.disabled=true;if(editorBtn)editorBtn.disabled=true;
     try{await api("/api/vst3/unload",{});}catch(_){}loaded=false;loadedPluginId="";loadedPluginName="";unloadBtn.disabled=true;params.innerHTML="";resetProgramUi();show("VST3を解除しました。");restorePerformanceFocusSoon();
@@ -253,5 +269,5 @@
   }
   function trackEventsBatch(byTrack){const groups=new Map();for(const [trackId,events] of byTrack){const target=trackInstances.get(trackId);if(!target)continue;const group=groups.get(target.instanceId)||[];group.push(...events);groups.set(target.instanceId,group);}for(const [instanceId,events] of groups){events.sort((a,b)=>a.delay_ms-b.delay_ms);(async()=>{for(let i=0;i<events.length;i+=1024){const data=await api("/api/vst3/events",{instance_id:instanceId,events:events.slice(i,i+1024)});if(!data.ok)throw new Error(data.error||"VST3一括イベント送信失敗");}})().catch(err=>show(`VST3一括イベント送信エラー: ${err.message}`));}}
   function clearTrackEvents(){for(const instanceId of new Set([...trackInstances.values()].map(value=>value.instanceId)))api("/api/vst3/clear-events",{instance_id:instanceId}).catch(()=>{});}
-  window["vst3Router"]={scan,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,loadTrack,releaseTrack,openTrackEditor,trackParameters,trackSetParameter,isTrackLoaded:track=>trackInstances.get(track?.id)?.pluginId===track?.source?.plugin_id,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,baseNoteOn,baseNoteOff};
+  window["vst3Router"]={scan,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,loadTrack,releaseTrack,openTrackEditor,trackParameters,trackSetParameter,freezeTrack,resumeTrack,isTrackLoaded:track=>trackInstances.get(track?.id)?.pluginId===track?.source?.plugin_id,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,baseNoteOn,baseNoteOff};
 })();

@@ -111,3 +111,9 @@ Then start the normal app with `start_synth.cmd`, open the VST3 section, scan, s
 ## v0.14.8 inline track VST3 editors
 
 - Every track row offers its own plugin picker, MIDI channel, native editor and parameters. Editor and parameter requests must carry the corresponding track instance ID; changing the STEP 2 plugin or another track must not change the existing track instance.
+
+## v0.14.9 frozen VST3 tracks and explicit sharing
+
+- Frozen audio is recorded only from the chosen native instrument and played through the existing AudioContext/master. Recorded source audio stays local and bounded; it is kept only for the current browser session. Replaying frozen tracks must not schedule VST3 note events or process the frozen instance.
+- Instance sharing requires the same scanned plug-in ID and an explicit source track; shared tracks reference that source instance, use the same MIDI channel and kit, and never unload the master when one alias is released. Import validates master references, preventing self-reference and chains.
+- A native instance can suspend early only after at least half a second of inaudible output, without active or queued notes.
