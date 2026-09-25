@@ -54,3 +54,23 @@ def test_freeze_and_share_keep_one_audio_context_and_instance_identity():
     assert "if(frozenBuffers.has(item.track.id))continue" in runtime
     assert 'share.append(new Option("独立したVST3（別音色）","")' in runtime
     assert '"/api/vst3/freeze-audio"' in server
+
+
+def test_reconnect_resumes_only_a_frozen_instance(monkeypatch, tmp_path):
+    manager = Vst3InstanceManager()
+    manager._catalog._plugins = {"instrument": tmp_path / "instrument.vst3"}
+    resumed = []
+    monkeypatch.setattr(Vst3Bridge, "load", lambda bridge, plugin, instance_id=None: {"ok": True})
+    monkeypatch.setattr(Vst3Bridge, "status", lambda bridge: {"running": True, "sample_rate": 48000})
+    monkeypatch.setattr(Vst3Bridge, "freeze_prepare", lambda bridge, frames, instance_id=None: {"ok": True})
+    monkeypatch.setattr(Vst3Bridge, "freeze_arm", lambda bridge, instance_id=None: {"ok": True})
+    monkeypatch.setattr(Vst3Bridge, "freeze_resume", lambda bridge, instance_id=None: resumed.append(instance_id) or {"ok": True})
+    assert manager.load("instrument", "track-1")["ok"]
+    assert manager.load("instrument", "track-1")["ok"]
+    assert resumed == []
+    assert manager.freeze_start("track-1", [], 1000)["ok"]
+    assert manager.load("instrument", "track-1")["ok"]
+    assert resumed == ["track-1"]
+    assert manager.load("instrument", "track-1")["ok"]
+    assert resumed == ["track-1"]
+    manager.shutdown()

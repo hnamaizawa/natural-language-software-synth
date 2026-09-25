@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.15.0 Audio playback recovery
+
+- [x] VST3 の通常ロードからフリーズ解除 API への依存を取り除く
+- [x] VST3 パートのロード失敗を局所化し、内蔵音源とほかの音源の再生を継続
+- [x] フリーズ済みインスタンスへ再接続するときのみ解除
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.14.9 Multi-track VST3 CPU reduction
 
 - [x] パート別フリーズ音声のNative実時間録音とWeb Audio再生、VST3休止・解除
