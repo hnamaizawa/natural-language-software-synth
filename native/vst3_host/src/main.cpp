@@ -43,7 +43,10 @@ using namespace Steinberg;
 using namespace Steinberg::Vst;
 
 constexpr uint32_t kChannels = 2;
-constexpr uint32_t kBlockSize = 256;
+// One VST3 process call per audio callback. A 512-frame period gives several
+// simultaneous instruments more headroom for transient CPU spikes while
+// halving per-block dispatch and event-queue work versus 256 frames.
+constexpr uint32_t kBlockSize = 512;
 constexpr uint32_t kPreferredSampleRate = 48000;
 constexpr double kTwoPi = 6.283185307179586476925286766559;
 
@@ -115,6 +118,9 @@ class NativeVst3Host
 public:
     NativeVst3Host ()
     {
+        dueNotes_.reserve (1024);
+        dueParams_.reserve (1024);
+        pendingParams_.reserve (1024);
         PluginContextFactory::instance ().setPluginContext (Steinberg::gStandardPluginContext);
         PlugProvider::setErrorStream (&std::cerr);
     }
@@ -679,23 +685,25 @@ public:
 
     bool drainPendingChanges (int32 chunkFrames)
     {
-        std::vector<PendingNote> notes;
-        std::vector<PendingParam> params;
+        dueNotes_.clear ();
+        dueParams_.clear ();
         bool queueEmpty = false;
         {
             std::lock_guard<std::mutex> lock (queueMutex_);
-            const auto dueEnd = std::stable_partition (pendingNotes_.begin (), pendingNotes_.end (),
-                [chunkFrames] (const PendingNote& note) {
-                    return note.delayFrames < static_cast<uint64_t> (chunkFrames);
-                });
-            notes.assign (pendingNotes_.begin (), dueEnd);
-            for (auto it = dueEnd; it != pendingNotes_.end (); ++it)
-                it->delayFrames -= static_cast<uint64_t> (chunkFrames);
-            pendingNotes_.erase (pendingNotes_.begin (), dueEnd);
-            params.swap (pendingParams_);
-            queueEmpty = pendingNotes_.empty () && notes.empty () && params.empty ();
+            pendingNotes_.erase (std::remove_if (pendingNotes_.begin (), pendingNotes_.end (),
+                [this, chunkFrames] (PendingNote& note) {
+                    if (note.delayFrames < static_cast<uint64_t> (chunkFrames))
+                    {
+                        dueNotes_.push_back (note);
+                        return true;
+                    }
+                    note.delayFrames -= static_cast<uint64_t> (chunkFrames);
+                    return false;
+                }), pendingNotes_.end ());
+            dueParams_.swap (pendingParams_);
+            queueEmpty = pendingNotes_.empty () && dueNotes_.empty () && dueParams_.empty ();
         }
-        for (const auto& note : notes)
+        for (const auto& note : dueNotes_)
         {
             Event event {};
             event.busIndex = mainEventInputBus_ >= 0 ? mainEventInputBus_ : 0;
@@ -724,7 +732,7 @@ public:
             if (events_.addEvent (event) == kResultOk) eventsDelivered_.fetch_add (1);
             else eventAddFailures_.fetch_add (1);
         }
-        for (const auto& param : params)
+        for (const auto& param : dueParams_)
         {
             int32 queueIndex = 0;
             auto* queue = parameterChanges_.addParameterData (param.id, queueIndex);
@@ -854,6 +862,9 @@ public:
     std::mutex queueMutex_;
     std::vector<PendingNote> pendingNotes_;
     std::vector<PendingParam> pendingParams_;
+    // Render-only scratch; retain capacity across callbacks.
+    std::vector<PendingNote> dueNotes_;
+    std::vector<PendingParam> dueParams_;
     uint32_t sampleRate_ {kPreferredSampleRate};
     uint32_t quietFrames_ {0};
     std::atomic<bool> manualSuspended_ {false};
