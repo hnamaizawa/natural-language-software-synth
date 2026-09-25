@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/performance_editor.css" />
   <link rel="stylesheet" href="/keyboard_performance.css" />
-  <link rel="stylesheet" href="/multitrack.css?v=0.15.0" />
+  <link rel="stylesheet" href="/multitrack.css?v=0.16.0" />
 </head>
 <body>
   <main>
@@ -57,7 +57,8 @@
           <div class="sequence-toolbar"><span id="selectedTrackSummary">トラックを選択してください</span><button id="clipFromSampleBtn" class="primary">長いSampleをクリップ化</button><button id="clipPreviewBtn">▶ 選択クリップ試聴</button><button id="arrangementPlayBtn" class="primary">▶ 全パート再生</button><label class="loop-toggle"><input id="arrangementLoop" type="checkbox" /> ループ</label><button id="clipStopBtn" disabled>■ 停止</button></div>
           <div class="timeline-ruler" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span></div>
           <div id="arrangementTimeline" class="arrangement-timeline" aria-label="16拍のアレンジメント"></div>
-          <div class="piano-roll-head"><strong>PIANO ROLL PREVIEW</strong><span>選択クリップのノートを表示（編集機能は次フェーズ）</span></div>
+          <div class="piano-roll-head"><strong>PIANO ROLL EDITOR</strong><span>空欄クリックで追加・ドラッグで移動・右端で長さ変更・選択後 Delete で削除</span></div>
+          <div class="roll-toolbar"><label>吸着<select id="rollSnap"><option value="1">1拍</option><option value="0.5">1/8</option><option value="0.25" selected>1/16</option><option value="0.125">1/32</option></select></label><label>音域<select id="rollRange"><option value="24">C1–B4</option><option value="36" selected>C2–B5</option><option value="48">C3–B6</option></select></label><button id="rollUndo" type="button">元に戻す</button><button id="rollRedo" type="button">やり直す</button><button id="rollDelete" type="button">選択ノート削除</button></div>
           <div id="projectPianoRoll" class="project-piano-roll empty" aria-label="選択クリップのピアノロール"></div>
           <p id="projectStatus" class="project-status" data-runtime-state="loading">マルチトラック機能を初期化しています…</p>
         </div>
@@ -196,8 +197,8 @@
   <script src="/humming_runtime.js"></script>
   <script src="/keyboard_performance_runtime.js"></script>
   <script src="/recording_workspace_runtime.js"></script>
-<script src="/multitrack_runtime.js?v=0.15.0"></script>
-<script src="/vst3_runtime.js?v=0.15.0"></script>
+<script src="/multitrack_runtime.js?v=0.16.0"></script>
+<script src="/vst3_runtime.js?v=0.16.0"></script>
   <script src="/ui_help_runtime.js"></script>
 </body>
 </html>
