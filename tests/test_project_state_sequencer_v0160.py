@@ -50,6 +50,8 @@ def test_project_restores_vst3_state_and_edits_bounded_note_clips():
     assert "rollHistory()" in runtime and "travelRollHistory" in runtime
     assert "horizon=now+.8" in runtime
     assert 'id="rollSnap"' in html and 'id="rollUndo"' in html
+    assert 'id="clipNewBtn"' in html and 'id="clipDuplicateBtn"' in html
+    assert 'function addEmptyClip()' in runtime and 'function duplicateClip()' in runtime
     assert 'component_->getState (&componentState)' in native
     assert 'component_->setState (&componentState)' in native
     assert 'public.sdk/source/common/memorystream.cpp' in cmake

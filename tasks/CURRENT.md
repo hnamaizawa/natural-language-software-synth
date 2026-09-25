@@ -3,7 +3,7 @@
 ## v0.16.0 Sequencer and VST3 project persistence
 
 - [x] VST3の音色状態と割当をProject JSONに保存し、再読込時に再検索・復元
-- [x] ピアノロールのノート編集・吸着・削除・Undo/Redo
+- [x] タイムラインでクリップ作成・複製・移動・削除、ピアノロールのノート編集・吸着・削除・Undo/Redo
 - [x] ブラウザ一時停止への再生先読みを0.8秒へ拡張
 - [ ] GitHub CI pytest／Harness／Windows Native VST3 build
 
