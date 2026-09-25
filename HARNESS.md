@@ -122,3 +122,8 @@ Then start the normal app with `start_synth.cmd`, open the VST3 section, scan, s
 
 - A failed track VST3 load must not prevent built-in tracks or other successfully loaded VST3 tracks from playing; show the failed track's error.
 - Reconnecting to an instance resumes native processing only if the server knows the instance is frozen. Ordinary loads require no freeze endpoint.
+
+## v0.15.1 native callback work
+
+- Native audio period and maximum VST3 processing block agree at 512 frames. Scheduled MIDI events retain their order and frame offsets across each period; the render callback reuses bounded scratch capacity.
+- Diagnostics continue to expose host CPU load and overrun count. Per-plugin DSP load can still exceed the available CPU budget; frozen or explicitly shared unchanged tracks remain available.

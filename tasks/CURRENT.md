@@ -1,5 +1,11 @@
 # CURRENT
 
+## v0.15.1 Multi-VST3 live performance
+
+- [x] Native Host の 512 フレーム周期でプラグイン処理の呼び出し回数を抑制
+- [x] 予約 MIDI イベント処理の一時メモリ確保を低減
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.15.0 Audio playback recovery
 
 - [x] VST3 の通常ロードからフリーズ解除 API への依存を取り除く
