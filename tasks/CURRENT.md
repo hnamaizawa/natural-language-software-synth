@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.17.0 Multi-bar sequencer
+
+- [x] 最大64小節のタイムライン、曲長と再生位置・ループ範囲のProject JSON保存
+- [x] クリップの配置と長さ、ノート強さ、選択クリップ単独試聴
+- [x] 旧JSON互換、フリーズ区間再生と42秒上限の明示
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.16.0 Sequencer and VST3 project persistence
 
 - [x] VST3の音色状態と割当をProject JSONに保存し、再読込時に再検索・復元

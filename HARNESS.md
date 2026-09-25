@@ -132,3 +132,8 @@ Then start the normal app with `start_synth.cmd`, open the VST3 section, scan, s
 
 - Project JSON exports only after every independent VST3 track successfully returns a bounded Component state. On import, scan the original local plug-in roots, resolve scanned IDs, restore per-instance state before playback, and report missing plug-ins without dropping internal tracks.
 - Note editing writes bounded Note Clip events and does not route through DOM during playback. Editing a frozen track requires unfreezing that track; audio/microphone privacy and the single AudioContext remain unchanged.
+## v0.17.0 multi-bar sequencer
+
+- Project JSON の `length_beats` は16〜256拍（4〜64小節）。旧形式は16拍を採用。ループの開始と終了、再生開始位置は小節単位で保存する。
+- クリップのノートは最大512個、1クリップ最大16拍。曲長を縮小するときは範囲外に残るクリップの消失を防ぐ。VST3フリーズは42秒を超える曲で開始しない。
+- 再生は既存のAudioContextとVST3バッチ送信を使用し、開始位置とループ範囲を切り出す。フリーズ済みトラックの再生は同じ拍位置の音声バッファから始める。
