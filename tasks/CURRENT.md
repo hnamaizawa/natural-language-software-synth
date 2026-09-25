@@ -1,13 +1,5 @@
 # CURRENT
 
-## v0.19.0 Native arrangement transport (first stage)
-
-- [x] 全VST3曲のノート予約・ループ・フリーズ済み音声を同じNative Host音声コールバックへ移行
-- [x] ネイティブサンプル位置をブラウザの再生ヘッドに表示
-- [x] 内蔵音源を含む曲と個別クリップの互換経路を維持し、適用範囲を明示
-- [ ] 内蔵音源・Reference調整音源のネイティブDSP移行（次段階）
-- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
-
 ## v0.18.0 Playhead and harmonized demo arrangements
 
 - [x] AudioContext基準の再生ヘッドと小節・拍表示

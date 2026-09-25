@@ -368,26 +368,6 @@ class Vst3Bridge:
     def freeze_resume(self, instance_id: str | None = None) -> dict:
         return self._command(f"FREEZE_RESUME\t{self._instance_id(instance_id)}")
 
-    def transport_config(self, start: int, end: int, loop: bool) -> dict:
-        return self._command(f"TRANSPORT_CONFIG\t{start}\t{end}\t{int(loop)}")
-
-    def transport_events(self, events: list[tuple[str, int, bool, int, float, int]]) -> dict:
-        encoded = ";".join(f"{instance},{frame},{int(on)},{note},{velocity:.6f},{channel}"
-                           for instance, frame, on, note, velocity, channel in events)
-        return self._command(f"TRANSPORT_EVENTS\t{encoded}")
-
-    def transport_stem(self, instance_id: str, path: Path) -> dict:
-        return self._command(f"TRANSPORT_STEM\t{instance_id}\t{path}")
-
-    def transport_play(self) -> dict:
-        return self._command("TRANSPORT_PLAY")
-
-    def transport_stop(self) -> dict:
-        return self._command("TRANSPORT_STOP")
-
-    def transport_status(self) -> dict:
-        return self._command("TRANSPORT_STATUS")
-
     def unload(self, instance_id: str | None = None) -> dict:
         key = self._instance_id(instance_id)
         with self._lock:
@@ -587,84 +567,6 @@ class Vst3InstanceManager:
             path = self._freeze_files.get(key)
             return path.read_bytes() if path and path.is_file() else None
 
-    def transport_start(self, bpm: float, start_beat: float, end_beat: float,
-                        loop: bool, tracks: list[dict]) -> dict:
-        """Commit a bounded arrangement to one native sample clock and output device."""
-        import math
-        if not all(math.isfinite(float(x)) for x in (bpm, start_beat, end_beat)) or not (40 <= bpm <= 240 and 0 <= start_beat < end_beat <= 256):
-            return {"ok": False, "error": "Invalid arrangement tempo or range."}
-        if len(tracks) > self.MAX_INSTANCES:
-            return {"ok": False, "error": "Too many arrangement tracks."}
-        with self._lock:
-            sample_rate = int(self._catalog.status().get("sample_rate") or 48000)
-            if not 8000 <= sample_rate <= 192000:
-                return {"ok": False, "error": "Invalid native sample rate."}
-            scale = sample_rate * 60 / bpm
-            start_frame, end_frame = round(start_beat * scale), round(end_beat * scale)
-            events: list[tuple[str, int, bool, int, float, int]] = []
-            stems: list[tuple[str, Path]] = []
-            for track in tracks:
-                key = self._instance_id(track.get("instance_id"))
-                if key not in self._instances:
-                    return {"ok": False, "error": f"Unloaded native track: {key}"}
-                if bool(track.get("frozen")):
-                    path = self._freeze_files.get(key)
-                    if key not in self._frozen_instances or not path or not path.is_file():
-                        return {"ok": False, "error": f"Frozen audio unavailable: {key}"}
-                    if key not in [stem_id for stem_id, _ in stems]:
-                        stems.append((key, path))
-                    continue
-                if key in self._frozen_instances:
-                    return {"ok": False, "error": f"Frozen track requires its audio: {key}"}
-                notes = track.get("notes")
-                if not isinstance(notes, list) or len(notes) > 2048 or any(not isinstance(note, dict) for note in notes):
-                    return {"ok": False, "error": "Too many notes in a native track."}
-                channel = max(0, min(15, int(track.get("channel", 0))))
-                raw_volume = float(track.get("volume", 1))
-                if not math.isfinite(raw_volume):
-                    return {"ok": False, "error": "Invalid track volume."}
-                volume = max(0.0, min(1.0, raw_volume))
-                for note in notes:
-                    pitch = max(0, min(127, int(note.get("note", 60))))
-                    raw_velocity = float(note.get("velocity", 0.8))
-                    if not math.isfinite(raw_velocity):
-                        return {"ok": False, "error": "Invalid note velocity."}
-                    velocity = max(0.0, min(1.0, raw_velocity)) * volume
-                    on_beat = float(note.get("start_beat", -1))
-                    off_beat = float(note.get("end_beat", -1))
-                    if not math.isfinite(on_beat) or not math.isfinite(off_beat) or not (0 <= on_beat < off_beat <= 256):
-                        return {"ok": False, "error": "Invalid native note range."}
-                    if start_beat <= on_beat < end_beat:
-                        on_frame = round(on_beat * scale)
-                        off_frame = min(end_frame - 1, round(min(off_beat, end_beat) * scale))
-                        events.extend(((key, on_frame, True, pitch, velocity, channel),
-                                       (key, max(on_frame, off_frame), False, pitch, 0.0, channel)))
-            if len(events) > 24576:
-                return {"ok": False, "error": "Native arrangement event limit exceeded."}
-            result = {"ok": False}
-            try:
-                result = self._catalog.transport_config(start_frame, end_frame, bool(loop))
-                if not result.get("ok"):
-                    return result
-                for offset in range(0, len(events), 1024):
-                    result = self._catalog.transport_events(events[offset:offset + 1024])
-                    if not result.get("ok"):
-                        return result
-                for key, path in stems:
-                    result = self._catalog.transport_stem(key, path)
-                    if not result.get("ok"):
-                        return result
-                return self._catalog.transport_play()
-            finally:
-                if not result.get("ok"):
-                    self._catalog.transport_stop()
-
-    def transport_status(self) -> dict:
-        return self._catalog.transport_status()
-
-    def transport_stop(self) -> dict:
-        return self._catalog.transport_stop()
-
     def freeze_resume(self, instance_id: str | None) -> dict:
         key = self._instance_id(instance_id)
         result = self._call(key, "freeze_resume")
@@ -750,8 +652,6 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "version": "0.7.2"})
         if parsed.path == "/api/vst3/status":
             return self._json(VST3.status())
-        if parsed.path == "/api/vst3/transport/status":
-            return self._json(VST3.transport_status())
         if parsed.path == "/api/vst3/plugins":
             return self._json(VST3.plugins_response())
         if parsed.path == "/api/vst3/diagnostics":
@@ -817,15 +717,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(VST3.events([item for item in events if isinstance(item, dict)], payload.get("instance_id")))
             if parsed.path == "/api/vst3/clear-events":
                 return self._json(VST3.clear_events(payload.get("instance_id")))
-            if parsed.path == "/api/vst3/transport/start":
-                tracks = payload.get("tracks")
-                if not isinstance(tracks, list) or any(not isinstance(track, dict) for track in tracks):
-                    return self._json({"ok": False, "error": "Invalid arrangement tracks."}, HTTPStatus.BAD_REQUEST)
-                return self._json(VST3.transport_start(float(payload.get("bpm", 100)),
-                    float(payload.get("start_beat", 0)), float(payload.get("end_beat", 16)),
-                    bool(payload.get("loop", False)), tracks))
-            if parsed.path == "/api/vst3/transport/stop":
-                return self._json(VST3.transport_stop())
             if parsed.path == "/api/vst3/freeze/start":
                 raw_events = payload.get("events", [])
                 if not isinstance(raw_events, list):
