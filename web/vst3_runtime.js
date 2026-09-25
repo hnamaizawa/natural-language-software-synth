@@ -272,20 +272,5 @@
   }
   function trackEventsBatch(byTrack){const groups=new Map();for(const [trackId,events] of byTrack){const target=trackInstances.get(trackId);if(!target||window.multitrackProject?.isFrozen?.(trackId))continue;const group=groups.get(target.instanceId)||[];group.push(...events);groups.set(target.instanceId,group);}for(const [instanceId,events] of groups){events.sort((a,b)=>a.delay_ms-b.delay_ms);(async()=>{for(let i=0;i<events.length;i+=1024){const data=await api("/api/vst3/events",{instance_id:instanceId,events:events.slice(i,i+1024)});if(!data.ok)throw new Error(data.error||"VST3一括イベント送信失敗");}})().catch(err=>show(`VST3一括イベント送信エラー: ${err.message}`));}}
   function clearTrackEvents(){for(const instanceId of new Set([...trackInstances.values()].map(value=>value.instanceId)))api("/api/vst3/clear-events",{instance_id:instanceId}).catch(()=>{});}
-  async function nativeTransportStart(tracks,bpm,startBeat,endBeat,loop){
-    const payload={bpm,start_beat:startBeat,end_beat:endBeat,loop,tracks:tracks.map(track=>{
-      const target=trackInstances.get(track.id);if(!target)throw new Error(`${track.name}のVST3がロードされていません。`);
-      return {instance_id:target.instanceId,channel:channelForTrack(track),volume:track.volume,
-        frozen:window.multitrackProject?.isFrozen?.(track.id)||false,
-        notes:track.clips.flatMap(clip=>clip.notes.map(note=>({note:note.note,velocity:note.velocity,
-          start_beat:clip.start_beats+note.start_beats,
-          end_beat:Math.min(clip.start_beats+clip.length_beats,clip.start_beats+note.start_beats+note.duration_beats)})))};
-    })};
-    const result=await api("/api/vst3/transport/start",payload);
-    if(!result.ok)throw new Error(result.error||"ネイティブ再生を開始できませんでした。");
-    return result;
-  }
-  const nativeTransportStatus=async()=>{const response=await fetch("/api/vst3/transport/status",{cache:"no-store"});if(!response.ok)throw new Error("ネイティブ再生位置を取得できません。");return response.json();};
-  const nativeTransportStop=()=>api("/api/vst3/transport/stop",{});
-  window["vst3Router"]={scan,scanForTracks,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,prepareErrors:()=>[...lastPrepareErrors],loadTrack,releaseTrack,openTrackEditor,trackParameters,trackSetParameter,snapshotTrack,freezeTrack,resumeTrack,isTrackLoaded:track=>trackInstances.get(track?.id)?.pluginId===track?.source?.plugin_id,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,nativeTransportStart,nativeTransportStatus,nativeTransportStop,baseNoteOn,baseNoteOff};
+  window["vst3Router"]={scan,scanForTracks,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,prepareErrors:()=>[...lastPrepareErrors],loadTrack,releaseTrack,openTrackEditor,trackParameters,trackSetParameter,snapshotTrack,freezeTrack,resumeTrack,isTrackLoaded:track=>trackInstances.get(track?.id)?.pluginId===track?.source?.plugin_id,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,baseNoteOn,baseNoteOff};
 })();

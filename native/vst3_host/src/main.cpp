@@ -965,16 +965,6 @@ class NativeVst3Rack
 public:
     static constexpr size_t kMaxInstances = 24;
 
-    struct TransportEvent
-    {
-        std::string instanceId;
-        uint64_t frame {0};
-        bool on {false};
-        int note {60};
-        float velocity {0.0f};
-        int channel {0};
-    };
-
     ~NativeVst3Rack () { stopAudio (); }
 
     bool startAudio ()
@@ -1013,95 +1003,6 @@ public:
     }
 
     uint32_t sampleRate () const { return sampleRate_; }
-
-    bool configureTransport (uint64_t startFrame, uint64_t endFrame, bool loop)
-    {
-        if (endFrame <= startFrame || endFrame > static_cast<uint64_t> (sampleRate_) * 60 * 7) return false;
-        std::lock_guard<std::mutex> lock (mutex_);
-        transportPlaying_ = false;
-        transportStart_ = startFrame;
-        transportEnd_ = endFrame;
-        transportFrame_ = startFrame;
-        transportLoop_ = loop;
-        transportEvents_.clear ();
-        transportStems_.clear ();
-        stemSpans_.clear ();
-        stemSpans_.reserve (kMaxInstances * 2);
-        return true;
-    }
-
-    bool addTransportEvents (std::vector<TransportEvent> events)
-    {
-        std::lock_guard<std::mutex> lock (mutex_);
-        if (transportPlaying_ || transportEvents_.size () + events.size () > 24576) return false;
-        for (const auto& event : events)
-            if (instances_.find (event.instanceId) == instances_.end () || event.frame >= transportEnd_) return false;
-        transportEvents_.insert (transportEvents_.end (), events.begin (), events.end ());
-        return true;
-    }
-
-    bool addTransportStem (const std::string& id, const std::string& path)
-    {
-        std::ifstream file (std::filesystem::u8path (path), std::ios::binary);
-        if (!file) return false;
-        char header[44] {};
-        file.read (header, sizeof (header));
-        const auto u16 = [&header] (int i) { return static_cast<uint16_t> (
-            static_cast<unsigned char> (header[i]) | (static_cast<unsigned char> (header[i + 1]) << 8)); };
-        const auto u32 = [&header] (int i) { return static_cast<uint32_t> (
-            static_cast<unsigned char> (header[i]) | (static_cast<unsigned char> (header[i + 1]) << 8) |
-            (static_cast<unsigned char> (header[i + 2]) << 16) | (static_cast<unsigned char> (header[i + 3]) << 24)); };
-        if (!file || std::string (header, 4) != "RIFF" || std::string (header + 8, 4) != "WAVE" ||
-            std::string (header + 12, 4) != "fmt " || u16 (20) != 1 || u16 (22) != kChannels ||
-            u32 (24) != sampleRate_ || u16 (34) != 16 || std::string (header + 36, 4) != "data") return false;
-        const auto bytes = u32 (40);
-        if (bytes == 0 || bytes > sampleRate_ * 42U * kChannels * 2U || bytes % 4 != 0) return false;
-        std::vector<int16_t> pcm (bytes / 2);
-        file.read (reinterpret_cast<char*> (pcm.data ()), bytes);
-        if (!file) return false;
-        TransportStem stem;
-        stem.id = id;
-        stem.samples.reserve (pcm.size ());
-        for (const auto sample : pcm) stem.samples.push_back (static_cast<float> (sample) / 32768.0f);
-        std::lock_guard<std::mutex> lock (mutex_);
-        if (transportPlaying_ || instances_.find (id) == instances_.end () || transportStems_.size () >= kMaxInstances) return false;
-        transportStems_.push_back (std::move (stem));
-        return true;
-    }
-
-    bool playTransport ()
-    {
-        std::lock_guard<std::mutex> lock (mutex_);
-        if (transportEnd_ <= transportStart_) return false;
-        std::stable_sort (transportEvents_.begin (), transportEvents_.end (),
-                          [] (const auto& a, const auto& b) { return a.frame < b.frame; });
-        transportFrame_ = transportStart_;
-        transportEventCursor_ = static_cast<size_t> (std::lower_bound (
-            transportEvents_.begin (), transportEvents_.end (), transportFrame_,
-            [] (const auto& event, uint64_t frame) { return event.frame < frame; }) - transportEvents_.begin ());
-        transportDelayFrames_ = kBlockSize * 4;
-        transportPlaying_ = true;
-        return true;
-    }
-
-    void stopTransport ()
-    {
-        std::lock_guard<std::mutex> lock (mutex_);
-        transportPlaying_ = false;
-        transportEvents_.clear ();
-        transportStems_.clear ();
-        for (auto& pair : instances_) if (!pair.second->isIdleSuspended ()) pair.second->clearScheduledEvents ();
-    }
-
-    std::string transportStatus ()
-    {
-        std::lock_guard<std::mutex> lock (mutex_);
-        std::ostringstream out;
-        out << "{\"ok\":true,\"playing\":" << (transportPlaying_ ? "true" : "false")
-            << ",\"position_frames\":" << transportFrame_ << ",\"sample_rate\":" << sampleRate_
-            << ",\"start_frames\":" << transportStart_ << ",\"end_frames\":" << transportEnd_ << "}";
-        return out.str ();
-    }
 
     NativeVst3Host* create (const std::string& id, std::string& error)
     {
@@ -1167,50 +1068,6 @@ private:
         const auto samples = static_cast<size_t> (frames) * kChannels;
         std::fill (output, output + samples, 0.0f);
         std::lock_guard<std::mutex> lock (mutex_);
-        // The MIDI events and frozen stems share this callback's sample counter.
-        // UI polling and network latency cannot move one track relative to another.
-        uint32_t offset = 0;
-        if (transportPlaying_)
-        {
-            const auto wait = static_cast<uint32_t> (std::min<uint64_t> (frames, transportDelayFrames_));
-            transportDelayFrames_ -= wait;
-            offset = wait;
-            while (offset < frames && transportPlaying_)
-            {
-                const auto span = static_cast<uint32_t> (std::min<uint64_t> (frames - offset, transportEnd_ - transportFrame_));
-                while (transportEventCursor_ < transportEvents_.size () &&
-                       transportEvents_[transportEventCursor_].frame < transportFrame_ + span)
-                {
-                    const auto& event = transportEvents_[transportEventCursor_++];
-                    if (event.frame < transportFrame_) continue;
-                    const auto found = instances_.find (event.instanceId);
-                    if (found != instances_.end ())
-                        found->second->queueNote (event.on, event.note, event.velocity, event.channel,
-                            offset + event.frame - transportFrame_);
-                }
-                for (const auto& stem : transportStems_)
-                {
-                    const auto available = stem.samples.size () / kChannels;
-                    if (transportFrame_ >= available) continue;
-                    const auto count = std::min<uint64_t> (span, available - transportFrame_);
-                    // Mix stems after plug-ins have rendered; record callback spans here.
-                    stemSpans_.push_back ({&stem, transportFrame_, offset, static_cast<uint32_t> (count)});
-                }
-                transportFrame_ += span;
-                offset += span;
-                if (transportFrame_ == transportEnd_)
-                {
-                    if (transportLoop_)
-                    {
-                        transportFrame_ = transportStart_;
-                        transportEventCursor_ = static_cast<size_t> (std::lower_bound (
-                            transportEvents_.begin (), transportEvents_.end (), transportFrame_,
-                            [] (const auto& event, uint64_t frame) { return event.frame < frame; }) - transportEvents_.begin ());
-                    }
-                    else transportPlaying_ = false;
-                }
-            }
-        }
         bool hasActiveOutput = false;
         for (auto& pair : instances_)
         {
@@ -1225,27 +1082,11 @@ private:
             pair.second->render (scratch_.data (), frames);
             for (size_t i = 0; i < samples; ++i) output[i] += scratch_[i];
         }
-        for (const auto& span : stemSpans_)
-        {
-            hasActiveOutput = true;
-            for (size_t i = 0; i < static_cast<size_t> (span.count) * kChannels; ++i)
-                output[static_cast<size_t> (span.offset) * kChannels + i] +=
-                    span.stem->samples[static_cast<size_t> (span.frame) * kChannels + i];
-        }
-        stemSpans_.clear ();
         if (hasActiveOutput)
             for (size_t i = 0; i < samples; ++i) output[i] = std::max (-1.0f, std::min (1.0f, output[i]));
     }
 
     std::mutex mutex_;
-    struct TransportStem { std::string id; std::vector<float> samples; };
-    struct StemSpan { const TransportStem* stem; uint64_t frame; uint32_t offset; uint32_t count; };
-    std::vector<TransportEvent> transportEvents_;
-    std::vector<TransportStem> transportStems_;
-    std::vector<StemSpan> stemSpans_;
-    uint64_t transportStart_ {0}, transportEnd_ {0}, transportFrame_ {0}, transportDelayFrames_ {0};
-    size_t transportEventCursor_ {0};
-    bool transportLoop_ {false}, transportPlaying_ {false};
     std::unordered_map<std::string, std::unique_ptr<NativeVst3Host>> instances_;
     std::vector<float> scratch_;
     ma_device device_ {};
@@ -1270,39 +1111,6 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
             std::cout << (host && host->load (parts[2], error) ? host->pluginJson () : errorJson (error)) << std::endl;
         }
         else if (parts[0] == "STATUS") std::cout << rack.statusJson () << std::endl;
-        else if (parts[0] == "TRANSPORT_CONFIG" && parts.size () >= 4)
-        {
-            const auto start = std::stoull (parts[1]), end = std::stoull (parts[2]);
-            std::cout << (rack.configureTransport (start, end, parts[3] == "1") ? "{\"ok\":true}" :
-                          errorJson ("Invalid native transport range")) << std::endl;
-        }
-        else if (parts[0] == "TRANSPORT_EVENTS" && parts.size () >= 2)
-        {
-            std::vector<NativeVst3Rack::TransportEvent> events;
-            std::stringstream input (parts[1]);
-            std::string encoded;
-            while (events.size () < 1024 && std::getline (input, encoded, ';'))
-            {
-                std::stringstream item (encoded);
-                std::vector<std::string> fields;
-                std::string field;
-                while (std::getline (item, field, ',')) fields.push_back (field);
-                if (fields.size () != 6) continue;
-                events.push_back ({fields[0], std::stoull (fields[1]), fields[2] == "1",
-                                   std::stoi (fields[3]), static_cast<float> (std::stof (fields[4])),
-                                   std::stoi (fields[5])});
-            }
-            std::cout << (rack.addTransportEvents (std::move (events)) ? "{\"ok\":true}" :
-                          errorJson ("Invalid native transport events")) << std::endl;
-        }
-        else if (parts[0] == "TRANSPORT_STEM" && parts.size () >= 3)
-            std::cout << (rack.addTransportStem (parts[1], parts[2]) ? "{\"ok\":true}" :
-                          errorJson ("Frozen stem is unavailable or incompatible")) << std::endl;
-        else if (parts[0] == "TRANSPORT_PLAY")
-            std::cout << (rack.playTransport () ? "{\"ok\":true}" : errorJson ("Transport is not configured")) << std::endl;
-        else if (parts[0] == "TRANSPORT_STOP")
-        { rack.stopTransport (); std::cout << "{\"ok\":true}" << std::endl; }
-        else if (parts[0] == "TRANSPORT_STATUS") std::cout << rack.transportStatus () << std::endl;
         else if (parts[0] == "DIAGNOSTICS" && parts.size () >= 2)
         {
             auto* host = rack.find (parts[1]);
