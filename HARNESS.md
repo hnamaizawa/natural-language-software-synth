@@ -1,5 +1,11 @@
 # Development Harness
 
+## v0.19.0 native arrangement transport
+
+- For arrangements whose active tracks all use loaded VST3s, the bridge sends bounded notes and frozen track references before play. A single native audio callback schedules note offsets, mixes recorded WAV stems, and advances the position counter through loops.
+- The browser polls position for display only; it does not dispatch a note timer in native arrangement mode. Existing browser AudioContext and noteOn/noteOff contracts remain for built-in sources, live input, and clip preview.
+- Native frozen stems are read only from the server-controlled temporary freeze directory and require the corresponding loaded instance. Project JSON does not persist frozen audio.
+
 ## v0.18.0 playhead and keyed demos
 
 - Playback display follows the existing AudioContext clock via animation frames. It must not schedule notes through the piano roll or create a second audio engine.

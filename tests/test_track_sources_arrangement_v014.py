@@ -73,8 +73,8 @@ def test_each_track_exposes_and_persists_an_independent_source_selector():
     assert "CD/Reference調整済み内蔵音源" in runtime
     assert "特徴量解析だけに使い" in runtime
     assert ".track-source-select" in css
-    assert "/multitrack.css?v=0.18.0" in html
-    assert "/multitrack_runtime.js?v=0.18.0" in html
+    assert "/multitrack.css?v=0.19.0" in html
+    assert "/multitrack_runtime.js?v=0.19.0" in html
 
 
 def test_track_vst3_playback_uses_independent_scanned_host_instances():
@@ -89,7 +89,7 @@ def test_track_vst3_playback_uses_independent_scanned_host_instances():
     assert "channelForTrack" in vst3
     assert 'track?.midi_channel,0,15' in vst3
     assert "const channel=vstChannel(track)" in runtime
-    assert "trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,baseNoteOn,baseNoteOff" in vst3
+    assert "trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,nativeTransportStart,nativeTransportStatus,nativeTransportStop,baseNoteOn,baseNoteOff" in vst3
     assert 'import(".vst3")' not in runtime
     assert "fetch(" not in runtime
 

@@ -21,7 +21,7 @@
     ["studio_tenor_sax","Studio Tenor Sax"]
   ];
   const ROLE_SAMPLE={drums:"drum_straight",bass:"bass",keyboard:"chords",guitar:"chords",melody:"melody",chorus:"chords",pad:"chords",custom:"melody"};
-  let serial=0,applyingTrack=false,selectedClipId=null,completionTimer=0,playbackTimer=0,playbackRunId=0,arrangementPlaying=false,expandedTrackId=null,playheadFrame=0;
+  let serial=0,applyingTrack=false,selectedClipId=null,completionTimer=0,playbackTimer=0,playbackRunId=0,arrangementPlaying=false,expandedTrackId=null,playheadFrame=0,nativeProgressTimer=0,nativeTransportActive=false,nativeStopJob=Promise.resolve();
   const preparedTrackPatches=new Map();
   const frozenBuffers=new Map(),frozenSources=new Set(),freezingIds=new Set();
   const uid=(prefix)=>`${prefix}-${Date.now().toString(36)}-${(++serial).toString(36)}`;
@@ -232,18 +232,43 @@
     const update=()=>{if(!arrangementPlaying||run!==playbackRunId)return;const beat=Math.min(endBeat,startBeat+Math.max(0,engine.ctx.currentTime-cycleStart)/secondsPerBeat);showPlayhead(beat,true);if(beat<endBeat)playheadFrame=requestAnimationFrame(update);};
     update();
   }
-  function stopPreview(){playbackRunId++;cancelAnimationFrame(playheadFrame);if(completionTimer)clearTimeout(completionTimer);completionTimer=0;if(playbackTimer)clearTimeout(playbackTimer);playbackTimer=0;for(const source of frozenSources){try{source.stop();}catch(_){}}frozenSources.clear();if(arrangementPlaying)window.vst3Router?.clearTrackEvents?.();arrangementPlaying=false;showPlayhead(project.playhead_beats,false);const stop=document.getElementById("clipStopBtn");if(stop)stop.disabled=true;}
+  function stopPreview(){playbackRunId++;cancelAnimationFrame(playheadFrame);clearTimeout(nativeProgressTimer);if(completionTimer)clearTimeout(completionTimer);completionTimer=0;if(playbackTimer)clearTimeout(playbackTimer);playbackTimer=0;for(const source of frozenSources){try{source.stop();}catch(_){}}frozenSources.clear();if(nativeTransportActive){nativeTransportActive=false;nativeStopJob=window.vst3Router.nativeTransportStop().catch(error=>status(`ネイティブ停止エラー: ${error.message}`));}else if(arrangementPlaying)window.vst3Router?.clearTrackEvents?.();arrangementPlaying=false;showPlayhead(project.playhead_beats,false);const stop=document.getElementById("clipStopBtn");if(stop)stop.disabled=true;}
+  async function playNativeArrangement(tracks,from,to,loop){
+    await window.vst3Router.nativeTransportStart(tracks,project.bpm,from,to,loop);
+    nativeTransportActive=true;arrangementPlaying=true;
+    document.getElementById("clipStopBtn").disabled=false;
+    const run=playbackRunId;
+    const poll=async()=>{
+      if(run!==playbackRunId||!nativeTransportActive)return;
+      try{
+        const state=await window.vst3Router.nativeTransportStatus();
+        if(run!==playbackRunId||!nativeTransportActive)return;
+        if(!state.ok)throw new Error(state.error||"ネイティブ再生位置を取得できません。");
+        const beat=state.position_frames/state.sample_rate*project.bpm/60;
+        showPlayhead(Math.min(to,beat),state.playing);
+        if(!state.playing){project.playhead_beats=0;stopPreview();renderTransport();status("全パートのネイティブ再生が完了しました。");return;}
+        nativeProgressTimer=setTimeout(poll,100);
+      }catch(error){stopPreview();status(`ネイティブ再生エラー: ${error.message}`);}
+    };
+    poll();
+  }
   async function previewClip(){
     if(freezingIds.size){status("フリーズ録音が終わるまでお待ちください。");return;}
-    const clip=selectedClip(),track=selectedTrack();if(!clip||!track){status("試聴するクリップを選択してください。");return;}stopPreview();if(track.mute){status("選択トラックはミュートされています。");return;}try{await engine.init();await window.vst3Router?.prepareTracks([track]);}catch(error){status(error.message);return;}if(track.source.type==="vst3"&&!window.vst3Router?.isTrackLoaded?.(track)){status(`VST3ロードエラー: ${window.vst3Router?.prepareErrors?.().join("、")||track.name}`);return;}applyTrack(track);document.getElementById("clipStopBtn").disabled=false;
+    const clip=selectedClip(),track=selectedTrack();if(!clip||!track){status("試聴するクリップを選択してください。");return;}stopPreview();await nativeStopJob;if(track.mute){status("選択トラックはミュートされています。");return;}try{await engine.init();await window.vst3Router?.prepareTracks([track]);}catch(error){status(error.message);return;}if(track.source.type==="vst3"&&!window.vst3Router?.isTrackLoaded?.(track)){status(`VST3ロードエラー: ${window.vst3Router?.prepareErrors?.().join("、")||track.name}`);return;}applyTrack(track);document.getElementById("clipStopBtn").disabled=false;
     arrangementPlaying=true;const cycleStart=startInternalScheduler(sliceQueue(buildPlaybackQueue([{...track,clips:[clip]}]),clip.start_beats,clip.start_beats+clip.length_beats),()=>{stopPreview();applyTrack(track);status(`${track.name} · ${clip.name} の試聴が完了しました。`);},clip.length_beats,null,false,clip.start_beats,[track]);followPlayhead(clip.start_beats,clip.start_beats+clip.length_beats,cycleStart);status(`${track.name} · ${clip.name} を共有BPM ${project.bpm}で内部スケジューラ再生中…`);
   }
   function ensureRoleClip(track){if(track.clips.length)return;const key=ROLE_SAMPLE[track.role]||"melody",perf=SAMPLE_PERFORMANCES[key]||SAMPLE_PERFORMANCES.melody;track.clips.push(performanceToClip(perf,key));}
   async function playArrangement(){
     if(freezingIds.size){status("フリーズ録音が終わるまでお待ちください。");return;}
-    stopPreview();const solo=project.tracks.filter(track=>track.solo),tracks=(solo.length?solo:project.tracks.filter(track=>!track.mute));try{await engine.init();await window.vst3Router?.prepareTracks(tracks);}catch(error){status(`VST3準備エラー: ${error.message}`);return;}for(const track of tracks)ensureRoleClip(track);render();arrangementPlaying=true;document.getElementById("clipStopBtn").disabled=false;const queue=buildPlaybackQueue(tracks);
+    stopPreview();await nativeStopJob;const solo=project.tracks.filter(track=>track.solo),tracks=(solo.length?solo:project.tracks.filter(track=>!track.mute));try{await engine.init();await window.vst3Router?.prepareTracks(tracks);}catch(error){status(`VST3準備エラー: ${error.message}`);return;}for(const track of tracks)ensureRoleClip(track);render();
+    const allNative=tracks.length>0&&tracks.every(track=>track.source.type==="vst3"&&track.source.plugin_id&&window.vst3Router?.isTrackLoaded?.(track));
+    if(allNative){
+      const loop=Boolean(document.getElementById("arrangementLoop")?.checked),to=loop?project.loop_end_beats:project.length_beats,from=project.playhead_beats>=to?(loop?project.loop_start_beats:0):project.playhead_beats;
+      try{await playNativeArrangement(tracks,from,to,loop);status(`${tracks.length}パートを単一ネイティブ音声時計で再生中…`);}catch(error){status(`ネイティブ再生エラー: ${error.message}`);}return;
+    }
+    arrangementPlaying=true;document.getElementById("clipStopBtn").disabled=false;const queue=buildPlaybackQueue(tracks);
     const scheduleCycle=(nextStart=null,from=project.playhead_beats)=>{if(!arrangementPlaying)return;const loop=Boolean(document.getElementById("arrangementLoop")?.checked),to=loop?project.loop_end_beats:project.length_beats,begin=from>=to?(loop?project.loop_start_beats:0):from;const cycleStart=startInternalScheduler(sliceQueue(queue,begin,to),cycleEnd=>{if(loop)scheduleCycle(cycleEnd,project.loop_start_beats);else{project.playhead_beats=0;stopPreview();applyTrack(selectedTrack());renderTransport();status("全パートの再生が完了しました。");}},to-begin,nextStart,loop,begin,tracks);followPlayhead(begin,to,cycleStart);};
-    scheduleCycle();const errors=window.vst3Router?.prepareErrors?.()||[];status(`${tracks.length}パートを共有BPM ${project.bpm}で内部同時再生中${document.getElementById("arrangementLoop")?.checked?"（ループ）":""}…${errors.length?` VST3の一部をロードできませんでした: ${errors.join("、")}`:""}`);
+    scheduleCycle();const errors=window.vst3Router?.prepareErrors?.()||[];status(`${tracks.length}パートを共有BPM ${project.bpm}で再生中（内蔵音源を含むため従来のブラウザ併用経路）${document.getElementById("arrangementLoop")?.checked?"（ループ）":""}…${errors.length?` VST3の一部をロードできませんでした: ${errors.join("、")}`:""}`);
   }
   async function loadSelectedVst(track=selectedTrack()){if(!track||track.source.type!=="vst3"){status("先にこのトラックのVST3音源を選択してください。");return;}const pluginId=track.source.plugin_id;status(`${track.name}のVST3をロード中…`);try{await window.vst3Router.loadTrack(track);if(track.source.plugin_id===pluginId){status(`${track.name}のVST3をロードしました。MIDI Ch ${track.midi_channel+1}。必要なら「このトラックのVST3画面」で音色を設定してください。`);renderTrackList();renderTrackSoundPanel();}}catch(error){if(track.source.plugin_id===pluginId)status(`VST3ロードエラー: ${error.message}`);}}
   async function openTrackVstEditor(track){if(!track||track.source.type!=="vst3"){status("このパートのVST3音源を選択してください。");return;}try{await window.vst3Router.openTrackEditor(track);status(`${track.name}のVST3本体画面を開きました。`);renderTrackList();renderTrackSoundPanel();}catch(error){status(`VST3本体画面エラー: ${error.message}`);}}
