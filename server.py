@@ -7,11 +7,12 @@ import mimetypes
 import os
 import subprocess
 import sys
+import tempfile
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 ROOT = Path(__file__).resolve().parent
 WEB = ROOT / "web"
@@ -319,6 +320,21 @@ class Vst3Bridge:
     def close_editor(self, instance_id: str | None = None) -> dict:
         return self._command(f"EDITOR_CLOSE\t{self._instance_id(instance_id)}")
 
+    def freeze_prepare(self, frames: int, instance_id: str | None = None) -> dict:
+        return self._command(f"FREEZE_PREPARE\t{self._instance_id(instance_id)}\t{frames}")
+
+    def freeze_arm(self, instance_id: str | None = None) -> dict:
+        return self._command(f"FREEZE_ARM\t{self._instance_id(instance_id)}")
+
+    def freeze_status(self, instance_id: str | None = None) -> dict:
+        return self._command(f"FREEZE_STATUS\t{self._instance_id(instance_id)}")
+
+    def freeze_save(self, path: Path, instance_id: str | None = None) -> dict:
+        return self._command(f"FREEZE_SAVE\t{self._instance_id(instance_id)}\t{path}")
+
+    def freeze_resume(self, instance_id: str | None = None) -> dict:
+        return self._command(f"FREEZE_RESUME\t{self._instance_id(instance_id)}")
+
     def unload(self, instance_id: str | None = None) -> dict:
         key = self._instance_id(instance_id)
         with self._lock:
@@ -351,7 +367,7 @@ class Vst3Bridge:
         }
         if running:
             native = self._command("STATUS")
-            for key in ("single_audio_device", "cpu_load_percent", "audio_overruns", "idle_suspended_count"):
+            for key in ("single_audio_device", "cpu_load_percent", "audio_overruns", "idle_suspended_count", "sample_rate"):
                 if key in native:
                     result[key] = native[key]
         return result
@@ -386,6 +402,8 @@ class Vst3InstanceManager:
         self._lock = threading.RLock()
         self._catalog = Vst3Bridge()
         self._instances: dict[str, str] = {}
+        self._freeze_dir = tempfile.TemporaryDirectory(prefix="nlss-freeze-")
+        self._freeze_files: dict[str, Path] = {}
 
     @classmethod
     def _instance_id(cls, value: str | None) -> str:
@@ -455,10 +473,57 @@ class Vst3InstanceManager:
     def close_editor(self, instance_id: str | None = None) -> dict:
         return self._call(instance_id, "close_editor")
 
+    def freeze_start(self, instance_id: str | None, events: list[dict], duration_ms: float) -> dict:
+        key = self._instance_id(instance_id)
+        if not 0 < duration_ms <= 42_000 or len(events) > 1024:
+            return {"ok": False, "error": "Freeze duration or note count exceeds the limit."}
+        with self._lock, self._catalog._lock:
+            if key not in self._instances:
+                return {"ok": False, "error": "VST3 instance is not loaded."}
+            sample_rate = int(self._catalog.status().get("sample_rate") or 48_000)
+            frames = round(duration_ms * sample_rate / 1000)
+            result = self._catalog.freeze_prepare(frames, key)
+            if not result.get("ok"):
+                return result
+            for offset in range(0, len(events), 1024):
+                result = self._catalog.events(events[offset:offset + 1024], key)
+                if not result.get("ok"):
+                    self._catalog.freeze_resume(key)
+                    return result
+            result = self._catalog.freeze_arm(key)
+            if not result.get("ok"):
+                self._catalog.freeze_resume(key)
+            return result
+
+    def freeze_status(self, instance_id: str | None) -> dict:
+        return self._call(instance_id, "freeze_status")
+
+    def freeze_finish(self, instance_id: str | None) -> dict:
+        key = self._instance_id(instance_id)
+        with self._lock:
+            if key not in self._instances:
+                return {"ok": False, "error": "VST3 instance is not loaded."}
+            path = Path(self._freeze_dir.name) / f"{key}.wav"
+            result = self._catalog.freeze_save(path, key)
+            if result.get("ok"):
+                self._freeze_files[key] = path
+                result["audio_url"] = f"/api/vst3/freeze-audio?instance_id={key}"
+            return result
+
+    def freeze_audio(self, instance_id: str | None) -> bytes | None:
+        key = self._instance_id(instance_id)
+        with self._lock:
+            path = self._freeze_files.get(key)
+            return path.read_bytes() if path and path.is_file() else None
+
+    def freeze_resume(self, instance_id: str | None) -> dict:
+        return self._call(instance_id, "freeze_resume")
+
     def unload(self, instance_id: str | None = None) -> dict:
         key = self._instance_id(instance_id)
         with self._lock:
             plugin_id = self._instances.pop(key, None)
+            self._freeze_files.pop(key, None)
         if plugin_id is None:
             return {"ok": True}
         return self._catalog.unload(key)
@@ -488,6 +553,7 @@ class Vst3InstanceManager:
         with self._lock:
             self._instances.clear()
         self._catalog.shutdown()
+        self._freeze_dir.cleanup()
 
 
 VST3 = Vst3InstanceManager()
@@ -528,6 +594,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(VST3.plugins_response())
         if parsed.path == "/api/vst3/diagnostics":
             return self._json(VST3.diagnostics())
+        if parsed.path == "/api/vst3/freeze-audio":
+            data = VST3.freeze_audio(parse_qs(parsed.query).get("instance_id", [None])[0])
+            if data is None:
+                return self.send_error(HTTPStatus.NOT_FOUND)
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            return self.wfile.write(data)
 
         rel = unquote(parsed.path.lstrip("/")) or "index.html"
         target = (WEB / rel).resolve()
@@ -579,6 +655,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(VST3.events([item for item in events if isinstance(item, dict)], payload.get("instance_id")))
             if parsed.path == "/api/vst3/clear-events":
                 return self._json(VST3.clear_events(payload.get("instance_id")))
+            if parsed.path == "/api/vst3/freeze/start":
+                raw_events = payload.get("events", [])
+                if not isinstance(raw_events, list):
+                    return self._json({"ok": False, "error": "Invalid note events."}, HTTPStatus.BAD_REQUEST)
+                return self._json(VST3.freeze_start(payload.get("instance_id"),
+                    [item for item in raw_events if isinstance(item, dict)], float(payload.get("duration_ms", 0))))
+            if parsed.path == "/api/vst3/freeze/status":
+                return self._json(VST3.freeze_status(payload.get("instance_id")))
+            if parsed.path == "/api/vst3/freeze/finish":
+                return self._json(VST3.freeze_finish(payload.get("instance_id")))
+            if parsed.path == "/api/vst3/freeze/resume":
+                return self._json(VST3.freeze_resume(payload.get("instance_id")))
             if parsed.path == "/api/vst3/parameters":
                 return self._json(VST3.parameters(payload.get("instance_id")))
             if parsed.path == "/api/vst3/parameter":

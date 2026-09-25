@@ -38,7 +38,7 @@ def test_track_editor_and_midi_allocation_follow_selected_track():
     server = read("server.py")
     for element in ("trackVstMidiChannel", "trackVstLoadBtn", "trackVstEditorBtn"):
         assert f'id="{element}"' in html
-    assert 'api("/api/vst3/editor/open",{instance_id:track.id})' in router
+    assert 'api("/api/vst3/editor/open",{instance_id:target.instanceId})' in router
     assert 'VST3.open_editor(payload.get("instance_id"))' in server
     assert 'VST3.close_editor(payload.get("instance_id"))' in server
     assert 'track.midi_channel_mode==="manual"' in runtime
@@ -75,5 +75,5 @@ def test_inline_track_settings_route_editor_and_parameters_by_track_instance(mon
     assert 'row.append(color,copyNode,sourceSelect,controls,inlineVstSettings(track))' in runtime
     assert 'openTrackVstEditor(track)' in runtime
     assert 'trackSetParameter(track,param.id' in runtime
-    assert 'api("/api/vst3/parameters",{instance_id:track.id})' in router
-    assert 'api("/api/vst3/parameter",{instance_id:track.id' in router
+    assert 'api("/api/vst3/parameters",{instance_id:target.instanceId})' in router
+    assert 'api("/api/vst3/parameter",{instance_id:target.instanceId' in router

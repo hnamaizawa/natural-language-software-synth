@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.14.9 Multi-track VST3 CPU reduction
+
+- [x] パート別フリーズ音声のNative実時間録音とWeb Audio再生、VST3休止・解除
+- [x] 明示的な同一音源パート共有とProject JSONへの参照保存
+- [x] 無音継続後の早期休止と予約イベント保護、ループ境界の時刻固定
+- [x] GitHub CI 174 passed／Harness／Windows Native VST3 build
+
 ## v0.14.8 Inline VST3 track editor
 
 - [x] 各パート行に VST3 詳細設定・本体画面・パラメータ調整を設置
