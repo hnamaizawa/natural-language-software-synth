@@ -301,15 +301,22 @@ class SynthEngine{
     const now=this.ctx.currentTime+Math.max(0,Number(whenSeconds)||0),p=this.patch,f=midiFreq(note+p.octave_shift*12);
     const voiceGain=this.ctx.createGain(),filter=this.ctx.createBiquadFilter();voiceGain.gain.setValueAtTime(.0001,now);
     filter.type="lowpass";filter.frequency.setValueAtTime(p.filter_cutoff_hz,now);filter.Q.value=p.filter_q;
-    const dry=this.ctx.createGain(),wet=this.ctx.createGain(),delay=this.ctx.createDelay(1.5),fb=this.ctx.createGain();
-    dry.gain.value=1-p.delay_mix;wet.gain.value=p.delay_mix;delay.delayTime.value=p.delay_time_s;fb.gain.value=p.delay_feedback;
-    filter.connect(dry);dry.connect(voiceGain);filter.connect(delay);delay.connect(fb);fb.connect(delay);delay.connect(wet);wet.connect(voiceGain);voiceGain.connect(this.master);
+    let dry=null,delay=null,fb=null,wet=null;
+    if(p.delay_mix>0){
+      dry=this.ctx.createGain();wet=this.ctx.createGain();delay=this.ctx.createDelay(1.5);fb=this.ctx.createGain();
+      dry.gain.value=1-p.delay_mix;wet.gain.value=p.delay_mix;delay.delayTime.value=p.delay_time_s;fb.gain.value=p.delay_feedback;
+      filter.connect(dry);dry.connect(voiceGain);filter.connect(delay);delay.connect(fb);fb.connect(delay);delay.connect(wet);wet.connect(voiceGain);
+      // Disconnect the feedback cycle when the scheduled voice has finished.
+      // Otherwise every arrangement note retains a live delay processor.
+    }else filter.connect(voiceGain);
+    voiceGain.connect(this.master);
     const o1=this.ctx.createOscillator(),o2=this.ctx.createOscillator(),g1=this.ctx.createGain(),g2=this.ctx.createGain();
     o1.type=p.osc1_wave;o2.type=p.osc2_wave;o1.frequency.value=f;o2.frequency.value=f;o2.detune.value=p.osc2_detune_cents;
     g1.gain.value=1-p.osc_mix;g2.gain.value=p.osc_mix;o1.connect(g1);o2.connect(g2);g1.connect(filter);g2.connect(filter);
     let lfo=null;if(p.lfo_rate_hz>0&&p.lfo_depth_cents>0){lfo=this.ctx.createOscillator();const lg=this.ctx.createGain();lfo.frequency.value=p.lfo_rate_hz;lg.gain.value=p.lfo_depth_cents;lfo.connect(lg);lg.connect(o1.detune);lg.connect(o2.detune);lfo.start(now);}
     const peak=Math.max(.02,clamp(velocity,0,1)),aEnd=now+p.attack_s,dEnd=aEnd+p.decay_s;
     voiceGain.gain.exponentialRampToValueAtTime(peak,aEnd);voiceGain.gain.linearRampToValueAtTime(Math.max(.0001,peak*p.sustain),dEnd);
+    o1.onended=()=>{for(const node of [o1,o2,lfo,g1,g2,filter,delay,fb,wet,dry,voiceGain])node?.disconnect();};
     o1.start(now);o2.start(now);this.voices.set(this.voiceKey(note),{kind:"synth",o1,o2,lfo,voiceGain});setPerformanceActive(note,true);
   }
   nearestFretlessRegion(note){
