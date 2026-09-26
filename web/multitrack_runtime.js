@@ -275,7 +275,7 @@
       const blob=new Blob([JSON.stringify({...project,frozen_audio},null,2)],{type:"application/json"}),link=document.createElement("a");
       if(blob.size>window.frozenAudioProject.MAX_FILE_BYTES)throw new Error("Project JSONが160 MiBを超えています。");
       link.href=URL.createObjectURL(blob);link.download=`${project.name.replace(/[^\w\-\u3040-\u30ff\u3400-\u9fff]+/g,"_")||"project"}.nlss-project.json`;
-      link.click();URL.revokeObjectURL(link.href);status(`音色と${frozen_audio.length}パートのフリーズ音声を含むProject JSONを保存しました。`);
+      link.click();setTimeout(()=>URL.revokeObjectURL(link.href),60000);status(`音色と${frozen_audio.length}パートのフリーズ音声を含むProject JSONを保存しました。`);
     }catch(error){status(`保存エラー: ${error.message}。Project JSONを出力していません。`);}
   }
   async function importProject(file){
