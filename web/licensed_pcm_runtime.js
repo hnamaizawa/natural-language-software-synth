@@ -33,9 +33,10 @@
     return this.licensedPCMLoadPromise;
   };
 
-  engine.playLicensedPCM=async function(midiNote,velocity,whenSeconds){
+  engine.playLicensedPCM=function(midiNote,velocity,whenSeconds){
     const requestedPatch={...this.patch};
-    let buffer;try{buffer=await this.ensureLicensedPCM();}catch(error){showError(error);return;}
+    const buffer=this.sampleBuffers.get("licensed_tenor_sax");
+    if(!buffer){this.ensureLicensedPCM().then(()=>this.playLicensedPCM(midiNote,velocity,whenSeconds)).catch(showError);return;}
     if(!isLicensed(this.patch)||this.patch.pcm_instrument!==requestedPatch.pcm_instrument)return;
     const note=clamp(Math.round(midiNote),0,127),p=validatePatch(this.patch),now=this.ctx.currentTime+Math.max(0,Number(whenSeconds)||0);
     this.limitVoices(note);
@@ -48,17 +49,17 @@
     gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(peak,now+p.pcm_attack_s);
     delay.delayTime.value=.035;room.gain.value=p.pcm_room_mix*.38;
     source.connect(tone);tone.connect(body);body.connect(gain);gain.connect(this.master);body.connect(delay);delay.connect(room);room.connect(this.master);
-    source.start(now);this.voices.set(note,{kind:"licensed_pcm",source,voiceGain:gain});setPerformanceActive(note,true);
+    source.start(now);this.voices.set(this.voiceKey(note),{kind:"licensed_pcm",source,voiceGain:gain});setPerformanceActive(note,true);
   };
 
   const baseOn=engine.noteOn.bind(engine),baseOff=engine.noteOff.bind(engine);
-  engine.noteOn=function(note,velocity=.85,when=0){if(isLicensed(this.patch)){void this.playLicensedPCM(note,velocity,when);return;}return baseOn(note,velocity,when);};
+  engine.noteOn=function(note,velocity=.85,when=0){if(isLicensed(this.patch)){this.playLicensedPCM(note,velocity,when);return;}return baseOn(note,velocity,when);};
   engine.noteOff=function(midiNote,when=0){
-    const note=clamp(Math.round(midiNote),0,127),voice=this.voices.get(note);
+    const note=clamp(Math.round(midiNote),0,127),voice=this.voices.get(this.voiceKey(note));
     if(voice&&voice.kind==="licensed_pcm"){
       const now=this.ctx.currentTime+Math.max(0,Number(when)||0),release=validatePatch(this.patch).pcm_release_s;
       voice.voiceGain.gain.cancelScheduledValues(now);voice.voiceGain.gain.setTargetAtTime(.0001,now,release/4);
-      try{voice.source.stop(now+release);}catch(_){}this.voices.delete(note);setPerformanceActive(note,false);return;
+      try{voice.source.stop(now+release);}catch(_){}this.voices.delete(this.voiceKey(note));setPerformanceActive(note,false);return;
     }
     return baseOff(midiNote,when);
   };

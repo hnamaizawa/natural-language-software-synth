@@ -66,7 +66,7 @@ def test_arrangement_uses_one_native_instance_per_track_and_routes_notes():
     assert "window.vst3Router?.trackEventsBatch?.(vstEvents)" in multitrack
     assert "window.vst3Router?.clearTrackEvents?.()" in multitrack
     assert '/vst3_runtime.js?v=0.18.0' in html
-    assert '/multitrack_runtime.js?v=0.18.0' in html
+    assert '/multitrack_runtime.js?v=0.18.1' in html
 
 
 def test_blueprint_requires_bounded_independent_vst3_instances():

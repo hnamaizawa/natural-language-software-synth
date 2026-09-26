@@ -173,7 +173,7 @@
     presence.connect(cabDry);cabDry.connect(ampSum);presence.connect(cab);cab.connect(cabWet);cabWet.connect(ampSum);
     ampSum.connect(chorusDry);chorusDry.connect(voiceGain);ampSum.connect(chorusDelay);chorusDelay.connect(chorusWet);chorusWet.connect(voiceGain);voiceGain.connect(this.master);
     source.start(now);this.playGuitarNoise("pick",now,p.guitar_pick_mix*vel*.30);
-    this.voices.set(note,{kind:"guitar",source,voiceGain});setPerformanceActive(note,true);
+    this.voices.set(this.voiceKey(note),{kind:"guitar",source,voiceGain});setPerformanceActive(note,true);
   };
 
   const baseNoteOn=engine.noteOn.bind(engine),baseNoteOff=engine.noteOff.bind(engine);
@@ -182,12 +182,12 @@
     return baseNoteOn(midiNote,velocity,whenSeconds);
   };
   engine.noteOff=function(midiNote,whenSeconds=0){
-    const note=clamp(Math.round(midiNote),0,127),voice=this.voices.get(note);
+    const note=clamp(Math.round(midiNote),0,127),voice=this.voices.get(this.voiceKey(note));
     if(voice&&voice.kind==="guitar"){
       const now=this.ctx.currentTime+Math.max(0,Number(whenSeconds)||0),p=validateGuitarExtras(this.patch);
       voice.voiceGain.gain.cancelScheduledValues(now);voice.voiceGain.gain.setTargetAtTime(.0001,now,.035);
       try{voice.source.stop(now+.20);}catch(_){}
-      this.playGuitarNoise("release",now,p.guitar_release_mix*.24);this.voices.delete(note);setPerformanceActive(note,false);return;
+      this.playGuitarNoise("release",now,p.guitar_release_mix*.24);this.voices.delete(this.voiceKey(note));setPerformanceActive(note,false);return;
     }
     return baseNoteOff(midiNote,whenSeconds);
   };

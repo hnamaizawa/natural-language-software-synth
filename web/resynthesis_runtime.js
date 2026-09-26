@@ -197,7 +197,7 @@
     const peak=Math.max(.015,vel*.82),attackEnd=now+p.resynth_attack_s,decayEnd=attackEnd+p.resynth_decay_s;
     voiceGain.gain.setValueAtTime(.0001,now);voiceGain.gain.exponentialRampToValueAtTime(peak,attackEnd);voiceGain.gain.linearRampToValueAtTime(Math.max(.0001,peak*p.resynth_sustain),decayEnd);
     oscA.start(now);oscB.start(now);
-    this.voices.set(note,{kind:"resynth",oscillators:[oscA,oscB],sources,voiceGain});setPerformanceActive(note,true);
+    this.voices.set(this.voiceKey(note),{kind:"resynth",oscillators:[oscA,oscB],sources,voiceGain});setPerformanceActive(note,true);
   };
 
   const baseNoteOn=engine.noteOn.bind(engine);
@@ -207,13 +207,13 @@
     return baseNoteOn(midiNote,velocity,whenSeconds);
   };
   engine.noteOff=function(midiNote,whenSeconds=0){
-    const note=clamp(Math.round(midiNote),0,127),voice=this.voices.get(note);
+    const note=clamp(Math.round(midiNote),0,127),voice=this.voices.get(this.voiceKey(note));
     if(voice&&voice.kind==="resynth"){
       const now=this.ctx.currentTime+Math.max(0,Number(whenSeconds)||0),p=validateResynthExtras(this.patch),stop=now+p.resynth_release_s+.12;
       voice.voiceGain.gain.cancelScheduledValues(now);voice.voiceGain.gain.setTargetAtTime(.0001,now,Math.max(.008,p.resynth_release_s/5));
       for(const oscillator of voice.oscillators){try{oscillator.stop(stop);}catch(_){}}
       for(const source of voice.sources){try{source.stop(stop);}catch(_){}}
-      this.voices.delete(note);setPerformanceActive(note,false);return;
+      this.voices.delete(this.voiceKey(note));setPerformanceActive(note,false);return;
     }
     return baseNoteOff(midiNote,whenSeconds);
   };

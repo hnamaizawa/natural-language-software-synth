@@ -173,6 +173,7 @@ function validatePatch(raw){
 class SynthEngine{
   constructor(){
     this.ctx=null;this.patch=validatePatch(DEFAULT_PATCH);this.voices=new Map();this.master=null;this.analyser=null;
+    this.playbackVoiceId=null;
     this.sampleBuffers=new Map();this.sampleLoadPromise=null;this.drumRoomDelay=null;this.drumRoomGain=null;this.lastMelodicNote=null;
   }
   async init(){
@@ -257,6 +258,7 @@ class SynthEngine{
   }
   preparePlaybackPatch(raw){return Object.freeze(validatePatch(raw));}
   usePreparedPlaybackPatch(patch){this.patch=patch;}
+  voiceKey(note){return this.playbackVoiceId===null?note:this.playbackVoiceId;}
   noteOn(midiNote,velocity=.85,whenSeconds=0){
     if(!this.ctx)return;
     if(this.patch.engine_type==="drum"){this.playDrumPCM(midiNote,velocity,whenSeconds);return;}
@@ -267,7 +269,7 @@ class SynthEngine{
   noteOff(midiNote,whenSeconds=0){
     if(!this.ctx)return;
     if(this.patch.engine_type==="drum"){setPerformanceActive(canonicalDrumNote(midiNote),false);return;}
-    const note=clamp(Math.round(midiNote),0,127),v=this.voices.get(note);if(!v)return;
+    const note=clamp(Math.round(midiNote),0,127),v=this.voices.get(this.voiceKey(note));if(!v)return;
     const now=this.ctx.currentTime+Math.max(0,Number(whenSeconds)||0);
     if(v.kind==="sampler"){
       v.gain.gain.cancelScheduledValues(now);v.gain.gain.setTargetAtTime(.0001,now,.045);
@@ -282,11 +284,17 @@ class SynthEngine{
       v.voiceGain.gain.setTargetAtTime(.0001,now,Math.max(.005,this.patch.release_s/5));
       for(const o of [v.o1,v.o2,v.lfo].filter(Boolean)){try{o.stop(stop);}catch(_){}}
     }
-    this.voices.delete(note);setPerformanceActive(note,false);
+    this.voices.delete(this.voiceKey(note));setPerformanceActive(note,false);
   }
   limitVoices(note){
-    if(this.voices.has(note))this.noteOff(note,0);
-    while(this.voices.size>=this.patch.max_polyphony)this.noteOff(this.voices.keys().next().value,0);
+    if(this.voices.has(this.voiceKey(note)))this.noteOff(note,0);
+    // Arrangement voices have independent identities; a global pitch-only limit
+    // must not stop an unrelated track's voice.
+    if(this.playbackVoiceId!==null)return;
+    while([...this.voices.keys()].filter(key=>typeof key==="number").length>=this.patch.max_polyphony){
+      const oldest=[...this.voices.keys()].find(key=>typeof key==="number");
+      this.noteOff(oldest,0);
+    }
   }
   playSubtractive(midiNote,velocity,whenSeconds){
     const note=clamp(Math.round(midiNote),0,127);this.limitVoices(note);
@@ -302,7 +310,7 @@ class SynthEngine{
     let lfo=null;if(p.lfo_rate_hz>0&&p.lfo_depth_cents>0){lfo=this.ctx.createOscillator();const lg=this.ctx.createGain();lfo.frequency.value=p.lfo_rate_hz;lg.gain.value=p.lfo_depth_cents;lfo.connect(lg);lg.connect(o1.detune);lg.connect(o2.detune);lfo.start(now);}
     const peak=Math.max(.02,clamp(velocity,0,1)),aEnd=now+p.attack_s,dEnd=aEnd+p.decay_s;
     voiceGain.gain.exponentialRampToValueAtTime(peak,aEnd);voiceGain.gain.linearRampToValueAtTime(Math.max(.0001,peak*p.sustain),dEnd);
-    o1.start(now);o2.start(now);this.voices.set(note,{kind:"synth",o1,o2,lfo,voiceGain});setPerformanceActive(note,true);
+    o1.start(now);o2.start(now);this.voices.set(this.voiceKey(note),{kind:"synth",o1,o2,lfo,voiceGain});setPerformanceActive(note,true);
   }
   nearestFretlessRegion(note){
     return FRETLESS_REGIONS.filter(r=>Number.isFinite(r.root)).reduce((best,r)=>Math.abs(r.root-note)<Math.abs(best.root-note)?r:best);
@@ -333,7 +341,7 @@ class SynthEngine{
     gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(Math.max(.02,vel),now+.008);gain.gain.setTargetAtTime(Math.max(.0001,vel*.72),now+.12,.45);
     source.connect(filter);filter.connect(gain);gain.connect(this.master);source.start(now,region.offset,region.duration);
     this.playFretlessArticulation("attack",now,p.sample_attack_mix*.18+p.finger_noise_mix*vel*.34);
-    this.voices.set(note,{kind:"sampler",source,gain});this.lastMelodicNote=note;setPerformanceActive(note,true);
+    this.voices.set(this.voiceKey(note),{kind:"sampler",source,gain});this.lastMelodicNote=note;setPerformanceActive(note,true);
   }
   drumRegionFor(note,velocity){
     if(note===36)return["kick",56];
@@ -370,7 +378,7 @@ class SynthEngine{
     };
     makePair(1,p.fm_ratio_1,.72);makePair(2,p.fm_ratio_2,.38);
     const lfo=this.ctx.createOscillator(),lg=this.ctx.createGain();lfo.frequency.value=.75;lg.gain.value=.0025;lfo.connect(lg);lg.connect(chorus.delayTime);lfo.start(now);
-    this.voices.set(note,{kind:"fm",oscillators,carrierGains,lfo});setPerformanceActive(note,true);
+    this.voices.set(this.voiceKey(note),{kind:"fm",oscillators,carrierGains,lfo});setPerformanceActive(note,true);
   }
 }
 
