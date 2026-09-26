@@ -11,8 +11,8 @@ def read(path: str) -> str:
 def test_multitrack_assets_are_cache_busted_and_runtime_reports_ready():
     html = read("web/index.html")
     runtime = read("web/multitrack_runtime.js")
-    assert '/multitrack.css?v=0.18.0' in html
-    assert '/multitrack_runtime.js?v=0.18.2' in html
+    assert '/multitrack.css?v=0.18.4' in html
+    assert '/multitrack_runtime.js?v=0.18.4' in html
     assert 'data-runtime-state="loading"' in html
     assert 'projectStatus.dataset.runtimeState="ready"' in runtime
 

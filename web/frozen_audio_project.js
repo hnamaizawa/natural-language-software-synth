@@ -33,8 +33,11 @@
     return result;
   }
   async function signature(track,project){
-    const text=JSON.stringify({bpm:project.bpm,length_beats:project.length_beats,source:track.source,
-      clips:track.clips,midi_channel:track.midi_channel,volume:track.volume});
+    const data={bpm:project.bpm,length_beats:project.length_beats,source:track.source,
+      clips:track.clips,midi_channel:track.midi_channel,volume:track.volume};
+    // Preserve signatures in existing VST3 project files.
+    if(track.source?.type!=="vst3"){data.patch=track.patch;data.generated_patch=track.generated_patch;}
+    const text=JSON.stringify(data);
     const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(text)));
     return Array.from(digest,byte=>byte.toString(16).padStart(2,"0")).join("");
   }
@@ -50,7 +53,7 @@
       frames:meta.frames,signature:await signature(track,project),data:base64(compressed)};
   }
   async function decode(entry,track,project,ctx){
-    if(entry?.track_id!==track?.id||track.source?.type!=="vst3"||track.source?.shared_with||
+    if(entry?.track_id!==track?.id||!["vst3","internal","reference"].includes(track.source?.type)||track.source?.shared_with||
        entry?.format!=="pcm16-gzip-v1"||!entry?.signature||entry.signature!==await signature(track,project))
       throw new Error("フリーズ音声とトラック設定が一致しません。");
     const meta=metadata(entry),pcm=await inflateBounded(unbase64(entry.data),meta.bytes);

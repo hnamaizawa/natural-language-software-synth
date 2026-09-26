@@ -1,5 +1,11 @@
 # CURRENT
 
+## v0.18.4 Internal and Reference freeze
+
+- [x] 内蔵音源・CD/Reference調整済みパートの実時間フリーズ、解除と再生
+- [x] パッチを含む照合でフリーズ音声をProject JSONへ保存・復元
+- [ ] GitHub CI pytest／Harness
+
 ## v0.18.3 Internal effect lifecycle
 
 - [x] 内蔵シンセ／リシンセのゼロミックス時にディレイ回路を省略
