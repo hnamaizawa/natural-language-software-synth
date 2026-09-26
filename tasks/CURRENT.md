@@ -1,5 +1,11 @@
 # CURRENT
 
+## v0.18.8 Live VST3 callback headroom
+
+- [x] 4つのライブVST3向けにNative Hostの音声周期を1024フレームへ拡張
+- [x] MIDIサンプルオフセットと既存の単一音声デバイスを維持
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.18.7 Frozen VST3 stems and imported filename
 
 - [x] Project JSONの読込ファイル名を画面表示

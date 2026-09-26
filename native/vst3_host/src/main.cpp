@@ -44,10 +44,10 @@ using namespace Steinberg;
 using namespace Steinberg::Vst;
 
 constexpr uint32_t kChannels = 2;
-// One VST3 process call per audio callback. A 512-frame period gives several
-// simultaneous instruments more headroom for transient CPU spikes while
-// halving per-block dispatch and event-queue work versus 256 frames.
-constexpr uint32_t kBlockSize = 512;
+// One VST3 process call per audio callback. A 1024-frame period gives four
+// simultaneous instruments more time to finish transient DSP bursts. MIDI
+// sample offsets remain relative to the start of this exact audio block.
+constexpr uint32_t kBlockSize = 1024;
 constexpr uint32_t kPreferredSampleRate = 48000;
 constexpr double kTwoPi = 6.283185307179586476925286766559;
 

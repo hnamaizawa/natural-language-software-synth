@@ -131,7 +131,7 @@ Then start the normal app with `start_synth.cmd`, open the VST3 section, scan, s
 
 ## v0.15.1 native callback work
 
-- Native audio period and maximum VST3 processing block agree at 512 frames. Scheduled MIDI events retain their order and frame offsets across each period; the render callback reuses bounded scratch capacity.
+- Native audio period and maximum VST3 processing block agree at 1024 frames. Scheduled MIDI events retain their order and frame offsets across each period; the render callback reuses bounded scratch capacity.
 - Diagnostics continue to expose host CPU load and overrun count. Per-plugin DSP load can still exceed the available CPU budget; frozen or explicitly shared unchanged tracks remain available.
 
 ## v0.16.0 project state and sequencer
