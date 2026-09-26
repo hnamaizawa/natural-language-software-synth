@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.18.1 Internal arrangement voice identity
+
+- [x] 内蔵音源のアレンジメント再生でトラック・クリップ・ノートごとに発音 ID を分離
+- [x] ピアノ／ギター／リシンセ／ライセンス PCM を含む既存 noteOn / noteOff 経路に適用
+- [x] CC0 PCM の遅延読み込みを再生前に完了させる
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.18.0 Playhead and harmonized demo arrangements
 
 - [x] AudioContext基準の再生ヘッドと小節・拍表示

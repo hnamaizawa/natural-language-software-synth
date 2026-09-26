@@ -117,7 +117,7 @@
     source.connect(tone);tone.connect(body);body.connect(voiceGain);voiceGain.connect(this.master);
     body.connect(roomDelay);roomDelay.connect(roomFilter);roomFilter.connect(roomGain);roomGain.connect(this.master);
     source.start(now);this.playPianoNoise("hammer",now,p.piano_hammer_mix*vel*(.16+.20*(1-p.piano_softness)));
-    this.voices.set(note,{kind:"piano",source,voiceGain});setPerformanceActive(note,true);
+    this.voices.set(this.voiceKey(note),{kind:"piano",source,voiceGain});setPerformanceActive(note,true);
   };
 
   const baseNoteOn=engine.noteOn.bind(engine),baseNoteOff=engine.noteOff.bind(engine);
@@ -126,12 +126,12 @@
     return baseNoteOn(midiNote,velocity,whenSeconds);
   };
   engine.noteOff=function(midiNote,whenSeconds=0){
-    const note=clamp(Math.round(midiNote),0,127),voice=this.voices.get(note);
+    const note=clamp(Math.round(midiNote),0,127),voice=this.voices.get(this.voiceKey(note));
     if(voice&&voice.kind==="piano"){
       const now=this.ctx.currentTime+Math.max(0,Number(whenSeconds)||0),p=validatePianoExtras(this.patch);
       voice.voiceGain.gain.cancelScheduledValues(now);voice.voiceGain.gain.setTargetAtTime(.0001,now,.055);
       try{voice.source.stop(now+.32);}catch(_){}
-      this.playPianoNoise("damper",now,p.piano_damper_noise*.20);this.voices.delete(note);setPerformanceActive(note,false);return;
+      this.playPianoNoise("damper",now,p.piano_damper_noise*.20);this.voices.delete(this.voiceKey(note));setPerformanceActive(note,false);return;
     }
     return baseNoteOff(midiNote,whenSeconds);
   };
