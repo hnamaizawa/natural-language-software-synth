@@ -51,7 +51,7 @@ def test_freeze_and_share_keep_one_audio_context_and_instance_identity():
     assert "trackInstances.set(trackId,alias)" in router
     assert "if(target.instanceId===trackId)await api" in router
     assert "engine.ctx.createBufferSource()" in runtime
-    assert "if(frozenBuffers.has(item.track.id))continue" in runtime
+    assert "if(frozenBuffers.has(item.track.id)||vstPrescheduled&&item.track.source.type===\"vst3\")continue" in runtime
     assert 'share.append(new Option("独立したVST3（別音色）","")' in runtime
     assert '"/api/vst3/freeze-audio"' in server
 

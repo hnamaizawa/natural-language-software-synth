@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.18.5 VST3 native sample clock and unified freeze control
+
+- [x] VST3の曲イベントをNative Hostの共通音声フレームへ先行予約
+- [x] 予約キュー超過による無通知のノート破棄を防止
+- [x] トラック別フリーズ操作を音源共通の場所へ統一
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.18.4 Internal and Reference freeze
 
 - [x] 内蔵音源・CD/Reference調整済みパートの実時間フリーズ、解除と再生
