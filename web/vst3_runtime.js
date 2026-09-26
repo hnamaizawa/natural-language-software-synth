@@ -20,6 +20,13 @@
 
   let loaded=false,loadedPluginId="",loadedPluginName="",scheduledQueue=[],scheduledTimer=0,routedVisualNotes=new Set(),programParameter=null;
   const trackInstances=new Map();
+  let noteSerial=0;
+  const activeIds=new Map();
+  function nextNoteId(){noteSerial=noteSerial>=0x7ffffffe?1:noteSerial+1;return noteSerial;}
+  function noteKey(instanceId,channel,note){return `${instanceId}:${channel}:${note}`;}
+  function beginNote(instanceId,channel,note){const key=noteKey(instanceId,channel,note),ids=activeIds.get(key)||[],id=nextNoteId();ids.push(id);activeIds.set(key,ids);return id;}
+  function endNote(instanceId,channel,note){const key=noteKey(instanceId,channel,note),ids=activeIds.get(key);if(!ids?.length)return -1;const id=ids.shift();if(!ids.length)activeIds.delete(key);return id;}
+  function forgetNotes(instanceId){for(const key of activeIds.keys())if(key.startsWith(`${instanceId}:`))activeIds.delete(key);}
   let catalog=[];
   const loadingTracks=new Map();
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
@@ -68,7 +75,7 @@
     if(route.checked&&loaded){
       const note=Math.round(clamp(midiNote,0,127));
       const channel=routedChannel();
-      scheduleNative("/api/vst3/note-on",{note,velocity:clamp(velocity,.001,1),channel},whenSeconds,()=>setRoutedVisual(note,true),()=>setRoutedVisual(note,false));
+      scheduleNative("/api/vst3/note-on",{note,velocity:clamp(velocity,.001,1),channel,note_id:beginNote("main",channel,note)},whenSeconds,()=>setRoutedVisual(note,true),()=>setRoutedVisual(note,false));
       return null;
     }
     return baseNoteOn(midiNote,velocity,whenSeconds);
@@ -77,7 +84,7 @@
     if(route.checked&&loaded){
       const note=Math.round(clamp(midiNote,0,127));
       const channel=routedChannel();
-      scheduleNative("/api/vst3/note-off",{note,channel},whenSeconds,()=>setRoutedVisual(note,false));
+      scheduleNative("/api/vst3/note-off",{note,channel,note_id:endNote("main",channel,note)},whenSeconds,()=>setRoutedVisual(note,false));
       return;
     }
     return baseNoteOff(midiNote,whenSeconds);
@@ -262,15 +269,15 @@
   function scannedPlugins(){return [...catalog];}
   async function scanForTracks(tracks){const roots=[...new Set((tracks||[]).map(track=>String(track.source?.plugin_path||"").replace(/[\\/][^\\/]+$/, "")).filter(Boolean))].slice(0,16);await scan(roots);return scannedPlugins();}
   function channelForTrack(track){return Math.round(clamp(track?.midi_channel,0,15));}
-  function trackNoteOn(trackId,note,velocity,channel=0,whenSeconds=0){const target=trackInstances.get(trackId);if(!target||window.multitrackProject?.isFrozen?.(trackId))return false;scheduleNative("/api/vst3/note-on",{instance_id:target.instanceId,note:Math.round(clamp(note,0,127)),velocity:clamp(velocity,.001,1),channel:Math.round(clamp(channel,0,15))},whenSeconds);return true;}
-  function trackNoteOff(trackId,note,channel=0,whenSeconds=0){const target=trackInstances.get(trackId);if(!target||window.multitrackProject?.isFrozen?.(trackId))return false;scheduleNative("/api/vst3/note-off",{instance_id:target.instanceId,note:Math.round(clamp(note,0,127)),channel:Math.round(clamp(channel,0,15))},whenSeconds);return true;}
+  function trackNoteOn(trackId,note,velocity,channel=0,whenSeconds=0){const target=trackInstances.get(trackId);if(!target||window.multitrackProject?.isFrozen?.(trackId))return false;note=Math.round(clamp(note,0,127));channel=Math.round(clamp(channel,0,15));scheduleNative("/api/vst3/note-on",{instance_id:target.instanceId,note,velocity:clamp(velocity,.001,1),channel,note_id:beginNote(target.instanceId,channel,note)},whenSeconds);return true;}
+  function trackNoteOff(trackId,note,channel=0,whenSeconds=0){const target=trackInstances.get(trackId);if(!target||window.multitrackProject?.isFrozen?.(trackId))return false;note=Math.round(clamp(note,0,127));channel=Math.round(clamp(channel,0,15));scheduleNative("/api/vst3/note-off",{instance_id:target.instanceId,note,channel,note_id:endNote(target.instanceId,channel,note)},whenSeconds);return true;}
   function trackEvents(instanceId,events){
     const target=trackInstances.get(instanceId);if(!target)return false;
-    const bounded=(events||[]).slice(0,1024).map(event=>({on:Boolean(event.on),note:Math.round(clamp(event.note,0,127)),velocity:clamp(event.velocity,0,1),channel:Math.round(clamp(event.channel,0,15)),delay_ms:clamp(event.delay_ms,0,120000)}));
+    const bounded=(events||[]).slice(0,1024).map(event=>({on:Boolean(event.on),note:Math.round(clamp(event.note,0,127)),velocity:clamp(event.velocity,0,1),channel:Math.round(clamp(event.channel,0,15)),delay_ms:clamp(event.delay_ms,0,120000),note_id:Math.round(clamp(event.note_id??-1,-1,0x7ffffffe))}));
     api("/api/vst3/events",{instance_id:target.instanceId,events:bounded}).then(data=>{if(!data.ok)throw new Error(data.error||"VST3一括イベント送信失敗");}).catch(err=>show(`VST3一括イベント送信エラー: ${err.message}`));
     return true;
   }
   function trackEventsBatch(byTrack){const groups=new Map();for(const [trackId,events] of byTrack){const target=trackInstances.get(trackId);if(!target||window.multitrackProject?.isFrozen?.(trackId))continue;const group=groups.get(target.instanceId)||[];group.push(...events);groups.set(target.instanceId,group);}for(const [instanceId,events] of groups){events.sort((a,b)=>a.delay_ms-b.delay_ms);(async()=>{for(let i=0;i<events.length;i+=1024){const data=await api("/api/vst3/events",{instance_id:instanceId,events:events.slice(i,i+1024)});if(!data.ok)throw new Error(data.error||"VST3一括イベント送信失敗");}})().catch(err=>show(`VST3一括イベント送信エラー: ${err.message}`));}}
-  function clearTrackEvents(){for(const instanceId of new Set([...trackInstances.values()].map(value=>value.instanceId)))api("/api/vst3/clear-events",{instance_id:instanceId}).catch(()=>{});}
-  window["vst3Router"]={scan,scanForTracks,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,prepareErrors:()=>[...lastPrepareErrors],loadTrack,releaseTrack,openTrackEditor,trackParameters,trackSetParameter,snapshotTrack,freezeTrack,resumeTrack,isTrackLoaded:track=>trackInstances.get(track?.id)?.pluginId===track?.source?.plugin_id,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,baseNoteOn,baseNoteOff};
+  function clearTrackEvents(){for(const instanceId of new Set([...trackInstances.values()].map(value=>value.instanceId))){forgetNotes(instanceId);api("/api/vst3/clear-events",{instance_id:instanceId}).catch(()=>{});}}
+  window["vst3Router"]={scan,scanForTracks,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,prepareErrors:()=>[...lastPrepareErrors],loadTrack,releaseTrack,openTrackEditor,trackParameters,trackSetParameter,snapshotTrack,freezeTrack,resumeTrack,isTrackLoaded:track=>trackInstances.get(track?.id)?.pluginId===track?.source?.plugin_id,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,nextNoteId,baseNoteOn,baseNoteOff};
 })();
