@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.18.9 VST3 track latency and demo harmony
+
+- [x] VST3の報告済み出力遅延を絶対時刻イベントに反映
+- [x] トラックごとの予約遅延件数と報告遅延を診断表示
+- [x] サンプル曲メロディーをコードトーン・変化するモチーフへ修正
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.18.8 Live VST3 callback headroom
 
 - [x] 4つのライブVST3向けにNative Hostの音声周期を1024フレームへ拡張

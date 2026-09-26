@@ -666,7 +666,7 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/vst3/plugins":
             return self._json(VST3.plugins_response())
         if parsed.path == "/api/vst3/diagnostics":
-            return self._json(VST3.diagnostics())
+            return self._json(VST3.diagnostics(parse_qs(parsed.query).get("instance_id", [None])[0]))
         if parsed.path == "/api/vst3/freeze-audio":
             data = VST3.freeze_audio(parse_qs(parsed.query).get("instance_id", [None])[0])
             if data is None:

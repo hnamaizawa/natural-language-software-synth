@@ -262,6 +262,11 @@ public:
             return false;
         }
 
+        // The plug-in's declared output latency is distinct from the audio
+        // device period. Only advance arrangement events that have an absolute
+        // host-frame deadline; live key presses cannot be sent in the past.
+        latencySamples_ = std::min<uint32_t> (processor_->getLatencySamples (), sampleRate_ / 2);
+
         pluginName_ = chosen.name ();
         pluginSubcategory_ = chosen.subCategoriesString ();
         pluginPath_ = path;
@@ -359,6 +364,7 @@ public:
         auto currentKeepAlive = idleFramesRemaining_.load ();
         while (keepAlive > currentKeepAlive &&
                !idleFramesRemaining_.compare_exchange_weak (currentKeepAlive, keepAlive)) {}
+        if (absoluteFrame) absoluteFrame = std::max<uint64_t> (1, absoluteFrame > latencySamples_ ? absoluteFrame - latencySamples_ : 1);
         pendingNotes_.push_back ({on, pitch, velocity, static_cast<int16> (channel), delayFrames, noteId, absoluteFrame});
         return true;
     }
@@ -473,6 +479,9 @@ public:
             << ",\"loaded\":" << (loaded_.load () ? "true" : "false")
             << ",\"editor_open\":" << (editor_.isOpen () ? "true" : "false")
             << ",\"sample_rate\":" << sampleRate_
+            << ",\"reported_latency_samples\":" << latencySamples_
+            << ",\"late_note_events\":" << lateNoteEvents_.load ()
+            << ",\"max_note_lateness_frames\":" << maxNoteLatenessFrames_.load ()
             << ",\"audio_output_buses\":" << (component_ ? component_->getBusCount (kAudio, kOutput) : 0)
             << ",\"event_input_buses\":" << (component_ ? component_->getBusCount (kEvent, kInput) : 0)
             << ",\"main_output_bus\":" << mainOutputBus_
@@ -760,6 +769,13 @@ public:
                     if (note.absoluteFrame)
                     {
                         if (note.absoluteFrame >= startFrame + static_cast<uint64_t> (chunkFrames)) return false;
+                        if (note.on && note.absoluteFrame < startFrame)
+                        {
+                            lateNoteEvents_.fetch_add (1);
+                            const auto lateness = std::min<uint64_t> (startFrame - note.absoluteFrame, sampleRate_ * 60ULL);
+                            auto maximum = maxNoteLatenessFrames_.load ();
+                            while (lateness > maximum && !maxNoteLatenessFrames_.compare_exchange_weak (maximum, lateness)) {}
+                        }
                         note.delayFrames = note.absoluteFrame > startFrame ? note.absoluteFrame - startFrame : 0;
                         dueNotes_.push_back (note);
                         return true;
@@ -900,6 +916,7 @@ public:
     void resetDiagnostics ()
     {
         noteOnQueued_.store (0); noteOffQueued_.store (0); eventsDelivered_.store (0); eventAddFailures_.store (0);
+        lateNoteEvents_.store (0); maxNoteLatenessFrames_.store (0);
         processCalls_.store (0); processFailures_.store (0); lastProcessResult_.store (0);
         lastOutputPeak_.store (0.0f); maxOutputPeak_.store (0.0f); processedSamples_ = 0;
     }
@@ -931,6 +948,7 @@ public:
         module_.reset ();
         mainOutputBus_ = -1;
         mainEventInputBus_ = -1;
+        latencySamples_ = 0;
         busArrangementAccepted_ = false;
         pluginName_.clear ();
         pluginSubcategory_.clear ();
@@ -946,6 +964,7 @@ public:
     std::vector<PendingNote> dueNotes_;
     std::vector<PendingParam> dueParams_;
     uint32_t sampleRate_ {kPreferredSampleRate};
+    uint32_t latencySamples_ {0};
     uint32_t quietFrames_ {0};
     std::atomic<bool> manualSuspended_ {false};
     std::atomic<bool> captureActive_ {false};
@@ -971,6 +990,8 @@ public:
     std::atomic<uint64_t> noteOffQueued_ {0};
     std::atomic<uint64_t> eventsDelivered_ {0};
     std::atomic<uint64_t> eventAddFailures_ {0};
+    std::atomic<uint64_t> lateNoteEvents_ {0};
+    std::atomic<uint64_t> maxNoteLatenessFrames_ {0};
     std::atomic<uint64_t> processCalls_ {0};
     std::atomic<uint64_t> processFailures_ {0};
     std::atomic<int32_t> lastProcessResult_ {0};
