@@ -9,9 +9,15 @@
   });
   const triad=(root,quality)=>[root,root+(quality==="min"?3:4),root+7];
   const event=(note,start,duration,velocity=.8)=>({note,start_beats:start,duration_beats:duration,velocity});
+  const melodicShapes=[[0,1,2,1],[2,1,0,1],[1,2,1,0],[2,0,1,2]];
+  function closeChordTone(pitch,previous){
+    const candidates=[pitch+12,pitch+24,pitch+36].filter(note=>note>=68&&note<=84);
+    return candidates.sort((a,b)=>Math.abs(a-previous)-Math.abs(b-previous)||Math.abs(a-75)-Math.abs(b-75))[0];
+  }
   function makeSong(id){
     const spec=songs[id];if(!spec)return null;
     const parts={drums:[],bass:[],keyboard:[],guitar:[],melody:[],chorus:[],pad:[]};
+    let previousMelody=spec.roots[0]+24;
     for(let bar=0;bar<8;bar++){
       const chord=triad(spec.roots[bar],spec.qualities[bar]),base=bar*4;
       for(let beat=0;beat<4;beat++){
@@ -24,7 +30,15 @@
       }
       for(const pitch of chord){parts.keyboard.push(event(pitch+12,base,1.8,.58));parts.pad.push(event(pitch+12,base,3.8,.43));}
       for(const pitch of chord)parts.guitar.push(event(pitch+12,base+2,1.5,.55));
-      parts.melody.push(event(chord[0]+24,base,.9,.8),event(chord[1]+24,base+1, .85,.74),event(chord[2]+24,base+2,.9,.82),event(chord[1]+24,base+3,.85,.7));
+      const motif=melodicShapes[bar%melodicShapes.length];
+      for(let beat=0;beat<4;beat++){
+        // Land on chord tones on every beat. A major-chord fourth or a minor
+        // chord flat sixth would clash against the sustained accompaniment.
+        const note=closeChordTone(chord[motif[beat]],previousMelody);
+        parts.melody.push(event(note,base+beat,beat===3?.65:beat===1?.7:.85,beat===0?.82:.72));
+        previousMelody=note;
+      }
+      if(bar%2===1)parts.melody.push(event(previousMelody,base+3.5,.38,.48));
       parts.chorus.push(event(chord[2]+12,base+2,1.8,.42));
     }
     const clips={};for(const [role,notes] of Object.entries(parts))clips[role]=[0,16].map((start,index)=>({name:`${spec.name} · ${index?"B":"A"}`,start_beats:start,length_beats:16,notes:notes.filter(note=>note.start_beats>=start&&note.start_beats<start+16).map(note=>({...note,start_beats:note.start_beats-start}))}));
