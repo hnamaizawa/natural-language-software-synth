@@ -107,6 +107,7 @@ struct PendingNote
     int16 channel {0};
     uint64_t delayFrames {0};
     int32 noteId {-1};
+    uint64_t absoluteFrame {0};
 };
 
 struct PendingParam
@@ -334,12 +335,15 @@ public:
         return true;
     }
 
-    void queueNote (bool on, int pitch, float velocity, int channel = 0, uint64_t delayFrames = 0, int noteId = -1)
+    bool queueNote (bool on, int pitch, float velocity, int channel = 0, uint64_t delayFrames = 0,
+                    int noteId = -1, uint64_t absoluteFrame = 0)
     {
         pitch = std::max (0, std::min (127, pitch));
         velocity = std::max (0.0f, std::min (1.0f, velocity));
         channel = std::max (0, std::min (15, channel));
         noteId = std::max (-1, std::min (0x7ffffffe, noteId));
+        std::lock_guard<std::mutex> lock (queueMutex_);
+        if (pendingNotes_.size () >= 8192) return false;
         if (on)
         {
             noteOnQueued_.fetch_add (1);
@@ -355,10 +359,8 @@ public:
         auto currentKeepAlive = idleFramesRemaining_.load ();
         while (keepAlive > currentKeepAlive &&
                !idleFramesRemaining_.compare_exchange_weak (currentKeepAlive, keepAlive)) {}
-        std::lock_guard<std::mutex> lock (queueMutex_);
-        pendingNotes_.push_back ({on, pitch, velocity, static_cast<int16> (channel), delayFrames, noteId});
-        if (pendingNotes_.size () > 1024)
-            pendingNotes_.erase (pendingNotes_.begin (), pendingNotes_.begin () + 512);
+        pendingNotes_.push_back ({on, pitch, velocity, static_cast<int16> (channel), delayFrames, noteId, absoluteFrame});
+        return true;
     }
 
     bool queueParameter (uint32_t id, double value)
@@ -580,7 +582,7 @@ public:
     static void dataCallback (ma_device* device, void* output, const void*, ma_uint32 frameCount)
     {
         auto* self = static_cast<NativeVst3Host*> (device->pUserData);
-        self->render (static_cast<float*> (output), frameCount);
+        self->render (static_cast<float*> (output), frameCount, 0);
     }
 
     void queueProcessorParameter (ParamID id, ParamValue value)
@@ -684,7 +686,7 @@ public:
         }
     }
 
-    void render (float* output, ma_uint32 frameCount)
+    void render (float* output, ma_uint32 frameCount, uint64_t startFrame)
     {
         std::fill (output, output + static_cast<size_t> (frameCount) * kChannels, 0.0f);
         if (loaded_.load () && !isIdleSuspended ())
@@ -698,7 +700,7 @@ public:
                     const int32 chunk = static_cast<int32> (std::min<ma_uint32> (kBlockSize, frameCount - rendered));
                     events_.clear ();
                     parameterChanges_.clearQueue ();
-                    const bool queueEmpty = drainPendingChanges (chunk);
+                    const bool queueEmpty = drainPendingChanges (chunk, startFrame + rendered);
                     clearProcessInputs (chunk);
                     clearProcessOutputs (chunk);
                     processData_.numSamples = chunk;
@@ -746,7 +748,7 @@ public:
         addTestTone (output, frameCount);
     }
 
-    bool drainPendingChanges (int32 chunkFrames)
+    bool drainPendingChanges (int32 chunkFrames, uint64_t startFrame)
     {
         dueNotes_.clear ();
         dueParams_.clear ();
@@ -754,7 +756,14 @@ public:
         {
             std::lock_guard<std::mutex> lock (queueMutex_);
             pendingNotes_.erase (std::remove_if (pendingNotes_.begin (), pendingNotes_.end (),
-                [this, chunkFrames] (PendingNote& note) {
+                [this, chunkFrames, startFrame] (PendingNote& note) {
+                    if (note.absoluteFrame)
+                    {
+                        if (note.absoluteFrame >= startFrame + static_cast<uint64_t> (chunkFrames)) return false;
+                        note.delayFrames = note.absoluteFrame > startFrame ? note.absoluteFrame - startFrame : 0;
+                        dueNotes_.push_back (note);
+                        return true;
+                    }
                     if (note.delayFrames < static_cast<uint64_t> (chunkFrames))
                     {
                         dueNotes_.push_back (note);
@@ -1019,6 +1028,7 @@ public:
     }
 
     uint32_t sampleRate () const { return sampleRate_; }
+    uint64_t frameClock () const { return frameClock_.load (); }
 
     NativeVst3Host* create (const std::string& id, std::string& error)
     {
@@ -1061,6 +1071,7 @@ public:
             << ",\"idle_suspended_count\":" << suspended
             << ",\"cpu_load_percent\":" << cpuLoadPercent_.load ()
             << ",\"audio_overruns\":" << audioOverruns_.load ()
+            << ",\"frame_clock\":" << frameClock_.load ()
             << ",\"single_audio_device\":true}";
         return out.str ();
     }
@@ -1070,7 +1081,8 @@ private:
     {
         auto* rack = static_cast<NativeVst3Rack*> (device->pUserData);
         const auto started = std::chrono::steady_clock::now ();
-        rack->render (static_cast<float*> (output), frames);
+        const auto startFrame = rack->frameClock_.fetch_add (frames);
+        rack->render (static_cast<float*> (output), frames, startFrame);
         const auto elapsed = std::chrono::duration<double> (std::chrono::steady_clock::now () - started).count ();
         const auto budget = static_cast<double> (frames) / static_cast<double> (rack->sampleRate_);
         const float percent = budget > 0.0 ? static_cast<float> (elapsed / budget * 100.0) : 0.0f;
@@ -1079,7 +1091,7 @@ private:
         if (elapsed > budget) rack->audioOverruns_.fetch_add (1);
     }
 
-    void render (float* output, ma_uint32 frames)
+    void render (float* output, ma_uint32 frames, uint64_t startFrame)
     {
         const auto samples = static_cast<size_t> (frames) * kChannels;
         std::fill (output, output + samples, 0.0f);
@@ -1090,12 +1102,12 @@ private:
             if (pair.second->isIdleSuspended ()) continue;
             if (!hasActiveOutput)
             {
-                pair.second->render (output, frames);
+                pair.second->render (output, frames, startFrame);
                 hasActiveOutput = true;
                 continue;
             }
             if (scratch_.size () < samples) scratch_.resize (samples);
-            pair.second->render (scratch_.data (), frames);
+            pair.second->render (scratch_.data (), frames, startFrame);
             for (size_t i = 0; i < samples; ++i) output[i] += scratch_[i];
         }
         if (hasActiveOutput)
@@ -1110,6 +1122,7 @@ private:
     bool audioStarted_ {false};
     std::atomic<float> cpuLoadPercent_ {0.0f};
     std::atomic<uint64_t> audioOverruns_ {0};
+    std::atomic<uint64_t> frameClock_ {0};
 };
 
 bool processCommand (NativeVst3Rack& rack, const std::string& line)
@@ -1212,7 +1225,7 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
             auto* host = rack.find (parts[1]);
             const auto channel = parts.size () >= 5 ? std::stoi (parts[4]) : 0;
             const auto noteId = parts.size () >= 6 ? std::stoi (parts[5]) : -1;
-            if (host) { host->queueNote (true, std::stoi (parts[2]), static_cast<float> (std::stod (parts[3])), channel, 0, noteId); std::cout << "{\"ok\":true}" << std::endl; }
+            if (host) { const bool queued = host->queueNote (true, std::stoi (parts[2]), static_cast<float> (std::stod (parts[3])), channel, 0, noteId); std::cout << (queued ? "{\"ok\":true}" : errorJson ("VST3 event queue is full")) << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "NOTE_OFF" && parts.size () >= 3)
@@ -1220,7 +1233,7 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
             auto* host = rack.find (parts[1]);
             const auto channel = parts.size () >= 4 ? std::stoi (parts[3]) : 0;
             const auto noteId = parts.size () >= 5 ? std::stoi (parts[4]) : -1;
-            if (host) { host->queueNote (false, std::stoi (parts[2]), 0.0f, channel, 0, noteId); std::cout << "{\"ok\":true}" << std::endl; }
+            if (host) { const bool queued = host->queueNote (false, std::stoi (parts[2]), 0.0f, channel, 0, noteId); std::cout << (queued ? "{\"ok\":true}" : errorJson ("VST3 event queue is full")) << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "BATCH" && parts.size () >= 3)
@@ -1230,6 +1243,7 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
             else
             {
                 size_t accepted = 0;
+                bool overflow = false;
                 std::stringstream eventStream (parts[2]);
                 std::string encoded;
                 while (accepted < 1024 && std::getline (eventStream, encoded, ';'))
@@ -1242,11 +1256,16 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
                     const bool on = values[0] == "1";
                     const auto delayFrames = static_cast<uint64_t> (
                         std::max (0.0, std::stod (values[4])) * static_cast<double> (rack.sampleRate ()) / 1000.0);
-                    host->queueNote (on, std::stoi (values[1]), static_cast<float> (std::stod (values[2])),
-                                     std::stoi (values[3]), delayFrames, values.size () >= 6 ? std::stoi (values[5]) : -1);
+                    const auto absoluteFrame = values.size () >= 7 ? std::stoull (values[6]) : 0;
+                    const auto reservedFrames = absoluteFrame > rack.frameClock () ?
+                        std::max (delayFrames, absoluteFrame - rack.frameClock ()) : delayFrames;
+                    if (!host->queueNote (on, std::stoi (values[1]), static_cast<float> (std::stod (values[2])),
+                                     std::stoi (values[3]), reservedFrames, values.size () >= 6 ? std::stoi (values[5]) : -1,
+                                     absoluteFrame)) { overflow = true; break; }
                     ++accepted;
                 }
-                std::cout << "{\"ok\":true,\"accepted\":" << accepted << "}" << std::endl;
+                if (!overflow) std::cout << "{\"ok\":true,\"accepted\":" << accepted << "}" << std::endl;
+                else std::cout << errorJson ("VST3 event queue is full") << std::endl;
             }
         }
         else if (parts[0] == "CLEAR" && parts.size () >= 2)

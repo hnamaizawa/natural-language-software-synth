@@ -50,7 +50,7 @@ def test_track_editor_and_midi_allocation_follow_selected_track():
 def test_native_mixer_avoids_scratch_buffer_for_single_active_instance():
     native = read("native/vst3_host/src/main.cpp")
     assert "bool hasActiveOutput = false;" in native
-    assert "pair.second->render (output, frames);" in native
+    assert "pair.second->render (output, frames, startFrame);" in native
     assert "if (scratch_.size () < samples) scratch_.resize (samples);" in native
 
 

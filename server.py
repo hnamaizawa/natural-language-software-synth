@@ -299,7 +299,9 @@ class Vst3Bridge:
             channel = max(0, min(15, int(item.get("channel", 0))))
             delay_ms = max(0.0, min(120_000.0, float(item.get("delay_ms", 0.0))))
             note_id = max(-1, min(0x7FFFFFFE, int(item.get("note_id", -1))))
-            encoded.append(f"{on},{note},{velocity:.6f},{channel},{delay_ms:.3f},{note_id}")
+            at_frame = item.get("at_frame")
+            suffix = f",{max(1, min(2**53 - 1, int(at_frame)))}" if at_frame is not None else ""
+            encoded.append(f"{on},{note},{velocity:.6f},{channel},{delay_ms:.3f},{note_id}{suffix}")
         if not encoded:
             return {"ok": True, "accepted": 0}
         return self._command(f"BATCH\t{self._instance_id(instance_id)}\t{';'.join(encoded)}")
@@ -405,7 +407,7 @@ class Vst3Bridge:
         }
         if running:
             native = self._command("STATUS")
-            for key in ("single_audio_device", "cpu_load_percent", "audio_overruns", "idle_suspended_count", "sample_rate"):
+            for key in ("single_audio_device", "cpu_load_percent", "audio_overruns", "idle_suspended_count", "sample_rate", "frame_clock"):
                 if key in native:
                     result[key] = native[key]
         return result
@@ -611,6 +613,8 @@ class Vst3InstanceManager:
             "cpu_load_percent": native.get("cpu_load_percent", 0.0),
             "audio_overruns": native.get("audio_overruns", 0),
             "idle_suspended_count": native.get("idle_suspended_count", 0),
+            "sample_rate": native.get("sample_rate", 0),
+            "frame_clock": native.get("frame_clock", 0),
         }
 
     def shutdown(self) -> None:
