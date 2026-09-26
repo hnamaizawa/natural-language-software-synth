@@ -582,7 +582,7 @@ public:
     static void dataCallback (ma_device* device, void* output, const void*, ma_uint32 frameCount)
     {
         auto* self = static_cast<NativeVst3Host*> (device->pUserData);
-        self->render (static_cast<float*> (output), frameCount);
+        self->render (static_cast<float*> (output), frameCount, 0);
     }
 
     void queueProcessorParameter (ParamID id, ParamValue value)
