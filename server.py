@@ -275,16 +275,20 @@ class Vst3Bridge:
                 self._loaded_plugin_id = plugin_id
         return response
 
-    def note_on(self, midi_note: int, velocity: float, channel: int = 0, instance_id: str | None = None) -> dict:
+    def note_on(self, midi_note: int, velocity: float, channel: int = 0, instance_id: str | None = None,
+                note_id: int = -1) -> dict:
         midi_note = max(0, min(127, int(midi_note)))
         velocity = max(0.0, min(1.0, float(velocity)))
         channel = max(0, min(15, int(channel)))
-        return self._command(f"NOTE_ON\t{self._instance_id(instance_id)}\t{midi_note}\t{velocity:.6f}\t{channel}")
+        note_id = max(-1, min(0x7FFFFFFE, int(note_id)))
+        return self._command(f"NOTE_ON\t{self._instance_id(instance_id)}\t{midi_note}\t{velocity:.6f}\t{channel}\t{note_id}")
 
-    def note_off(self, midi_note: int, channel: int = 0, instance_id: str | None = None) -> dict:
+    def note_off(self, midi_note: int, channel: int = 0, instance_id: str | None = None,
+                 note_id: int = -1) -> dict:
         midi_note = max(0, min(127, int(midi_note)))
         channel = max(0, min(15, int(channel)))
-        return self._command(f"NOTE_OFF\t{self._instance_id(instance_id)}\t{midi_note}\t{channel}")
+        note_id = max(-1, min(0x7FFFFFFE, int(note_id)))
+        return self._command(f"NOTE_OFF\t{self._instance_id(instance_id)}\t{midi_note}\t{channel}\t{note_id}")
 
     def events(self, events: list[dict], instance_id: str | None = None) -> dict:
         encoded: list[str] = []
@@ -294,7 +298,8 @@ class Vst3Bridge:
             velocity = max(0.0, min(1.0, float(item.get("velocity", 0.0))))
             channel = max(0, min(15, int(item.get("channel", 0))))
             delay_ms = max(0.0, min(120_000.0, float(item.get("delay_ms", 0.0))))
-            encoded.append(f"{on},{note},{velocity:.6f},{channel},{delay_ms:.3f}")
+            note_id = max(-1, min(0x7FFFFFFE, int(item.get("note_id", -1))))
+            encoded.append(f"{on},{note},{velocity:.6f},{channel},{delay_ms:.3f},{note_id}")
         if not encoded:
             return {"ok": True, "accepted": 0}
         return self._command(f"BATCH\t{self._instance_id(instance_id)}\t{';'.join(encoded)}")
@@ -485,11 +490,13 @@ class Vst3InstanceManager:
             return {"ok": False, "error": "VST3 instance is not loaded."}
         return getattr(self._catalog, method)(*args, instance_id=key)
 
-    def note_on(self, note: int, velocity: float, channel: int = 0, instance_id: str | None = None) -> dict:
-        return self._call(instance_id, "note_on", note, velocity, channel)
+    def note_on(self, note: int, velocity: float, channel: int = 0, instance_id: str | None = None,
+                note_id: int = -1) -> dict:
+        return self._call(instance_id, "note_on", note, velocity, channel, note_id=note_id)
 
-    def note_off(self, note: int, channel: int = 0, instance_id: str | None = None) -> dict:
-        return self._call(instance_id, "note_off", note, channel)
+    def note_off(self, note: int, channel: int = 0, instance_id: str | None = None,
+                 note_id: int = -1) -> dict:
+        return self._call(instance_id, "note_off", note, channel, note_id=note_id)
 
     def events(self, events: list[dict], instance_id: str | None = None) -> dict:
         return self._call(instance_id, "events", events)
@@ -708,9 +715,9 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/vst3/load":
                 return self._json(VST3.load(str(payload.get("plugin_id", ""))[:64], payload.get("instance_id")))
             if parsed.path == "/api/vst3/note-on":
-                return self._json(VST3.note_on(int(payload.get("note", 60)), float(payload.get("velocity", 0.8)), int(payload.get("channel", 0)), payload.get("instance_id")))
+                return self._json(VST3.note_on(int(payload.get("note", 60)), float(payload.get("velocity", 0.8)), int(payload.get("channel", 0)), payload.get("instance_id"), int(payload.get("note_id", -1))))
             if parsed.path == "/api/vst3/note-off":
-                return self._json(VST3.note_off(int(payload.get("note", 60)), int(payload.get("channel", 0)), payload.get("instance_id")))
+                return self._json(VST3.note_off(int(payload.get("note", 60)), int(payload.get("channel", 0)), payload.get("instance_id"), int(payload.get("note_id", -1))))
             if parsed.path == "/api/vst3/events":
                 raw_events = payload.get("events", [])
                 events = raw_events if isinstance(raw_events, list) else []

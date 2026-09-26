@@ -12,7 +12,7 @@ def test_vst3_ui_and_router_are_loaded_last():
         "vst3TestToneBtn", "vst3DiagBtn", "vst3RouteEnabled", "vst3Parameters", "vst3Status",
     ]:
         assert f'id="{control_id}"' in html
-    assert 'src="/vst3_runtime.js?v=0.18.0"' in html
+    assert 'src="/vst3_runtime.js?v=0.18.2"' in html
     assert html.index('/humming_runtime.js') < html.index('/vst3_runtime.js')
 
 
@@ -41,8 +41,8 @@ def test_vst3_router_wraps_final_note_contract_and_preserves_scheduling():
     assert "whenSeconds" in js
     assert "if(route.checked&&loaded)" in js
     assert 'engine.patch?.engine_type==="drum"?9:0' in js
-    assert '{note,velocity:clamp(velocity,.001,1),channel}' in js
-    assert '{note,channel}' in js
+    assert '{note,velocity:clamp(velocity,.001,1),channel,note_id:beginNote' in js
+    assert '{note,channel,note_id:endNote' in js
 
 
 def test_python_bridge_is_loopback_only_and_scans_standard_windows_paths():

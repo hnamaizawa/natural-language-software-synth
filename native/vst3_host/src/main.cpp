@@ -106,6 +106,7 @@ struct PendingNote
     float velocity {0.8f};
     int16 channel {0};
     uint64_t delayFrames {0};
+    int32 noteId {-1};
 };
 
 struct PendingParam
@@ -333,11 +334,12 @@ public:
         return true;
     }
 
-    void queueNote (bool on, int pitch, float velocity, int channel = 0, uint64_t delayFrames = 0)
+    void queueNote (bool on, int pitch, float velocity, int channel = 0, uint64_t delayFrames = 0, int noteId = -1)
     {
         pitch = std::max (0, std::min (127, pitch));
         velocity = std::max (0.0f, std::min (1.0f, velocity));
         channel = std::max (0, std::min (15, channel));
+        noteId = std::max (-1, std::min (0x7ffffffe, noteId));
         if (on)
         {
             noteOnQueued_.fetch_add (1);
@@ -354,7 +356,7 @@ public:
         while (keepAlive > currentKeepAlive &&
                !idleFramesRemaining_.compare_exchange_weak (currentKeepAlive, keepAlive)) {}
         std::lock_guard<std::mutex> lock (queueMutex_);
-        pendingNotes_.push_back ({on, pitch, velocity, static_cast<int16> (channel), delayFrames});
+        pendingNotes_.push_back ({on, pitch, velocity, static_cast<int16> (channel), delayFrames, noteId});
         if (pendingNotes_.size () > 1024)
             pendingNotes_.erase (pendingNotes_.begin (), pendingNotes_.begin () + 512);
     }
@@ -373,6 +375,10 @@ public:
     {
         std::lock_guard<std::mutex> lock (queueMutex_);
         pendingNotes_.clear ();
+        for (const auto& active : activeNoteIds_)
+            pendingNotes_.push_back ({false, active.second.first, 0.0f,
+                                      static_cast<int16> (active.second.second), 0, active.first});
+        activeNoteIds_.clear ();
         for (int channel = 0; channel < 16; ++channel)
             for (int pitch = 0; pitch < 128; ++pitch)
                 pendingNotes_.push_back ({false, pitch, 0.0f, static_cast<int16> (channel), 0});
@@ -502,6 +508,7 @@ public:
         std::lock_guard<std::mutex> queueLock (queueMutex_);
         pendingNotes_.clear ();
         pendingParams_.clear ();
+        activeNoteIds_.clear ();
         activeNotes_.store (0);
         captureBuffer_.assign (static_cast<size_t> (frames) * kChannels, 0.0f);
         capturedFrames_.store (0);
@@ -525,6 +532,7 @@ public:
         captureActive_.store (false);
         manualSuspended_.store (false);
         pendingNotes_.clear ();
+        activeNoteIds_.clear ();
         activeNotes_.store (0);
         captureBuffer_.clear ();
         captureTargetFrames_ = 0;
@@ -756,6 +764,12 @@ public:
                     return false;
                 }), pendingNotes_.end ());
             dueParams_.swap (pendingParams_);
+            for (const auto& note : dueNotes_)
+            {
+                if (note.noteId < 0) continue;
+                if (note.on) activeNoteIds_[note.noteId] = {note.pitch, note.channel};
+                else activeNoteIds_.erase (note.noteId);
+            }
             queueEmpty = pendingNotes_.empty () && dueNotes_.empty () && dueParams_.empty ();
         }
         for (const auto& note : dueNotes_)
@@ -773,7 +787,7 @@ public:
                 event.noteOn.tuning = 0.0f;
                 event.noteOn.velocity = note.velocity;
                 event.noteOn.length = 0;
-                event.noteOn.noteId = -1;
+                event.noteOn.noteId = note.noteId;
             }
             else
             {
@@ -782,7 +796,7 @@ public:
                 event.noteOff.pitch = static_cast<int16> (note.pitch);
                 event.noteOff.tuning = 0.0f;
                 event.noteOff.velocity = note.velocity;
-                event.noteOff.noteId = -1;
+                event.noteOff.noteId = note.noteId;
             }
             if (events_.addEvent (event) == kResultOk) eventsDelivered_.fetch_add (1);
             else eventAddFailures_.fetch_add (1);
@@ -896,6 +910,7 @@ public:
             std::lock_guard<std::mutex> lock (queueMutex_);
             pendingNotes_.clear ();
             pendingParams_.clear ();
+            activeNoteIds_.clear ();
         }
         if (processor_) processor_->setProcessing (false);
         if (component_) component_->setActive (false);
@@ -916,6 +931,7 @@ public:
     mutable std::mutex stateMutex_;
     std::mutex queueMutex_;
     std::vector<PendingNote> pendingNotes_;
+    std::unordered_map<int32, std::pair<int32, int16>> activeNoteIds_;
     std::vector<PendingParam> pendingParams_;
     // Render-only scratch; retain capacity across callbacks.
     std::vector<PendingNote> dueNotes_;
@@ -1195,14 +1211,16 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
         {
             auto* host = rack.find (parts[1]);
             const auto channel = parts.size () >= 5 ? std::stoi (parts[4]) : 0;
-            if (host) { host->queueNote (true, std::stoi (parts[2]), static_cast<float> (std::stod (parts[3])), channel); std::cout << "{\"ok\":true}" << std::endl; }
+            const auto noteId = parts.size () >= 6 ? std::stoi (parts[5]) : -1;
+            if (host) { host->queueNote (true, std::stoi (parts[2]), static_cast<float> (std::stod (parts[3])), channel, 0, noteId); std::cout << "{\"ok\":true}" << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "NOTE_OFF" && parts.size () >= 3)
         {
             auto* host = rack.find (parts[1]);
             const auto channel = parts.size () >= 4 ? std::stoi (parts[3]) : 0;
-            if (host) { host->queueNote (false, std::stoi (parts[2]), 0.0f, channel); std::cout << "{\"ok\":true}" << std::endl; }
+            const auto noteId = parts.size () >= 5 ? std::stoi (parts[4]) : -1;
+            if (host) { host->queueNote (false, std::stoi (parts[2]), 0.0f, channel, 0, noteId); std::cout << "{\"ok\":true}" << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "BATCH" && parts.size () >= 3)
@@ -1225,7 +1243,7 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
                     const auto delayFrames = static_cast<uint64_t> (
                         std::max (0.0, std::stod (values[4])) * static_cast<double> (rack.sampleRate ()) / 1000.0);
                     host->queueNote (on, std::stoi (values[1]), static_cast<float> (std::stod (values[2])),
-                                     std::stoi (values[3]), delayFrames);
+                                     std::stoi (values[3]), delayFrames, values.size () >= 6 ? std::stoi (values[5]) : -1);
                     ++accepted;
                 }
                 std::cout << "{\"ok\":true,\"accepted\":" << accepted << "}" << std::endl;

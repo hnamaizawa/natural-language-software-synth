@@ -1,5 +1,13 @@
 # CURRENT
 
+## v0.18.2 VST3 note identity
+
+- [x] VST3 曲再生・フリーズ・鍵盤イベントに対応する note ID を割当
+- [x] Python ブリッジと Native Host の単発／一括 note ID 伝搬
+- [x] Windows停止・旧イベントとの互換を維持
+- [x] フリーズ音声をProject JSONに保存し、設定照合後に再利用
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.18.1 Internal arrangement voice identity
 
 - [x] 内蔵音源のアレンジメント再生でトラック・クリップ・ノートごとに発音 ID を分離
