@@ -70,23 +70,67 @@
     if(project.tracks.length>=MAX_TRACKS){status(`トラックは最大${MAX_TRACKS}個です。`);return;}
     const track=newTrack(["custom",`トラック ${project.tracks.length+1}`,"#65d5f5",{name:`Track ${project.tracks.length+1}`}],project.tracks.length);project.tracks.push(track);selectTrack(track.id);
   }
+  let freezeWorkletContext=null,freezeWorkletReady=null;
+  async function recordInternalFreeze(track,queue,durationSeconds){
+    const ctx=engine.ctx;
+    if(!ctx.audioWorklet||typeof AudioWorkletNode==="undefined"||ctx.sampleRate>96000)throw new Error("このブラウザの音声設定は内蔵音源のフリーズ録音に対応していません。");
+    if(freezeWorkletContext!==ctx){freezeWorkletContext=ctx;freezeWorkletReady=ctx.audioWorklet.addModule("/internal_freeze_processor.js");}
+    await freezeWorkletReady;
+    const frames=Math.ceil(durationSeconds*ctx.sampleRate),start=ctx.currentTime+.25,secondsPerBeat=60/project.bpm;
+    const chunks=[];let samples=0,timer=0,cursor=0,active=true,node=null,silent=null;
+    try{
+      const recorded=new Promise((resolve,reject)=>{
+        node=new AudioWorkletNode(ctx,"internal-freeze-capture",{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[2],
+          processorOptions:{startFrame:Math.round(start*ctx.sampleRate),endFrame:Math.round(start*ctx.sampleRate)+frames}});
+        node.port.onmessage=event=>{if(event.data.done)resolve();else if(event.data.data){const data=new Float32Array(event.data.data);samples+=data.length;chunks.push(data);}};
+        node.onprocessorerror=()=>reject(new Error("フリーズ録音の音声処理に失敗しました。"));
+      });
+      silent=ctx.createGain();silent.gain.value=0;
+      engine.master.connect(node);node.connect(silent);silent.connect(ctx.destination);
+      const pump=()=>{
+        if(!active)return;
+        const now=ctx.currentTime,horizon=now+.8;
+        engine.suppressPerformanceVisuals=true;
+        try{while(cursor<queue.length&&start+queue[cursor].startBeat*secondsPerBeat<=horizon){
+          const item=queue[cursor++],delay=Math.max(0,start+item.startBeat*secondsPerBeat-now);
+          playNote(track,item.event,true,delay,item.voiceId);
+          playNote(track,item.event,false,delay+Math.max(.01,(item.endBeat-item.startBeat)*secondsPerBeat),item.voiceId);
+        }}finally{engine.suppressPerformanceVisuals=false;}
+        if(cursor<queue.length)timer=setTimeout(pump,Math.max(25,Math.min(100,(start+queue[cursor].startBeat*secondsPerBeat-ctx.currentTime-.8)*1000)));
+      };
+      pump();
+      await recorded;
+      if(samples!==frames*2)throw new Error("フリーズ音声の録音長が一致しません。");
+      const buffer=ctx.createBuffer(2,frames,ctx.sampleRate),left=buffer.getChannelData(0),right=buffer.getChannelData(1);
+      let offset=0;for(const chunk of chunks){for(let i=0;i<chunk.length;i+=2){left[offset]=chunk[i];right[offset++]=chunk[i+1];}}
+      return buffer;
+    }finally{
+      active=false;clearTimeout(timer);
+      if(node){engine.master.disconnect(node);node.disconnect();node.port.onmessage=null;}
+      if(silent)silent.disconnect();
+    }
+  }
   async function toggleFreeze(track){
     if(freezingIds.size){status("他のパートのフリーズが終わるまでお待ちください。");return;}
     if(arrangementPlaying){status("再生を停止してからフリーズしてください。");return;}
     if(frozenBuffers.has(track.id)){
-      try{await window.vst3Router.resumeTrack(track);frozenBuffers.delete(track.id);renderTrackList();status(`${track.name}のフリーズを解除しました。`);}catch(error){status(`フリーズ解除エラー: ${error.message}`);}return;
+      try{if(track.source.type==="vst3")await window.vst3Router.resumeTrack(track);frozenBuffers.delete(track.id);renderTrackList();status(`${track.name}のフリーズを解除しました。`);}catch(error){status(`フリーズ解除エラー: ${error.message}`);}return;
     }
-    if(track.source.type!=="vst3"||track.source.shared_with||project.tracks.some(other=>other.source.shared_with===track.id)){
-      status("フリーズするには独立したVST3パートを選び、共有を解除してください。");return;
+    if(track.source.type==="vst3"&&(track.source.shared_with||project.tracks.some(other=>other.source.shared_with===track.id))){
+      status("フリーズするにはVST3パートの共有を解除してください。");return;
     }
     ensureRoleClip(track);
     const queue=buildPlaybackQueue([track]),secondsPerBeat=60/project.bpm;
-    const events=[];
-    for(const item of queue){const channel=vstChannel(track),note_id=window.vst3Router.nextNoteId();events.push({on:true,note:item.event.note,velocity:item.event.velocity*track.volume,channel,note_id,delay_ms:item.startBeat*secondsPerBeat*1000},{on:false,note:item.event.note,velocity:0,channel,note_id,delay_ms:item.endBeat*secondsPerBeat*1000});}
     if((project.length_beats*secondsPerBeat+2)>42){status("フリーズは42秒以内の曲に対応します。BPMか曲長を調整してください。");return;}
-    if(events.length>1024){status("フリーズ対象のノートが多すぎます（最大512ノート）。クリップを分けてください。");return;}
+    if(queue.length>512){status("フリーズ対象のノートが多すぎます（最大512ノート）。クリップを分けてください。");return;}
     freezingIds.add(track.id);renderTrackList();status(`${track.name}を実時間でフリーズ中… 演奏が終わるまでお待ちください。`);
-    try{await engine.init();const buffer=await window.vst3Router.freezeTrack(track,events,(project.length_beats*secondsPerBeat+2)*1000);frozenBuffers.set(track.id,buffer);status(`${track.name}をフリーズしました。再生時のVST3演算を休止します。`);}catch(error){status(`フリーズエラー: ${error.message}`);}finally{freezingIds.delete(track.id);renderTrackList();}
+    try{await engine.init();if(track.source.type!=="vst3"&&track.patch?.instrument_model==="licensed_pcm")await engine.ensureLicensedPCM?.();let buffer;
+      if(track.source.type==="vst3"){
+        const events=[];for(const item of queue){const channel=vstChannel(track),note_id=window.vst3Router.nextNoteId();events.push({on:true,note:item.event.note,velocity:item.event.velocity*track.volume,channel,note_id,delay_ms:item.startBeat*secondsPerBeat*1000},{on:false,note:item.event.note,velocity:0,channel,note_id,delay_ms:item.endBeat*secondsPerBeat*1000});}
+        buffer=await window.vst3Router.freezeTrack(track,events,(project.length_beats*secondsPerBeat+2)*1000);
+      }else buffer=await recordInternalFreeze(track,queue,project.length_beats*secondsPerBeat+2);
+      frozenBuffers.set(track.id,buffer);status(`${track.name}をフリーズしました。再生時は録音済み音声を使用します。`);
+    }catch(error){status(`フリーズエラー: ${error.message}`);}finally{freezingIds.delete(track.id);renderTrackList();}
   }
   async function setSharedSource(track,masterId){
     if(arrangementPlaying||freezingIds.size){status("再生・フリーズを停止してから共有を変更してください。");return;}
@@ -121,7 +165,15 @@
       const sourceSelect=document.createElement("select");sourceSelect.className="track-source-select";sourceSelect.title=`${track.name}の音源を個別に選択`;for(const [value,label] of [["internal","内蔵音源"],["reference","CD/Reference調整"],["vst3","VST3音源"]])sourceSelect.append(new Option(label,value));sourceSelect.value=track.source.type;sourceSelect.addEventListener("click",event=>event.stopPropagation());sourceSelect.addEventListener("change",event=>{event.stopPropagation();setTrackSourceFor(track,event.target.value);});
       const controls=document.createElement("span");controls.className="track-controls";
       for(const [key,label] of [["mute","M"],["solo","S"]]){const button=document.createElement("button");button.type="button";button.textContent=label;button.title=key==="mute"?"このトラックをミュート":"このトラックだけをソロ再生";button.classList.toggle("active",track[key]);button.addEventListener("click",event=>{event.stopPropagation();toggleTrack(track.id,key);});controls.append(button);}
-      row.append(color,copyNode,sourceSelect,controls,inlineVstSettings(track));row.addEventListener("click",()=>selectTrack(track.id));root.append(row);
+      row.append(color,copyNode,sourceSelect,controls,inlineVstSettings(track));
+      if(track.source.type!=="vst3"){
+        const freeze=document.createElement("button");freeze.type="button";freeze.textContent=freezingIds.has(track.id)?"フリーズ中…":frozenBuffers.has(track.id)?"フリーズ解除":"フリーズ（実時間）";
+        freeze.className="track-internal-freeze";
+        freeze.title=`${track.name}の内蔵音源を録音して再生負荷を減らす`;
+        freeze.disabled=Boolean(freezingIds.size);
+        freeze.addEventListener("click",event=>{event.stopPropagation();toggleFreeze(track);});row.append(freeze);
+      }
+      row.addEventListener("click",()=>selectTrack(track.id));root.append(row);
     }
   }
   function renderSummary(){const track=selectedTrack(),node=document.getElementById("selectedTrackSummary");if(node&&track)node.textContent=`選択中: ${track.name} · ${track.patch.name}`;renderTrackSoundPanel();}
@@ -215,7 +267,7 @@
   function buildPlaybackQueue(tracks){const queue=[];for(const track of tracks){for(const clip of track.clips){for(const [noteIndex,event] of clip.notes.entries()){const startBeat=clip.start_beats+event.start_beats;if(startBeat>=project.length_beats||startBeat>=clip.start_beats+clip.length_beats)continue;queue.push({track,event,voiceId:`${track.id}:${clip.id}:${noteIndex}`,startBeat,endBeat:Math.min(project.length_beats,clip.start_beats+clip.length_beats,startBeat+event.duration_beats)});}}}return queue.sort((a,b)=>a.startBeat-b.startBeat);}
   function sliceQueue(queue,start,end){return queue.filter(item=>item.startBeat>=start&&item.startBeat<end).map(item=>({...item,startBeat:item.startBeat-start,endBeat:Math.min(end,item.endBeat)-start}));}
   function startInternalScheduler(queue,onCycleComplete,cycleBeats=TIMELINE_BEATS,scheduledStart=null,loopAhead=false,frozenOffset=0,activeTracks=[]){const runId=++playbackRunId,secondsPerBeat=60/project.bpm,cycleStart=scheduledStart??engine.ctx.currentTime+.08;
-    for(const track of activeTracks){const buffer=frozenBuffers.get(track.id);if(!buffer)continue;const source=engine.ctx.createBufferSource();source.buffer=buffer;source.connect(engine.master);source.onended=()=>{frozenSources.delete(source);source.disconnect();};frozenSources.add(source);{const offset=frozenOffset*secondsPerBeat,duration=Math.min(cycleBeats*secondsPerBeat,buffer.duration-offset);if(duration>0)source.start(cycleStart,offset,duration);else{frozenSources.delete(source);source.disconnect();}}}
+    for(const track of activeTracks){const buffer=frozenBuffers.get(track.id);if(!buffer)continue;const source=engine.ctx.createBufferSource();source.buffer=buffer;source.connect(track.source.type==="vst3"?engine.master:(engine.outputLeveler||engine.analyser));source.onended=()=>{frozenSources.delete(source);source.disconnect();};frozenSources.add(source);{const offset=frozenOffset*secondsPerBeat,duration=Math.min(cycleBeats*secondsPerBeat,buffer.duration-offset);if(duration>0)source.start(cycleStart,offset,duration);else{frozenSources.delete(source);source.disconnect();}}}
     let cursor=0;const pump=()=>{if(runId!==playbackRunId)return;const now=engine.ctx.currentTime,horizon=now+.8,vstEvents=new Map();engine.suppressPerformanceVisuals=true;try{while(cursor<queue.length&&cycleStart+queue[cursor].startBeat*secondsPerBeat<=horizon){const item=queue[cursor++],delay=Math.max(0,cycleStart+item.startBeat*secondsPerBeat-now),duration=Math.max(.01,(item.endBeat-item.startBeat)*secondsPerBeat);if(frozenBuffers.has(item.track.id))continue;if(item.track.source.type==="vst3"&&item.track.source.plugin_id){const events=vstEvents.get(item.track.id)||[],channel=vstChannel(item.track),note_id=window.vst3Router.nextNoteId();events.push({on:true,note:item.event.note,velocity:item.event.velocity*item.track.volume,channel,note_id,delay_ms:delay*1000},{on:false,note:item.event.note,velocity:0,channel,note_id,delay_ms:(delay+duration)*1000});vstEvents.set(item.track.id,events);}else{playNote(item.track,item.event,true,delay,item.voiceId);playNote(item.track,item.event,false,delay+duration,item.voiceId);}}if(vstEvents.size)window.vst3Router?.trackEventsBatch?.(vstEvents);}finally{engine.suppressPerformanceVisuals=false;}if(cursor<queue.length){const untilNext=(cycleStart+queue[cursor].startBeat*secondsPerBeat-engine.ctx.currentTime-.8)*1000;playbackTimer=setTimeout(pump,Math.max(25,Math.min(100,untilNext)));}};pump();
     completionTimer=setTimeout(()=>{completionTimer=0;if(runId===playbackRunId)onCycleComplete(cycleStart+cycleBeats*secondsPerBeat);},Math.max(0,(cycleStart+cycleBeats*secondsPerBeat-engine.ctx.currentTime)*1000+(loopAhead?-100:30)));
     return cycleStart;
