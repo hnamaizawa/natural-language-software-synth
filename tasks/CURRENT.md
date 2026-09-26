@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.18.3 Internal effect lifecycle
+
+- [x] 内蔵シンセ／リシンセのゼロミックス時にディレイ回路を省略
+- [x] 発音終了後にディレイ循環接続を破棄
+- [x] ローカル静的アセットのキャッシュ抑止
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.18.2 VST3 note identity
 
 - [x] VST3 曲再生・フリーズ・鍵盤イベントに対応する note ID を割当

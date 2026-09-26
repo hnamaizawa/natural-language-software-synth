@@ -167,10 +167,15 @@
     // performance surface so keyboard labels, recorded notes and audible pitch remain aligned.
     const f=midiFreq(note),morph=p.resynth_morph;
     const voiceGain=this.ctx.createGain(),filter=this.ctx.createBiquadFilter();
-    const dry=this.ctx.createGain(),delay=this.ctx.createDelay(1.5),feedback=this.ctx.createGain(),wet=this.ctx.createGain();
+    const dry=this.ctx.createGain();let delay=null,feedback=null,wet=null;
     filter.type="lowpass";filter.frequency.value=clamp(900+Math.pow(p.resynth_brightness,1.35)*16500,700,18000);filter.Q.value=.62+p.resynth_brightness*1.9;
-    dry.gain.value=1-p.delay_mix;wet.gain.value=p.delay_mix;delay.delayTime.value=p.delay_time_s;feedback.gain.value=p.delay_feedback;
-    filter.connect(voiceGain);voiceGain.connect(dry);dry.connect(this.master);voiceGain.connect(delay);delay.connect(feedback);feedback.connect(delay);delay.connect(wet);wet.connect(this.master);
+    dry.gain.value=1-p.delay_mix;
+    filter.connect(voiceGain);voiceGain.connect(dry);dry.connect(this.master);
+    if(p.delay_mix>0){
+      delay=this.ctx.createDelay(1.5);feedback=this.ctx.createGain();wet=this.ctx.createGain();
+      wet.gain.value=p.delay_mix;delay.delayTime.value=p.delay_time_s;feedback.gain.value=p.delay_feedback;
+      voiceGain.connect(delay);delay.connect(feedback);feedback.connect(delay);delay.connect(wet);wet.connect(this.master);
+    }
 
     const oscA=this.ctx.createOscillator(),oscB=this.ctx.createOscillator(),gainA=this.ctx.createGain(),gainB=this.ctx.createGain();
     oscA.setPeriodicWave(createPcmDerivedWave(p.resynth_source_a,p,note));oscB.setPeriodicWave(createPcmDerivedWave(p.resynth_source_b,p,note));
@@ -196,6 +201,7 @@
 
     const peak=Math.max(.015,vel*.82),attackEnd=now+p.resynth_attack_s,decayEnd=attackEnd+p.resynth_decay_s;
     voiceGain.gain.setValueAtTime(.0001,now);voiceGain.gain.exponentialRampToValueAtTime(peak,attackEnd);voiceGain.gain.linearRampToValueAtTime(Math.max(.0001,peak*p.resynth_sustain),decayEnd);
+    oscA.onended=()=>{for(const node of [oscA,oscB,gainA,gainB,filter,voiceGain,dry,delay,feedback,wet])node?.disconnect();};
     oscA.start(now);oscB.start(now);
     this.voices.set(this.voiceKey(note),{kind:"resynth",oscillators:[oscA,oscB],sources,voiceGain});setPerformanceActive(note,true);
   };
