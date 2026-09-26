@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.18.7 Frozen VST3 stems and imported filename
+
+- [x] Project JSONの読込ファイル名を画面表示
+- [x] 互換性のある複数VST3フリーズ音声を事前合成し1本で再生
+- [x] 全トラックがフリーズ済みのとき不要なノート予約タイマーを省略
+- [ ] GitHub CI pytest／Harness
+
 ## v0.18.6 Mixed VST3 and internal playback
 
 - [x] 内蔵FM・PCM音源の発音終了後にAudioNodeを解放

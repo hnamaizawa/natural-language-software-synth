@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/performance_editor.css" />
   <link rel="stylesheet" href="/keyboard_performance.css" />
-  <link rel="stylesheet" href="/multitrack.css?v=0.18.5" />
+  <link rel="stylesheet" href="/multitrack.css?v=0.18.7" />
 </head>
 <body>
   <main>
@@ -30,7 +30,7 @@
     <section id="arrangement" class="panel arrangement-panel">
       <div class="arrangement-head">
         <div><span class="kicker">v0.14 · MULTI-TRACK ARRANGEMENT</span><h2>パートごとに音色とフレーズを管理</h2><p>トラックを選び、内蔵音源・Reference Audio調整・自然言語調整・VST3をパートごとに設定できます。</p></div>
-        <div class="project-actions"><label>曲名<input id="projectName" maxlength="60" value="新しい曲" /></label><label>BPM<input id="projectBpm" type="number" min="40" max="240" value="100" /></label><label>曲長（小節）<select id="songBars"><option>4</option><option>8</option><option>16</option><option>32</option><option>64</option></select></label><button id="projectExportBtn">Project JSON保存</button><label class="file-btn">Project JSON読込<input id="projectImportInput" type="file" accept="application/json,.json" /></label></div>
+        <div class="project-actions"><label>曲名<input id="projectName" maxlength="60" value="新しい曲" /></label><label>BPM<input id="projectBpm" type="number" min="40" max="240" value="100" /></label><label>曲長（小節）<select id="songBars"><option>4</option><option>8</option><option>16</option><option>32</option><option>64</option></select></label><button id="projectExportBtn">Project JSON保存</button><label class="file-btn">Project JSON読込<input id="projectImportInput" type="file" accept="application/json,.json" /></label><small id="projectLoadedFile" class="project-file-name" aria-live="polite">読込ファイル: なし</small></div>
       </div>
       <div class="arrangement-body">
         <div class="track-list-wrap">
@@ -199,7 +199,8 @@
   <script src="/recording_workspace_runtime.js"></script>
 <script src="/sequencer_samples.js?v=0.18.0"></script>
 <script src="/frozen_audio_project.js?v=0.18.4"></script>
-<script src="/multitrack_runtime.js?v=0.18.6"></script>
+<script src="/frozen_stem_mix.js?v=0.18.7"></script>
+<script src="/multitrack_runtime.js?v=0.18.7"></script>
 <script src="/vst3_runtime.js?v=0.18.5"></script>
   <script src="/ui_help_runtime.js"></script>
 </body>
