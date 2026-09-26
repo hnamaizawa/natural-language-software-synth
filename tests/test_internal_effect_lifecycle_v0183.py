@@ -47,6 +47,38 @@ def test_resynthesis_disconnects_its_feedback_cycle():
     assert "feedback,wet])node?.disconnect()" in source
 
 
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is unavailable")
+def test_fm_voice_disconnects_its_modulators_and_chorus_after_release():
+    script = r"""
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const source=fs.readFileSync('web/app.js','utf8');
+const body=source.slice(source.indexOf('class SynthEngine{'),source.indexOf('const engine=new SynthEngine();'));
+const patch={engine_type:'fm',instrument_model:'dx_ep',fm_ratio_1:2,fm_ratio_2:3,
+  fm_mod_index:1,fm_brightness:.5,fm_decay_s:.6,fm_release_s:.2,fm_chorus_mix:.3,max_polyphony:8};
+const C=vm.runInNewContext(body+'; SynthEngine',{DEFAULT_PATCH:patch,validatePatch:p=>p,
+  clamp:(x,lo,hi)=>Math.max(lo,Math.min(hi,x)),setPerformanceActive:()=>{},midiFreq:()=>440});
+const nodes=[];
+function param(){return {value:0,setValueAtTime(){},setTargetAtTime(){},cancelScheduledValues(){},exponentialRampToValueAtTime(){}};}
+function node(kind){const value={kind,disconnected:false,gain:param(),frequency:param(),delayTime:param(),
+  connect(){},disconnect(){this.disconnected=true;},start(){},stop(){}};nodes.push(value);return value;}
+const engine=new C();engine.ctx={currentTime:0,createGain:()=>node('gain'),createDelay:()=>node('delay'),createOscillator:()=>node('osc')};
+engine.master=node('master');engine.playFM(60,.8,0);const voice=engine.voices.get(60);
+engine.noteOff(60,0);voice.oscillators[0].onended();
+assert(nodes.filter(n=>n!==engine.master).every(n=>n.disconnected));
+"""
+    subprocess.run([shutil.which("node"), "-e", script], cwd=ROOT, check=True)
+
+
+def test_internal_pcm_assets_are_prepared_before_arrangement_clock_starts():
+    runtime=(ROOT / "web/multitrack_runtime.js").read_text(encoding="utf-8")
+    assert "prepareInternalSamples(tracks,queue);render();arrangementPlaying=true" in runtime
+    assert "engine.ensureGuitarSamples?.()" in runtime
+    assert "engine.preparePianoNotes?.(" in runtime
+    guitar=(ROOT / "web/guitar_runtime.js").read_text(encoding="utf-8")
+    assert "const distortionCurves=new Map()" in guitar
+    assert "distortionCurves.set(key,curve)" in guitar
+
+
 def test_local_static_assets_do_not_keep_stale_audio_engine_scripts():
     source = (ROOT / "server.py").read_text(encoding="utf-8")
     assert 'self.send_header("Content-Type", content_type or "application/octet-stream")\n        self.send_header("Cache-Control", "no-store")' in source
