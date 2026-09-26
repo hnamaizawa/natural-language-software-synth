@@ -73,8 +73,8 @@ def test_each_track_exposes_and_persists_an_independent_source_selector():
     assert "CD/Reference調整済み内蔵音源" in runtime
     assert "特徴量解析だけに使い" in runtime
     assert ".track-source-select" in css
-    assert "/multitrack.css?v=0.18.5" in html
-    assert "/multitrack_runtime.js?v=0.18.6" in html
+    assert "/multitrack.css?v=0.18.7" in html
+    assert "/multitrack_runtime.js?v=0.18.7" in html
 
 
 def test_track_vst3_playback_uses_independent_scanned_host_instances():

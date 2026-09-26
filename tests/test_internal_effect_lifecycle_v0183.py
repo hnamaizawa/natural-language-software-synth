@@ -71,7 +71,7 @@ assert(nodes.filter(n=>n!==engine.master).every(n=>n.disconnected));
 
 def test_internal_pcm_assets_are_prepared_before_arrangement_clock_starts():
     runtime=(ROOT / "web/multitrack_runtime.js").read_text(encoding="utf-8")
-    assert "prepareInternalSamples(tracks,queue);render();arrangementPlaying=true" in runtime
+    assert "prepareInternalSamples(tracks,queue);mixedFrozenVstBuffer(tracks);render();arrangementPlaying=true" in runtime
     assert "engine.ensureGuitarSamples?.()" in runtime
     assert "engine.preparePianoNotes?.(" in runtime
     guitar=(ROOT / "web/guitar_runtime.js").read_text(encoding="utf-8")
