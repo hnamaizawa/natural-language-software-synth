@@ -325,7 +325,7 @@ class SynthEngine{
   playRegion(bufferKey,region,now,rate=1,gainValue=1,destination=this.master){
     const buffer=this.sampleBuffers.get(bufferKey);if(!buffer)return null;
     const source=this.ctx.createBufferSource(),gain=this.ctx.createGain();source.buffer=buffer;source.playbackRate.value=rate;gain.gain.value=gainValue;
-    source.connect(gain);gain.connect(destination);source.start(now,region.offset,region.duration);return{source,gain};
+    source.connect(gain);gain.connect(destination);source.onended=()=>{source.disconnect();gain.disconnect();};source.start(now,region.offset,region.duration);return{source,gain};
   }
   playFretlessArticulation(name,now,gainValue){
     const region=FRETLESS_REGIONS.find(r=>r.name===name);if(!region||gainValue<=.001)return;
@@ -346,7 +346,7 @@ class SynthEngine{
     filter.type="lowpass";const toneHz=1000+p.sample_tone*9500;filter.frequency.setValueAtTime(toneHz*(.55+.45*(1-p.mwah_amount)),now);
     filter.frequency.exponentialRampToValueAtTime(Math.max(120,toneHz),now+.18+p.mwah_amount*.35);filter.Q.value=.8+p.mwah_amount*5.8;
     gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(Math.max(.02,vel),now+.008);gain.gain.setTargetAtTime(Math.max(.0001,vel*.72),now+.12,.45);
-    source.connect(filter);filter.connect(gain);gain.connect(this.master);source.start(now,region.offset,region.duration);
+    source.connect(filter);filter.connect(gain);gain.connect(this.master);source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};source.start(now,region.offset,region.duration);
     this.playFretlessArticulation("attack",now,p.sample_attack_mix*.18+p.finger_noise_mix*vel*.34);
     this.voices.set(this.voiceKey(note),{kind:"sampler",source,gain});this.lastMelodicNote=note;setPerformanceActive(note,true);
   }
@@ -367,6 +367,7 @@ class SynthEngine{
     source.connect(filter);filter.connect(gain);gain.connect(this.master);if(this.drumRoomDelay)gain.connect(this.drumRoomDelay);
     let dur=region.duration;if(note===36)dur=Math.min(dur,.12+p.kick_decay_s*1.2);else if(note===38)dur=Math.min(dur,.10+p.snare_decay_s*1.4);
     else if(note===42||note===46)dur=Math.min(dur,.05+p.hat_decay_s*2.5);else if([45,48,50].includes(note))dur=Math.min(dur,.12+p.tom_decay_s*1.2);
+    source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};
     source.start(now,region.offset,dur);if(!this.suppressPerformanceVisuals){setPerformanceActive(note,true);setTimeout(()=>setPerformanceActive(note,false),Math.max(80,dur*450));}
   }
   playFM(midiNote,velocity,whenSeconds){
@@ -375,16 +376,17 @@ class SynthEngine{
     const sum=this.ctx.createGain(),dry=this.ctx.createGain(),wet=this.ctx.createGain(),chorus=this.ctx.createDelay(.05);
     dry.gain.value=1-p.fm_chorus_mix;wet.gain.value=p.fm_chorus_mix;chorus.delayTime.value=.014;
     sum.connect(dry);dry.connect(this.master);sum.connect(chorus);chorus.connect(wet);wet.connect(this.master);
-    const oscillators=[],carrierGains=[];
+    const oscillators=[],carrierGains=[],modulatorGains=[];
     const makePair=(carrierRatio,modRatio,weight)=>{
       const c=this.ctx.createOscillator(),m=this.ctx.createOscillator(),mg=this.ctx.createGain(),cg=this.ctx.createGain();
       c.type="sine";m.type="sine";c.frequency.value=f*carrierRatio;m.frequency.value=f*modRatio;
       mg.gain.setValueAtTime(f*p.fm_mod_index*(.45+.75*p.fm_brightness)*vel,now);mg.gain.exponentialRampToValueAtTime(Math.max(.01,f*.05),now+p.fm_decay_s*.62);
       cg.gain.setValueAtTime(.0001,now);cg.gain.exponentialRampToValueAtTime(Math.max(.01,vel*weight),now+.006);cg.gain.exponentialRampToValueAtTime(Math.max(.0001,vel*.13*weight),now+p.fm_decay_s);
-      m.connect(mg);mg.connect(c.frequency);c.connect(cg);cg.connect(sum);m.start(now);c.start(now);oscillators.push(m,c);carrierGains.push(cg);
+      m.connect(mg);mg.connect(c.frequency);c.connect(cg);cg.connect(sum);m.start(now);c.start(now);oscillators.push(m,c);carrierGains.push(cg);modulatorGains.push(mg);
     };
     makePair(1,p.fm_ratio_1,.72);makePair(2,p.fm_ratio_2,.38);
     const lfo=this.ctx.createOscillator(),lg=this.ctx.createGain();lfo.frequency.value=.75;lg.gain.value=.0025;lfo.connect(lg);lg.connect(chorus.delayTime);lfo.start(now);
+    oscillators[0].onended=()=>{for(const node of [...oscillators,...carrierGains,...modulatorGains,lfo,lg,sum,dry,wet,chorus])node.disconnect();};
     this.voices.set(this.voiceKey(note),{kind:"fm",oscillators,carrierGains,lfo});setPerformanceActive(note,true);
   }
 }

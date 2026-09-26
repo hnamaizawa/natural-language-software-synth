@@ -127,13 +127,20 @@
     if(!this.sampleBuffers.has("guitar_release"))this.sampleBuffers.set("guitar_release",createFactoryGuitarNoisePCM("release"));
   };
 
+  const distortionCurves=new Map();
   function makeDistortionCurve(drive,model){
+    const key=`${model}:${Math.round(drive*10000)}`;
+    if(distortionCurves.has(key))return distortionCurves.get(key);
     const n=2048,curve=new Float32Array(n);
     const modelBoost=model==="high_gain"?1.85:model==="crunch"?1.32:model==="acoustic"?.35:1;
     const amount=clamp(drive*modelBoost,0,1);
-    if(amount<.004){for(let i=0;i<n;i++)curve[i]=i*2/(n-1)-1;return curve;}
+    if(amount<.004){for(let i=0;i<n;i++)curve[i]=i*2/(n-1)-1;}
+    else {
     const gain=1+amount*22,norm=Math.tanh(gain);
     for(let i=0;i<n;i++){const x=i*2/(n-1)-1;curve[i]=Math.tanh(x*gain)/norm;}
+    }
+    if(distortionCurves.size>=64)distortionCurves.delete(distortionCurves.keys().next().value);
+    distortionCurves.set(key,curve);
     return curve;
   }
 
@@ -141,7 +148,7 @@
     const buffer=this.sampleBuffers.get(`guitar_${kind}`);if(!buffer||gainValue<=.001)return;
     const source=this.ctx.createBufferSource(),hp=this.ctx.createBiquadFilter(),gain=this.ctx.createGain();
     source.buffer=buffer;hp.type="highpass";hp.frequency.value=kind==="pick"?850:320;gain.gain.value=gainValue;
-    source.connect(hp);hp.connect(gain);gain.connect(this.master);source.start(now);
+    source.connect(hp);hp.connect(gain);gain.connect(this.master);source.onended=()=>{source.disconnect();hp.disconnect();gain.disconnect();};source.start(now);
   };
 
   engine.playGuitarPCM=function(midiNote,velocity,whenSeconds){
@@ -172,6 +179,7 @@
     source.connect(input);input.connect(hp);hp.connect(pre);pre.connect(shaper);shaper.connect(body);body.connect(tone);tone.connect(presence);
     presence.connect(cabDry);cabDry.connect(ampSum);presence.connect(cab);cab.connect(cabWet);cabWet.connect(ampSum);
     ampSum.connect(chorusDry);chorusDry.connect(voiceGain);ampSum.connect(chorusDelay);chorusDelay.connect(chorusWet);chorusWet.connect(voiceGain);voiceGain.connect(this.master);
+    source.onended=()=>{for(const node of [source,input,hp,pre,shaper,body,tone,presence,cab,cabDry,cabWet,ampSum,chorusDry,chorusDelay,chorusWet,voiceGain])node.disconnect();};
     source.start(now);this.playGuitarNoise("pick",now,p.guitar_pick_mix*vel*.30);
     this.voices.set(this.voiceKey(note),{kind:"guitar",source,voiceGain});setPerformanceActive(note,true);
   };

@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.18.6 Mixed VST3 and internal playback
+
+- [x] 内蔵FM・PCM音源の発音終了後にAudioNodeを解放
+- [x] Factoryピアノ／ギターPCMを再生前に準備
+- [x] ギターアンプ歪みカーブを音色ごとに再利用
+- [ ] GitHub CI pytest／Harness
+
 ## v0.18.5 VST3 native sample clock and unified freeze control
 
 - [x] VST3の曲イベントをNative Hostの共通音声フレームへ先行予約

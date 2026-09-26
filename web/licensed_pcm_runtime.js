@@ -49,6 +49,7 @@
     gain.gain.setValueAtTime(.0001,now);gain.gain.exponentialRampToValueAtTime(peak,now+p.pcm_attack_s);
     delay.delayTime.value=.035;room.gain.value=p.pcm_room_mix*.38;
     source.connect(tone);tone.connect(body);body.connect(gain);gain.connect(this.master);body.connect(delay);delay.connect(room);room.connect(this.master);
+    source.onended=()=>{for(const node of [source,tone,body,gain,delay,room])node.disconnect();};
     source.start(now);this.voices.set(this.voiceKey(note),{kind:"licensed_pcm",source,voiceGain:gain});setPerformanceActive(note,true);
   };
 

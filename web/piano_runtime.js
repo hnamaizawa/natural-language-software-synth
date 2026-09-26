@@ -92,12 +92,14 @@
     if(!this.sampleBuffers.has("piano_hammer"))this.sampleBuffers.set("piano_hammer",createPianoNoise("hammer"));
     if(!this.sampleBuffers.has("piano_damper"))this.sampleBuffers.set("piano_damper",createPianoNoise("damper"));
   };
+  engine.preparePianoNotes=function(notes){for(const note of notes)this.ensurePianoSamples(nearestPianoRoot(note));};
 
   engine.playPianoNoise=function(kind,now,gainValue){
     const buffer=this.sampleBuffers.get(`piano_${kind}`);if(!buffer||gainValue<=.001)return;
     const source=this.ctx.createBufferSource(),filter=this.ctx.createBiquadFilter(),gain=this.ctx.createGain();
     source.buffer=buffer;filter.type=kind==="hammer"?"highpass":"bandpass";filter.frequency.value=kind==="hammer"?950:520;filter.Q.value=kind==="hammer"?.65:1.1;
-    gain.gain.value=gainValue;source.connect(filter);filter.connect(gain);gain.connect(this.master);source.start(now);
+    gain.gain.value=gainValue;source.connect(filter);filter.connect(gain);gain.connect(this.master);
+    source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};source.start(now);
   };
 
   engine.playGrandPianoPCM=function(midiNote,velocity,whenSeconds){
@@ -116,6 +118,7 @@
     roomDelay.delayTime.value=.028;roomFilter.type="lowpass";roomFilter.frequency.value=4200;roomGain.gain.value=p.piano_room_mix*(.35+.65*p.piano_resonance);
     source.connect(tone);tone.connect(body);body.connect(voiceGain);voiceGain.connect(this.master);
     body.connect(roomDelay);roomDelay.connect(roomFilter);roomFilter.connect(roomGain);roomGain.connect(this.master);
+    source.onended=()=>{for(const node of [source,tone,body,voiceGain,roomDelay,roomFilter,roomGain])node.disconnect();};
     source.start(now);this.playPianoNoise("hammer",now,p.piano_hammer_mix*vel*(.16+.20*(1-p.piano_softness)));
     this.voices.set(this.voiceKey(note),{kind:"piano",source,voiceGain});setPerformanceActive(note,true);
   };
