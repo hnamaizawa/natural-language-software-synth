@@ -16,7 +16,9 @@ vm.runInContext(fs.readFileSync('web/sequencer_samples.js','utf8'),ctx);
 const api=ctx.window.sequencerSamples;
 for(const [id,spec] of Object.entries(api.songs)){
   const song=api.makeSong(id);assert.equal(song.length_beats,32);assert.equal(Object.keys(song.clips).length,7);
-  const scale= id==='fusion'?[0,2,4,5,7,9,11]:id==='pop'?[0,2,4,5,7,9,11]:[0,2,4,6,7,9,11];
+  const tonic={C:0,D:2,E:4,F:5,G:7,A:9,B:11}[spec.key[0]];
+  const intervals=spec.key.endsWith('minor')?[0,2,3,5,7,8,10]:[0,2,4,5,7,9,11];
+  const scale=intervals.map(interval=>(tonic+interval)%12);
   for(const [role,clips] of Object.entries(song.clips)){
     assert.equal(clips.length,2);assert.deepEqual(Array.from(clips,c=>c.start_beats),[0,16]);
     for(const clip of clips)for(const note of clip.notes){

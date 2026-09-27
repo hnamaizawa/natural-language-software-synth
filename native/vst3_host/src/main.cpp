@@ -134,6 +134,8 @@ public:
     }
 
     void setSampleRate (uint32_t value) { sampleRate_ = value ? value : kPreferredSampleRate; }
+    void setPan (float value) { pan_.store (std::max (-1.0f, std::min (1.0f, value))); }
+    float pan () const { return pan_.load (); }
 
     bool load (const std::string& path, std::string& error)
     {
@@ -1000,6 +1002,7 @@ public:
     std::atomic<int32_t> lastProcessResult_ {0};
     std::atomic<float> lastOutputPeak_ {0.0f};
     std::atomic<float> maxOutputPeak_ {0.0f};
+    std::atomic<float> pan_ {0.0f};
     std::atomic<int64_t> testToneFramesRemaining_ {0};
     std::atomic<int32_t> activeNotes_ {0};
     std::atomic<int64_t> idleFramesRemaining_ {0};
@@ -1153,7 +1156,7 @@ private:
         for (auto& pair : instances_)
         {
             if (pair.second->isIdleSuspended ()) continue;
-            if (!hasActiveOutput)
+            if (!hasActiveOutput && pair.second->pan () == 0.0f)
             {
                 pair.second->render (output, frames, startFrame);
                 hasActiveOutput = true;
@@ -1161,7 +1164,15 @@ private:
             }
             if (scratch_.size () < samples) scratch_.resize (samples);
             pair.second->render (scratch_.data (), frames, startFrame);
-            for (size_t i = 0; i < samples; ++i) output[i] += scratch_[i];
+            const float pan = pair.second->pan ();
+            const float left = std::min (1.0f, 1.0f - pan);
+            const float right = std::min (1.0f, 1.0f + pan);
+            for (size_t i = 0; i + 1 < samples; i += 2)
+            {
+                output[i] += scratch_[i] * left;
+                output[i + 1] += scratch_[i + 1] * right;
+            }
+            hasActiveOutput = true;
         }
         if (hasActiveOutput)
             for (size_t i = 0; i < samples; ++i) output[i] = std::max (-1.0f, std::min (1.0f, output[i]));
@@ -1198,6 +1209,12 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
         {
             auto* host = rack.find (parts[1]);
             std::cout << (host ? host->diagnosticsJson () : errorJson ("Unknown VST3 instance")) << std::endl;
+        }
+        else if (parts[0] == "PAN" && parts.size () >= 3)
+        {
+            auto* host = rack.find (parts[1]);
+            if (host) { host->setPan (std::stof (parts[2])); std::cout << "{\"ok\":true}" << std::endl; }
+            else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "TEST_TONE" && parts.size () >= 2)
         {
