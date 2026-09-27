@@ -1,5 +1,13 @@
 # CURRENT
 
+## v0.19.0 Mixed frozen VST3 and live internal scheduling
+
+- [x] 内蔵音源の予約をノートごとのAudioContext絶対時刻に合わせる
+- [x] 2秒の先読みと16ノート単位の分割予約、期限切れノートの回復を追加
+- [x] フリーズ音声が遅れて開始するときの曲位置を補正
+- [x] 内蔵予約遅延と長い画面処理の診断を表示
+- [ ] GitHub CI pytest／Harness
+
 ## v0.18.9 VST3 track latency and demo harmony
 
 - [x] VST3の報告済み出力遅延を絶対時刻イベントに反映

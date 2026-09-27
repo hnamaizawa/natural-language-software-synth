@@ -61,6 +61,7 @@
           <div class="roll-toolbar"><label>クリップ開始（拍）<input id="clipStartBeat" type="number" min="0" step="0.25" /></label><label>長さ（拍）<input id="clipLengthBeat" type="number" min="0.25" max="16" step="0.25" /></label><label>吸着<select id="rollSnap"><option value="1">1拍</option><option value="0.5">1/8</option><option value="0.25" selected>1/16</option><option value="0.125">1/32</option></select></label><label>音域<select id="rollRange"><option value="24">C1–B4</option><option value="36" selected>C2–B5</option><option value="48">C3–B6</option></select></label><label>選択ノート強さ<input id="noteVelocity" type="range" min="1" max="100" value="82" /></label><button id="rollUndo" type="button">元に戻す</button><button id="rollRedo" type="button">やり直す</button><button id="rollDelete" type="button">選択ノート削除</button></div>
           <div id="projectPianoRoll" class="project-piano-roll empty" aria-label="選択クリップのピアノロール"></div>
           <p id="projectStatus" class="project-status" data-runtime-state="loading">マルチトラック機能を初期化しています…</p>
+          <p id="playbackTimingStatus" class="project-status">内蔵音源の予約遅延 0件・期限切れ 0件・長い画面処理 0件</p>
         </div>
       </div>
     </section>
@@ -200,7 +201,7 @@
 <script src="/sequencer_samples.js?v=0.18.9"></script>
 <script src="/frozen_audio_project.js?v=0.18.4"></script>
 <script src="/frozen_stem_mix.js?v=0.18.7"></script>
-<script src="/multitrack_runtime.js?v=0.18.9"></script>
+<script src="/multitrack_runtime.js?v=0.19.0"></script>
 <script src="/vst3_runtime.js?v=0.18.9"></script>
   <script src="/ui_help_runtime.js"></script>
 </body>
