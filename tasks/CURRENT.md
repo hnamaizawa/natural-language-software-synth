@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.19.4 Pan, overwrite and full-part song chooser
+
+- [x] パートごとの左右パン、JSON保存・読込、内蔵／VST3／フリーズ音声への適用
+- [x] 権限付きのProject JSON読込・同一ファイル上書き
+- [x] 8ジャンルの全パート用サンプル曲と説明
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build、Windows実機確認
+
 ## v0.19.3 Track volume and VST3 readiness
 
 - [x] パート別音量スライダー、JSON保存・読込
