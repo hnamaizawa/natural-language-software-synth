@@ -27,7 +27,7 @@ def test_arrangement_prequeues_native_frames_and_freeze_has_one_control():
     router = read("web/vst3_runtime.js")
     native = read("native/vst3_host/src/main.cpp")
     assert "scheduleTrackCycle?.(part,plannedStart,60/project.bpm)" in runtime
-    assert "if(frozenBuffers.has(item.track.id)||vstPrescheduled" in runtime
+    assert "const liveQueue=queue.filter(item=>!frozenBuffers.has(item.track.id)&&!(vstPrescheduled" in runtime
     assert 'const clock=await api("/api/vst3/status")' in router
     assert "at_frame:Math.round(origin+item.startBeat" in router
     assert "note.absoluteFrame >= startFrame +" in native
