@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.19.1 Frozen host device and internal FM graph
+
+- [x] フリーズ中で発音のないNative Hostの音声デバイスを休止し、必要時に再開
+- [x] FMコーラス回路を同じ音色の声で共有し、最後の音で解放
+- [x] VST3診断にNative音声デバイスの稼働状態を表示
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.19.0 Mixed frozen VST3 and live internal scheduling
 
 - [x] 内蔵音源の予約をノートごとのAudioContext絶対時刻に合わせる

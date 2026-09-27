@@ -175,6 +175,7 @@ class SynthEngine{
     this.ctx=null;this.patch=validatePatch(DEFAULT_PATCH);this.voices=new Map();this.master=null;this.analyser=null;
     this.playbackVoiceId=null;
     this.sampleBuffers=new Map();this.sampleLoadPromise=null;this.drumRoomDelay=null;this.drumRoomGain=null;this.lastMelodicNote=null;
+    this.fmBuses=new WeakMap();
   }
   async init(){
     if(!this.ctx){
@@ -373,21 +374,33 @@ class SynthEngine{
   playFM(midiNote,velocity,whenSeconds){
     const note=clamp(Math.round(midiNote),0,127);this.limitVoices(note);
     const now=this.ctx.currentTime+Math.max(0,Number(whenSeconds)||0),p=this.patch,f=midiFreq(note),vel=clamp(velocity,0,1);
-    const sum=this.ctx.createGain(),dry=this.ctx.createGain(),wet=this.ctx.createGain(),chorus=this.ctx.createDelay(.05);
-    dry.gain.value=1-p.fm_chorus_mix;wet.gain.value=p.fm_chorus_mix;chorus.delayTime.value=.014;
-    sum.connect(dry);dry.connect(this.master);sum.connect(chorus);chorus.connect(wet);wet.connect(this.master);
+    let bus=this.fmBuses.get(p);
+    if(!bus){
+      const sum=this.ctx.createGain();let dry=null,wet=null,chorus=null,lfo=null,lg=null;
+      if(p.fm_chorus_mix>0){
+        dry=this.ctx.createGain();wet=this.ctx.createGain();chorus=this.ctx.createDelay(.05);
+        dry.gain.value=1-p.fm_chorus_mix;wet.gain.value=p.fm_chorus_mix;chorus.delayTime.value=.014;
+        sum.connect(dry);dry.connect(this.master);sum.connect(chorus);chorus.connect(wet);wet.connect(this.master);
+        lfo=this.ctx.createOscillator();lg=this.ctx.createGain();lfo.frequency.value=.75;lg.gain.value=.0025;
+        lfo.connect(lg);lg.connect(chorus.delayTime);lfo.start(now);
+      }else sum.connect(this.master);
+      bus={sum,dry,wet,chorus,lfo,lg,voices:0};this.fmBuses.set(p,bus);
+    }
+    bus.voices++;
     const oscillators=[],carrierGains=[],modulatorGains=[];
     const makePair=(carrierRatio,modRatio,weight)=>{
       const c=this.ctx.createOscillator(),m=this.ctx.createOscillator(),mg=this.ctx.createGain(),cg=this.ctx.createGain();
       c.type="sine";m.type="sine";c.frequency.value=f*carrierRatio;m.frequency.value=f*modRatio;
       mg.gain.setValueAtTime(f*p.fm_mod_index*(.45+.75*p.fm_brightness)*vel,now);mg.gain.exponentialRampToValueAtTime(Math.max(.01,f*.05),now+p.fm_decay_s*.62);
       cg.gain.setValueAtTime(.0001,now);cg.gain.exponentialRampToValueAtTime(Math.max(.01,vel*weight),now+.006);cg.gain.exponentialRampToValueAtTime(Math.max(.0001,vel*.13*weight),now+p.fm_decay_s);
-      m.connect(mg);mg.connect(c.frequency);c.connect(cg);cg.connect(sum);m.start(now);c.start(now);oscillators.push(m,c);carrierGains.push(cg);modulatorGains.push(mg);
+      m.connect(mg);mg.connect(c.frequency);c.connect(cg);cg.connect(bus.sum);m.start(now);c.start(now);oscillators.push(m,c);carrierGains.push(cg);modulatorGains.push(mg);
     };
     makePair(1,p.fm_ratio_1,.72);makePair(2,p.fm_ratio_2,.38);
-    const lfo=this.ctx.createOscillator(),lg=this.ctx.createGain();lfo.frequency.value=.75;lg.gain.value=.0025;lfo.connect(lg);lg.connect(chorus.delayTime);lfo.start(now);
-    oscillators[0].onended=()=>{for(const node of [...oscillators,...carrierGains,...modulatorGains,lfo,lg,sum,dry,wet,chorus])node.disconnect();};
-    this.voices.set(this.voiceKey(note),{kind:"fm",oscillators,carrierGains,lfo});setPerformanceActive(note,true);
+    oscillators[0].onended=()=>{
+      for(const node of [...oscillators,...carrierGains,...modulatorGains])node.disconnect();
+      if(--bus.voices===0){if(bus.lfo)try{bus.lfo.stop();}catch(_){}for(const node of [bus.lfo,bus.lg,bus.sum,bus.dry,bus.wet,bus.chorus])node?.disconnect();this.fmBuses.delete(p);}
+    };
+    this.voices.set(this.voiceKey(note),{kind:"fm",oscillators,carrierGains});setPerformanceActive(note,true);
   }
 }
 

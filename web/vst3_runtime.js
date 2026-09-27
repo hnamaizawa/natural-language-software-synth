@@ -220,7 +220,7 @@
     const [data,host]=await Promise.all([api(`/api/vst3/diagnostics?instance_id=${encodeURIComponent(target.instanceId)}`),api("/api/vst3/status")]);
     if(!data.ok)throw new Error(data.error||"診断失敗");
     const rate=Number(data.sample_rate)||48000,latency=(1000*Number(data.reported_latency_samples||0)/rate).toFixed(1),late=(1000*Number(data.max_note_lateness_frames||0)/rate).toFixed(1);
-    return `VST3発音診断: 音源報告遅延 ${latency} ms（曲再生で補正） / 予約遅延 ${data.late_note_events||0}件（最大 ${late} ms） / Host負荷 ${Number(host.cpu_load_percent||0).toFixed(1)}% / 音切れ候補 ${host.audio_overruns||0}。予約遅延0件でも遅く聞こえる場合は音色のアタックを確認してください。`;
+    return `VST3発音診断: 音源報告遅延 ${latency} ms（曲再生で補正） / 予約遅延 ${data.late_note_events||0}件（最大 ${late} ms） / Host負荷 ${Number(host.cpu_load_percent||0).toFixed(1)}% / 音切れ候補 ${host.audio_overruns||0} / Native音声デバイス ${host.audio_device_running===false?"休止":"稼働"}。予約遅延0件でも遅く聞こえる場合は音色のアタックを確認してください。`;
   }
   async function trackSetParameter(track,id,value){const target=await loadTrack(track);const data=await api("/api/vst3/parameter",{instance_id:target.instanceId,id:Math.round(clamp(id,0,0x7fffffff)),value:clamp(value,0,1)});if(!data.ok)throw new Error(data.error||"パラメータ設定失敗");return data;}
   async function snapshotTrack(track){const target=await loadTrack(track);const data=await api("/api/vst3/state/save",{instance_id:target.instanceId});if(!data.ok)throw new Error(data.error||"VST3音色の保存に失敗");return data.state;}
@@ -257,7 +257,7 @@
       const peakValue=Number(d.max_output_peak||0),peak=peakValue.toFixed(6),failures=Number(d.process_failures||0),routeState=route.checked?"ON":"OFF",events=Number(d.events_delivered||0);
       const guidance=events>0&&peakValue<0.000001?" MIDIイベントは到達していますが音声出力が0です。VST3本体画面でキット／Presetのロード、Master音量、MIDI受信チャンネルを確認し、SSD5ではチャンネル1も試してください。":events===0?" 演奏後もEventが0ならVST3ルーティングとEvent Busを確認してください。":"";
       const hostLoad=Number(host.cpu_load_percent||0).toFixed(1),overruns=Number(host.audio_overruns||0),suspended=Number(host.idle_suspended_count||0);
-      show(`VST3診断: Route ${routeState} / MIDI Ch ${routedChannel()+1} / NoteOn ${d.note_on_queued||0} / Event ${events} / process ${d.process_calls||0} (失敗 ${failures}) / peak ${peak} / output ${d.main_output_channels||0}ch / Event Bus ${d.main_event_input_bus??-1} / Host負荷 ${hostLoad}% / 音切れ候補 ${overruns} / 休止 ${suspended}${d.editor_open?" / Editor OPEN":""}。${guidance}`);
+      show(`VST3診断: Route ${routeState} / MIDI Ch ${routedChannel()+1} / NoteOn ${d.note_on_queued||0} / Event ${events} / process ${d.process_calls||0} (失敗 ${failures}) / peak ${peak} / output ${d.main_output_channels||0}ch / Event Bus ${d.main_event_input_bus??-1} / Host負荷 ${hostLoad}% / 音切れ候補 ${overruns} / 休止 ${suspended} / Native音声デバイス ${host.audio_device_running===false?"休止":"稼働"}${d.editor_open?" / Editor OPEN":""}。${guidance}`);
     }catch(err){show(`VST3診断エラー: ${err.message}`);}finally{restorePerformanceFocusSoon();}
   }
 
