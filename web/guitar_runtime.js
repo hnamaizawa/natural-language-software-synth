@@ -128,6 +128,7 @@
   };
 
   const distortionCurves=new Map();
+  const guitarChorusBuses=new WeakMap();
   function makeDistortionCurve(drive,model){
     const key=`${model}:${Math.round(drive*10000)}`;
     if(distortionCurves.has(key))return distortionCurves.get(key);
@@ -158,7 +159,7 @@
     const source=this.ctx.createBufferSource(),input=this.ctx.createGain(),hp=this.ctx.createBiquadFilter(),pre=this.ctx.createGain();
     const shaper=this.ctx.createWaveShaper(),body=this.ctx.createBiquadFilter(),tone=this.ctx.createBiquadFilter(),presence=this.ctx.createBiquadFilter();
     const cab=this.ctx.createBiquadFilter(),cabDry=this.ctx.createGain(),cabWet=this.ctx.createGain(),ampSum=this.ctx.createGain();
-    const chorusDry=this.ctx.createGain(),chorusDelay=this.ctx.createDelay(.05),chorusWet=this.ctx.createGain(),voiceGain=this.ctx.createGain();
+    const voiceGain=this.ctx.createGain();let chorusBus=null;
     source.buffer=buffer;source.playbackRate.value=clamp(rate,.35,3);
     hp.type="highpass";hp.frequency.value=p.guitar_amp_model==="acoustic"?55:72;
     const modelPre=p.guitar_amp_model==="high_gain"?2.8:p.guitar_amp_model==="crunch"?1.65:p.guitar_amp_model==="acoustic"?.78:.92;
@@ -172,14 +173,27 @@
     presence.type="highshelf";presence.frequency.value=2600;presence.gain.value=-3+p.guitar_amp_presence*8;
     cab.type="lowpass";const cabBase=p.guitar_amp_model==="acoustic"?12500:p.guitar_amp_model==="clean"?8600:p.guitar_amp_model==="crunch"?6500:5400;cab.frequency.value=cabBase;cab.Q.value=.72;
     cabDry.gain.value=1-p.guitar_cabinet_mix*.82;cabWet.gain.value=p.guitar_cabinet_mix;
-    chorusDry.gain.value=1-p.guitar_chorus_mix;chorusWet.gain.value=p.guitar_chorus_mix;chorusDelay.delayTime.value=.014;
+    if(p.guitar_chorus_mix>0){
+      chorusBus=guitarChorusBuses.get(this.patch);
+      if(!chorusBus){
+        const dry=this.ctx.createGain(),delay=this.ctx.createDelay(.05),wet=this.ctx.createGain();
+        dry.gain.value=1-p.guitar_chorus_mix;wet.gain.value=p.guitar_chorus_mix;delay.delayTime.value=.014;
+        dry.connect(this.master);delay.connect(wet);wet.connect(this.master);
+        chorusBus={dry,delay,wet,voices:0};guitarChorusBuses.set(this.patch,chorusBus);
+      }
+      chorusBus.voices++;
+    }
     voiceGain.gain.setValueAtTime(.0001,now);voiceGain.gain.exponentialRampToValueAtTime(Math.max(.02,vel*(.72+.28*p.guitar_sustain)),now+.004);
     if(p.guitar_palm_mute>.03)voiceGain.gain.setTargetAtTime(.0001,now+.045,.08+(1-p.guitar_palm_mute)*.62);
 
     source.connect(input);input.connect(hp);hp.connect(pre);pre.connect(shaper);shaper.connect(body);body.connect(tone);tone.connect(presence);
     presence.connect(cabDry);cabDry.connect(ampSum);presence.connect(cab);cab.connect(cabWet);cabWet.connect(ampSum);
-    ampSum.connect(chorusDry);chorusDry.connect(voiceGain);ampSum.connect(chorusDelay);chorusDelay.connect(chorusWet);chorusWet.connect(voiceGain);voiceGain.connect(this.master);
-    source.onended=()=>{for(const node of [source,input,hp,pre,shaper,body,tone,presence,cab,cabDry,cabWet,ampSum,chorusDry,chorusDelay,chorusWet,voiceGain])node.disconnect();};
+    ampSum.connect(voiceGain);
+    if(chorusBus){voiceGain.connect(chorusBus.dry);voiceGain.connect(chorusBus.delay);}else voiceGain.connect(this.master);
+    const patch=this.patch;
+    source.onended=()=>{for(const node of [source,input,hp,pre,shaper,body,tone,presence,cab,cabDry,cabWet,ampSum,voiceGain])node.disconnect();
+      if(chorusBus&&--chorusBus.voices===0){for(const node of [chorusBus.dry,chorusBus.delay,chorusBus.wet])node.disconnect();guitarChorusBuses.delete(patch);}
+    };
     source.start(now);this.playGuitarNoise("pick",now,p.guitar_pick_mix*vel*.30);
     this.voices.set(this.voiceKey(note),{kind:"guitar",source,voiceGain});setPerformanceActive(note,true);
   };
