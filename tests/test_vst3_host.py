@@ -12,7 +12,7 @@ def test_vst3_ui_and_router_are_loaded_last():
         "vst3TestToneBtn", "vst3DiagBtn", "vst3RouteEnabled", "vst3Parameters", "vst3Status",
     ]:
         assert f'id="{control_id}"' in html
-    assert 'src="/vst3_runtime.js?v=0.18.9"' in html
+    assert 'src="/vst3_runtime.js?v=0.19.1"' in html
     assert html.index('/humming_runtime.js') < html.index('/vst3_runtime.js')
 
 
@@ -135,7 +135,7 @@ def test_native_host_uses_one_audio_device_for_bounded_logical_instances_and_sus
     ]:
         assert token in cpp
     assert cpp.count("ma_device_init") == 1
-    assert cpp.count("ma_device_start") == 1
+    assert cpp.count("ma_device_start") == 2  # Initial start and restart of the same device.
     assert "logical instances inside one native host and one audio device" in server
     assert "self._catalog.load(plugin_id, key)" in server
     assert 'self._command(f"BATCH' in server

@@ -256,7 +256,7 @@ def main() -> None:
     for control in vst_controls:
         if f'id="{control}"' not in html:
             fail(f"VST3 UI control missing: {control}")
-    if 'src="/vst3_runtime.js?v=0.18.9"' not in html or html.index('/humming_runtime.js') > html.index('/vst3_runtime.js'):
+    if 'src="/vst3_runtime.js?v=0.19.1"' not in html or html.index('/humming_runtime.js') > html.index('/vst3_runtime.js'):
         fail("VST3 router must load after humming and all audio wrappers")
     require_tokens(
         vst3_js,
@@ -314,7 +314,7 @@ def main() -> None:
         ],
         "native VST3 host",
     )
-    if native_cpp.count("ma_device_init") != 1 or native_cpp.count("ma_device_start") != 1:
+    if native_cpp.count("ma_device_init") != 1 or native_cpp.count("ma_device_start") != 2:
         fail("multi-track VST3 must share one native audio device")
     require_tokens(
         native_editor_h + "\n" + native_editor_cpp,

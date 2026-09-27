@@ -511,6 +511,9 @@ public:
                testToneFramesRemaining_.load () <= 0;
     }
 
+    bool isFrozen () const { return manualSuspended_.load (); }
+    bool hasOpenEditor () const { std::lock_guard<std::mutex> lock (stateMutex_); return editor_.isOpen (); }
+
     bool prepareCapture (uint32_t frames)
     {
         if (!loaded_.load () || captureActive_.load () || frames == 0 || frames > sampleRate_ * 42) return false;
@@ -1031,7 +1034,34 @@ public:
             return false;
         }
         audioStarted_ = true;
+        audioRunning_ = true;
         return true;
+    }
+
+    bool ensureAudioRunning ()
+    {
+        if (!audioStarted_) return false;
+        if (audioRunning_) return true;
+        if (ma_device_start (&device_) != MA_SUCCESS) return false;
+        audioRunning_ = true;
+        return true;
+    }
+
+    void pauseFullyFrozenAudio ()
+    {
+        if (!audioRunning_) return;
+        bool hasFrozen = false;
+        {
+            std::lock_guard<std::mutex> lock (mutex_);
+            for (const auto& pair : instances_)
+            {
+                hasFrozen = hasFrozen || pair.second->isFrozen ();
+                if (!pair.second->isIdleSuspended () || pair.second->hasOpenEditor ()) return;
+            }
+        }
+        // Stop only when at least one track is frozen; a normal live host
+        // retains its device, avoiding a start penalty on ordinary key presses.
+        if (hasFrozen && ma_device_stop (&device_) == MA_SUCCESS) audioRunning_ = false;
     }
 
     void stopAudio ()
@@ -1039,6 +1069,7 @@ public:
         if (!audioStarted_) return;
         ma_device_uninit (&device_);
         audioStarted_ = false;
+        audioRunning_ = false;
     }
 
     NativeVst3Host* find (const std::string& id)
@@ -1087,6 +1118,7 @@ public:
         for (const auto& pair : instances_) if (pair.second->isIdleSuspended ()) ++suspended;
         std::ostringstream out;
         out << "{\"ok\":true,\"audio_started\":" << (audioStarted_ ? "true" : "false")
+            << ",\"audio_device_running\":" << (audioRunning_ ? "true" : "false")
             << ",\"sample_rate\":" << sampleRate_
             << ",\"instance_count\":" << instances_.size ()
             << ",\"idle_suspended_count\":" << suspended
@@ -1141,6 +1173,7 @@ private:
     ma_device device_ {};
     uint32_t sampleRate_ {kPreferredSampleRate};
     bool audioStarted_ {false};
+    bool audioRunning_ {false};
     std::atomic<float> cpuLoadPercent_ {0.0f};
     std::atomic<uint64_t> audioOverruns_ {0};
     std::atomic<uint64_t> frameClock_ {0};
@@ -1169,14 +1202,14 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
         else if (parts[0] == "TEST_TONE" && parts.size () >= 2)
         {
             auto* host = rack.find (parts[1]);
-            if (host) { host->startTestTone (); std::cout << "{\"ok\":true,\"test_tone\":true}" << std::endl; }
+            if (host && rack.ensureAudioRunning ()) { host->startTestTone (); std::cout << "{\"ok\":true,\"test_tone\":true}" << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "EDITOR_OPEN" && parts.size () >= 2)
         {
             std::string error;
             auto* host = rack.find (parts[1]);
-            if (host && host->openEditor (error)) std::cout << "{\"ok\":true,\"editor_open\":true}" << std::endl;
+            if (host && rack.ensureAudioRunning () && host->openEditor (error)) std::cout << "{\"ok\":true,\"editor_open\":true}" << std::endl;
             else std::cout << errorJson (error) << std::endl;
         }
         else if (parts[0] == "EDITOR_CLOSE" && parts.size () >= 2)
@@ -1219,7 +1252,7 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
         else if (parts[0] == "FREEZE_ARM" && parts.size () >= 2)
         {
             auto* host = rack.find (parts[1]);
-            if (host) { host->armCapture (); std::cout << "{\"ok\":true}" << std::endl; }
+            if (host && rack.ensureAudioRunning ()) { host->armCapture (); std::cout << "{\"ok\":true}" << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "FREEZE_STATUS" && parts.size () >= 2)
@@ -1246,7 +1279,7 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
             auto* host = rack.find (parts[1]);
             const auto channel = parts.size () >= 5 ? std::stoi (parts[4]) : 0;
             const auto noteId = parts.size () >= 6 ? std::stoi (parts[5]) : -1;
-            if (host) { const bool queued = host->queueNote (true, std::stoi (parts[2]), static_cast<float> (std::stod (parts[3])), channel, 0, noteId); std::cout << (queued ? "{\"ok\":true}" : errorJson ("VST3 event queue is full")) << std::endl; }
+            if (host && rack.ensureAudioRunning ()) { const bool queued = host->queueNote (true, std::stoi (parts[2]), static_cast<float> (std::stod (parts[3])), channel, 0, noteId); std::cout << (queued ? "{\"ok\":true}" : errorJson ("VST3 event queue is full")) << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "NOTE_OFF" && parts.size () >= 3)
@@ -1260,7 +1293,7 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
         else if (parts[0] == "BATCH" && parts.size () >= 3)
         {
             auto* host = rack.find (parts[1]);
-            if (!host) std::cout << errorJson ("Unknown VST3 instance") << std::endl;
+            if (!host || !rack.ensureAudioRunning ()) std::cout << errorJson ("Unknown VST3 instance or audio device unavailable") << std::endl;
             else
             {
                 size_t accepted = 0;
@@ -1364,6 +1397,7 @@ int main ()
         }
         if (!line.empty ())
             running = processCommand (rack, line);
+        rack.pauseFullyFrozenAudio ();
     }
 
     if (reader.joinable ())

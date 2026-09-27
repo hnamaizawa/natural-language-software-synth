@@ -610,6 +610,7 @@ class Vst3InstanceManager:
             "instance_count": len(instances),
             "max_instances": self.MAX_INSTANCES,
             "single_audio_device": native.get("single_audio_device", True),
+            "audio_device_running": native.get("audio_device_running", False),
             "cpu_load_percent": native.get("cpu_load_percent", 0.0),
             "audio_overruns": native.get("audio_overruns", 0),
             "idle_suspended_count": native.get("idle_suspended_count", 0),
