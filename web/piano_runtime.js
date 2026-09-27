@@ -102,6 +102,7 @@
     source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};source.start(now);
   };
 
+  const pianoRoomBuses=new WeakMap();
   engine.playGrandPianoPCM=function(midiNote,velocity,whenSeconds){
     const note=clamp(Math.round(midiNote),0,127);this.limitVoices(note);
     const root=nearestPianoRoot(note);this.ensurePianoSamples(root);
@@ -109,16 +110,28 @@
     const p=validatePianoExtras(this.patch),now=this.ctx.currentTime+Math.max(0,Number(whenSeconds)||0);
     const vel=Math.pow(clamp(velocity,0,1),p.piano_velocity_curve),rate=Math.pow(2,(note-root)/12);
     const source=this.ctx.createBufferSource(),tone=this.ctx.createBiquadFilter(),body=this.ctx.createBiquadFilter(),voiceGain=this.ctx.createGain();
-    const roomDelay=this.ctx.createDelay(.12),roomFilter=this.ctx.createBiquadFilter(),roomGain=this.ctx.createGain();
+    let roomBus=null;
     source.buffer=buffer;source.playbackRate.value=clamp(rate,.35,3);
     tone.type="lowpass";tone.frequency.value=2200+p.piano_tone*11500-p.piano_softness*2800;tone.Q.value=.65;
     body.type="peaking";body.frequency.value=180+Math.min(260,midiFreq(note)*.35);body.Q.value=.75+p.piano_resonance*1.5;body.gain.value=-1+p.piano_resonance*5;
     const peak=Math.max(.015,vel*(1-p.piano_softness*.28));voiceGain.gain.setValueAtTime(.0001,now);voiceGain.gain.exponentialRampToValueAtTime(peak,now+.004);
     voiceGain.gain.setTargetAtTime(Math.max(.0001,peak*(.30+.50*p.piano_sustain)),now+.14,.65+1.7*p.piano_sustain);
-    roomDelay.delayTime.value=.028;roomFilter.type="lowpass";roomFilter.frequency.value=4200;roomGain.gain.value=p.piano_room_mix*(.35+.65*p.piano_resonance);
+    if(p.piano_room_mix>0){
+      roomBus=pianoRoomBuses.get(this.patch);
+      if(!roomBus){
+        const delay=this.ctx.createDelay(.12),filter=this.ctx.createBiquadFilter(),gain=this.ctx.createGain();
+        delay.delayTime.value=.028;filter.type="lowpass";filter.frequency.value=4200;gain.gain.value=p.piano_room_mix*(.35+.65*p.piano_resonance);
+        delay.connect(filter);filter.connect(gain);gain.connect(this.master);
+        roomBus={delay,filter,gain,voices:0};pianoRoomBuses.set(this.patch,roomBus);
+      }
+      roomBus.voices++;
+    }
     source.connect(tone);tone.connect(body);body.connect(voiceGain);voiceGain.connect(this.master);
-    body.connect(roomDelay);roomDelay.connect(roomFilter);roomFilter.connect(roomGain);roomGain.connect(this.master);
-    source.onended=()=>{for(const node of [source,tone,body,voiceGain,roomDelay,roomFilter,roomGain])node.disconnect();};
+    if(roomBus)body.connect(roomBus.delay);
+    const patch=this.patch;
+    source.onended=()=>{for(const node of [source,tone,body,voiceGain])node.disconnect();
+      if(roomBus&&--roomBus.voices===0){for(const node of [roomBus.delay,roomBus.filter,roomBus.gain])node.disconnect();pianoRoomBuses.delete(patch);}
+    };
     source.start(now);this.playPianoNoise("hammer",now,p.piano_hammer_mix*vel*(.16+.20*(1-p.piano_softness)));
     this.voices.set(this.voiceKey(note),{kind:"piano",source,voiceGain});setPerformanceActive(note,true);
   };

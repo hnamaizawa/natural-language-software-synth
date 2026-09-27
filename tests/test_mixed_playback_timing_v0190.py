@@ -27,12 +27,14 @@ const scope={engine:{ctx,master:{},suppressPerformanceVisuals:false},project:{bp
 vm.createContext(scope);vm.runInContext(src.slice(start,end),scope);
 const track={id:'internal',source:{type:'internal'}};
 const queue=Array.from({length:20},(_,i)=>({track,event:{note:i},startBeat:i*.05,endBeat:i*.05+.15,voiceId:'v'+i}));
+ctx.currentTime=.7;
 scope.startInternalScheduler(queue,()=>{},8,1,false,0,[track],false);
-assert.equal(notes.length,32,'one pump processes at most 16 notes');
+assert.equal(notes.length,16,'one pump processes at most eight notes');
 const on=notes.filter(n=>n.on);
 for(const n of on)assert(Math.abs(n.target-(1+n.note*.025))<.00001,`stale clock: note ${n.note} at ${n.target}`);
 const next=timers.find(t=>t.delay===0);assert(next,'remaining due notes receive an immediate continuation');
-next.fn();assert.equal(notes.filter(n=>n.on).length,20);
+next.fn();assert.equal(notes.filter(n=>n.on).length,16);
+timers.find(t=>t.delay===0).fn();assert.equal(notes.filter(n=>n.on).length,20);
 
 ctx.currentTime=1.5;scope.playbackRunId=0;timers.length=0;scope.frozenBuffers.set('frozen',{duration:5});
 scope.startInternalScheduler([],()=>{},8,1,false,0,[{id:'frozen',source:{type:'vst3'}}],false);
@@ -48,4 +50,4 @@ def test_mixed_playback_exposes_late_and_expired_event_counts():
     assert 'id="playbackTimingStatus"' in html
     assert "schedulerStats.expired++" in runtime
     assert "longTaskObserver.observe({type:\"longtask\"})" in runtime
-    assert "cursor<liveQueue.length&&cycleStart+liveQueue[cursor].startBeat*secondsPerBeat<=horizon&&processed<16" in runtime
+    assert "cursor<liveQueue.length&&cycleStart+liveQueue[cursor].startBeat*secondsPerBeat<=horizon&&processed<batchSize" in runtime

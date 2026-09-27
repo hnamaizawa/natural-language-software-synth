@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.19.2 Live internal graph and reservation load
+
+- [x] 減算合成・ピアノ・ギターの音色別効果回路を同時発音で共有し、最後の声で解放
+- [x] 内蔵ノートのノード生成を0.8秒先読み・8ノート単位へ分散
+- [x] 同時発音と予約時刻のNode.js回帰テスト
+- [ ] GitHub CI pytest／Harness
+
 ## v0.19.1 Frozen host device and internal FM graph
 
 - [x] フリーズ中で発音のないNative Hostの音声デバイスを休止し、必要時に再開
