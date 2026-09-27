@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.19.3 Track volume and VST3 readiness
+
+- [x] パート別音量スライダー、JSON保存・読込
+- [x] フリーズ音声の録音時音量を保持し、変更後のミックスへ反映
+- [x] 初回再生で全ライブVST3のロード・音色復元・音声／MIDI入出力確認完了を待機
+- [ ] GitHub CI pytest／Harness／Windows Native VST3 build
+
 ## v0.19.2 Live internal graph and reservation load
 
 - [x] 減算合成・ピアノ・ギターの音色別効果回路を同時発音で共有し、最後の声で解放

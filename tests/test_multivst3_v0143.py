@@ -59,14 +59,14 @@ def test_arrangement_uses_one_native_instance_per_track_and_routes_notes():
     assert "function trackEvents(instanceId,events)" in router
     assert 'api("/api/vst3/events"' in router
     assert 'api("/api/vst3/clear-events"' in router
-    assert "await window.vst3Router?.prepareTracks(tracks)" in multitrack
+    assert "await window.vst3Router?.ensurePlaybackReady?.(tracks)" in multitrack
     assert "router?.trackNoteOn(track.id" in multitrack
     assert "router?.trackNoteOff(track.id" in multitrack
     assert "vstEvents=new Map()" in multitrack
     assert "window.vst3Router?.trackEventsBatch?.(vstEvents)" in multitrack
     assert "window.vst3Router?.clearTrackEvents?.()" in multitrack
-    assert '/vst3_runtime.js?v=0.19.1' in html
-    assert '/multitrack_runtime.js?v=0.19.2' in html
+    assert '/vst3_runtime.js?v=0.19.3' in html
+    assert '/multitrack_runtime.js?v=0.19.3' in html
 
 
 def test_blueprint_requires_bounded_independent_vst3_instances():

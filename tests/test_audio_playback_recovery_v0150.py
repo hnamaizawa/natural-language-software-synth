@@ -29,6 +29,7 @@ async function prepareTracks(tracks){''' + source + r'''
 '''
     subprocess.run([shutil.which("node"), "-e", js], check=True, cwd=ROOT)
     multitrack = (ROOT / "web/multitrack_runtime.js").read_text(encoding="utf-8")
-    assert "if(track.source.type===\"vst3\"&&!window.vst3Router?.isTrackLoaded?.(track))" in multitrack
+    assert "await window.vst3Router?.ensurePlaybackReady?.([track])" in multitrack
+    assert 'status(`VST3準備エラー: ${error.message}`);return;' in multitrack
     assert "const errors=window.vst3Router?.prepareErrors?.()||[]" in multitrack
     assert 'const resumed=await api("/api/vst3/freeze/resume",{instance_id:trackId})' not in router

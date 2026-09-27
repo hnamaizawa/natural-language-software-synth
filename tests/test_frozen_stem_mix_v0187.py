@@ -22,6 +22,8 @@ const result=window.frozenStemMix.mix([stem([.7,.1],[.2,.3]),stem([.6,.2],[.4,.1
 assert.equal(result.sampleRate,48000);
 assert(Math.abs(result.getChannelData(0)[0]-1.3)<.00001);
 assert(Math.abs(result.getChannelData(1)[0]-.6)<.00001);
+const weighted=window.frozenStemMix.mix([stem([.7,.1],[.2,.3]),stem([.6,.2],[.4,.1])],ctx,[.5,0]);
+assert(Math.abs(weighted.getChannelData(0)[0]-.35)<.00001);
 assert.equal(window.frozenStemMix.mix([stem([1],[1]),stem([1],[1],44100)],ctx),null);
 """
     subprocess.run([shutil.which("node"), "-e", script], cwd=ROOT, check=True)

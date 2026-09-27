@@ -18,7 +18,7 @@ assert(start>=0&&end>start);
 const ctx={currentTime:0,createBufferSource:()=>({connect(){},disconnect(){},start(...args){starts.push(args)}})};
 const starts=[],notes=[],timers=[];
 const scope={engine:{ctx,master:{},suppressPerformanceVisuals:false},project:{bpm:120},playbackRunId:0,
-  frozenBuffers:new Map(),frozenSources:new Set(),mixedFrozenVstBuffer:()=>null,
+  frozenBuffers:new Map(),frozenSources:new Set(),mixedFrozenVstBuffer:()=>null,frozenGain:()=>1,
   updatePlaybackTiming(){},schedulerStats:{late:0,expired:0,maxLateMs:0},
   window:{vst3Router:{}},TIMELINE_BEATS:16,
   playNote(track,event,on,delay){notes.push({on,target:ctx.currentTime+delay,note:event.note});ctx.currentTime+=.012;},

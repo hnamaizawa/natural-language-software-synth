@@ -34,7 +34,7 @@
   const patchFor=(overrides)=>validatePatch({...DEFAULT_PATCH,...overrides});
   function newTrack(def,index){
     const [role,name,color,overrides]=def||["custom",`トラック ${index+1}`,"#65d5f5",{}];
-    return {id:uid("track"),name,role,color,mute:false,solo:false,volume:.82,pan:0,midi_channel:role==="drums"?9:index%16,midi_channel_mode:"auto",source:{type:"internal",plugin_id:"",name:"内蔵音源"},patch:patchFor(overrides),generated_patch:patchFor(overrides),clips:[]};
+    return {id:uid("track"),name,role,color,mute:false,solo:false,volume:.82,freeze_volume:null,pan:0,midi_channel:role==="drums"?9:index%16,midi_channel_mode:"auto",source:{type:"internal",plugin_id:"",name:"内蔵音源"},patch:patchFor(overrides),generated_patch:patchFor(overrides),clips:[]};
   }
   let project={schema_version:SCHEMA_VERSION,name:"新しい曲",bpm:100,time_signature:[4,4],length_beats:16,playhead_beats:0,loop_start_beats:0,loop_end_beats:16,selected_track_id:"",tracks:ROLE_DEFS.map(newTrack)};
   project.selected_track_id=project.tracks[0].id;
@@ -71,6 +71,12 @@
     project.selected_track_id=next.id;selectedClipId=next.clips[0]?.id||null;applyTrack(next);render();status(`${next.name}を選択しました。上のTRACK SOUNDで、このパート専用の音源と音色を設定できます。`);
   }
   function toggleTrack(id,key){const track=byId(id);if(!track)return;track[key]=!track[key];renderTrackList();status(`${track.name}の${key==="mute"?"ミュート":"ソロ"}を${track[key]?"ON":"OFF"}にしました。`);}
+  function setTrackVolume(track,value){
+    if(!track||freezingIds.has(track.id))return;
+    if(arrangementPlaying&&frozenBuffers.has(track.id)){status("フリーズ済みパートの音量は再生を停止してから変更してください。");return;}
+    track.volume=bounded(value,0,1,.82);frozenMixCache=null;
+    status(`${track.name}の音量を${Math.round(track.volume*100)}%に設定しました。Project JSONに保存できます。`);
+  }
   function addTrack(){
     if(project.tracks.length>=MAX_TRACKS){status(`トラックは最大${MAX_TRACKS}個です。`);return;}
     const track=newTrack(["custom",`トラック ${project.tracks.length+1}`,"#65d5f5",{name:`Track ${project.tracks.length+1}`}],project.tracks.length);project.tracks.push(track);selectTrack(track.id);
@@ -119,11 +125,12 @@
     if(freezingIds.size){status("他のパートのフリーズが終わるまでお待ちください。");return;}
     if(arrangementPlaying){status("再生を停止してからフリーズしてください。");return;}
     if(frozenBuffers.has(track.id)){
-      try{if(track.source.type==="vst3")await window.vst3Router.resumeTrack(track);frozenBuffers.delete(track.id);frozenMixCache=null;renderTrackList();status(`${track.name}のフリーズを解除しました。`);}catch(error){status(`フリーズ解除エラー: ${error.message}`);}return;
+      try{if(track.source.type==="vst3")await window.vst3Router.resumeTrack(track);frozenBuffers.delete(track.id);track.freeze_volume=null;frozenMixCache=null;renderTrackList();status(`${track.name}のフリーズを解除しました。`);}catch(error){status(`フリーズ解除エラー: ${error.message}`);}return;
     }
     if(track.source.type==="vst3"&&(track.source.shared_with||project.tracks.some(other=>other.source.shared_with===track.id))){
       status("フリーズするにはVST3パートの共有を解除してください。");return;
     }
+    if(track.volume===0){status("音量0%のパートはフリーズできません。先に音量を上げてください。");return;}
     ensureRoleClip(track);
     const queue=buildPlaybackQueue([track]),secondsPerBeat=60/project.bpm;
     if((project.length_beats*secondsPerBeat+2)>42){status("フリーズは42秒以内の曲に対応します。BPMか曲長を調整してください。");return;}
@@ -134,7 +141,7 @@
         const events=[];for(const item of queue){const channel=vstChannel(track),note_id=window.vst3Router.nextNoteId();events.push({on:true,note:item.event.note,velocity:item.event.velocity*track.volume,channel,note_id,delay_ms:item.startBeat*secondsPerBeat*1000},{on:false,note:item.event.note,velocity:0,channel,note_id,delay_ms:item.endBeat*secondsPerBeat*1000});}
         buffer=await window.vst3Router.freezeTrack(track,events,(project.length_beats*secondsPerBeat+2)*1000);
       }else buffer=await recordInternalFreeze(track,queue,project.length_beats*secondsPerBeat+2);
-      frozenBuffers.set(track.id,buffer);frozenMixCache=null;status(`${track.name}をフリーズしました。再生時は録音済み音声を使用します。`);
+      frozenBuffers.set(track.id,buffer);track.freeze_volume=track.volume;frozenMixCache=null;status(`${track.name}をフリーズしました。再生時は録音済み音声を使用します。`);
     }catch(error){status(`フリーズエラー: ${error.message}`);}finally{freezingIds.delete(track.id);renderTrackList();}
   }
   async function setSharedSource(track,masterId){
@@ -169,7 +176,14 @@
       const sourceSelect=document.createElement("select");sourceSelect.className="track-source-select";sourceSelect.title=`${track.name}の音源を個別に選択`;for(const [value,label] of [["internal","内蔵音源"],["reference","CD/Reference調整"],["vst3","VST3音源"]])sourceSelect.append(new Option(label,value));sourceSelect.value=track.source.type;sourceSelect.addEventListener("click",event=>event.stopPropagation());sourceSelect.addEventListener("change",event=>{event.stopPropagation();setTrackSourceFor(track,event.target.value);});
       const controls=document.createElement("span");controls.className="track-controls";
       for(const [key,label] of [["mute","M"],["solo","S"]]){const button=document.createElement("button");button.type="button";button.textContent=label;button.title=key==="mute"?"このトラックをミュート":"このトラックだけをソロ再生";button.classList.toggle("active",track[key]);button.addEventListener("click",event=>{event.stopPropagation();toggleTrack(track.id,key);});controls.append(button);}
-      row.append(color,copyNode,sourceSelect,controls,inlineVstSettings(track));
+      const volumeLabel=document.createElement("label"),volume=document.createElement("input"),volumeValue=document.createElement("output");
+      volumeLabel.className="track-volume";volumeLabel.append(`${track.name}の音量`,volume,volumeValue);
+      volume.type="range";volume.min="0";volume.max="100";volume.step="1";volume.value=String(Math.round(track.volume*100));volume.setAttribute("aria-label",`${track.name}の音量`);
+      volume.disabled=freezingIds.has(track.id)||arrangementPlaying&&frozenBuffers.has(track.id);
+      volumeValue.textContent=`${volume.value}%`;
+      volume.addEventListener("click",event=>event.stopPropagation());volumeLabel.addEventListener("click",event=>event.stopPropagation());
+      volume.addEventListener("input",()=>{setTrackVolume(track,Number(volume.value)/100);volumeValue.textContent=`${Math.round(track.volume*100)}%`;});
+      row.append(color,copyNode,sourceSelect,controls,volumeLabel,inlineVstSettings(track));
       const freeze=document.createElement("button");freeze.type="button";freeze.textContent=freezingIds.has(track.id)?"フリーズ中…":frozenBuffers.has(track.id)?"フリーズ解除":"フリーズ（実時間）";
       freeze.className="track-freeze";freeze.title=`${track.name}を録音して再生負荷を減らす`;
       freeze.disabled=Boolean(freezingIds.size)||Boolean(track.source.shared_with)||project.tracks.some(other=>other.source.shared_with===track.id);
@@ -274,17 +288,18 @@
     }
   }
   function sliceQueue(queue,start,end){return queue.filter(item=>item.startBeat>=start&&item.startBeat<end).map(item=>({...item,startBeat:item.startBeat-start,endBeat:Math.min(end,item.endBeat)-start}));}
+  function frozenGain(track){return bounded(track.volume,0,1,.82)/Math.max(.01,bounded(track.freeze_volume??track.volume,0,1,track.volume));}
   function mixedFrozenVstBuffer(activeTracks){
-    const entries=activeTracks.filter(track=>track.source.type==="vst3"&&frozenBuffers.has(track.id)).map(track=>({id:track.id,buffer:frozenBuffers.get(track.id)}));
+    const entries=activeTracks.filter(track=>track.source.type==="vst3"&&frozenBuffers.has(track.id)).map(track=>({id:track.id,buffer:frozenBuffers.get(track.id),gain:frozenGain(track)}));
     if(entries.length<2)return null;
-    if(frozenMixCache?.entries.length===entries.length&&entries.every((entry,i)=>entry.id===frozenMixCache.entries[i].id&&entry.buffer===frozenMixCache.entries[i].buffer))return frozenMixCache.buffer;
-    let buffer=null;try{buffer=window.frozenStemMix?.mix(entries.map(entry=>entry.buffer),engine.ctx)||null;}catch(_){/* Keep individual frozen stems playable when a large mix cannot be allocated. */}
+    if(frozenMixCache?.entries.length===entries.length&&entries.every((entry,i)=>entry.id===frozenMixCache.entries[i].id&&entry.buffer===frozenMixCache.entries[i].buffer&&entry.gain===frozenMixCache.entries[i].gain))return frozenMixCache.buffer;
+    let buffer=null;try{buffer=window.frozenStemMix?.mix(entries.map(entry=>entry.buffer),engine.ctx,entries.map(entry=>entry.gain))||null;}catch(_){/* Keep individual frozen stems playable when a large mix cannot be allocated. */}
     frozenMixCache={entries,buffer};return buffer;
   }
   function startInternalScheduler(queue,onCycleComplete,cycleBeats=TIMELINE_BEATS,scheduledStart=null,loopAhead=false,frozenOffset=0,activeTracks=[],vstPrescheduled=false){const runId=++playbackRunId,secondsPerBeat=60/project.bpm,cycleStart=scheduledStart??engine.ctx.currentTime+.08;
-    const scheduleStem=(buffer,destination)=>{const source=engine.ctx.createBufferSource();source.buffer=buffer;source.connect(destination);const startAt=Math.max(cycleStart,engine.ctx.currentTime),elapsed=Math.max(0,startAt-cycleStart),offset=frozenOffset*secondsPerBeat+elapsed,duration=Math.min(cycleBeats*secondsPerBeat-elapsed,buffer.duration-offset);if(duration<=0){source.disconnect();return;}source.onended=()=>{frozenSources.delete(source);source.disconnect();};frozenSources.add(source);source.start(startAt,offset,duration);};
+    const scheduleStem=(buffer,destination,gainValue=1)=>{const source=engine.ctx.createBufferSource();source.buffer=buffer;let gain=null;if(gainValue!==1){gain=engine.ctx.createGain();gain.gain.value=gainValue;source.connect(gain);gain.connect(destination);}else source.connect(destination);const startAt=Math.max(cycleStart,engine.ctx.currentTime),elapsed=Math.max(0,startAt-cycleStart),offset=frozenOffset*secondsPerBeat+elapsed,duration=Math.min(cycleBeats*secondsPerBeat-elapsed,buffer.duration-offset);if(duration<=0){source.disconnect();gain?.disconnect();return;}source.onended=()=>{frozenSources.delete(source);source.disconnect();gain?.disconnect();};frozenSources.add(source);source.start(startAt,offset,duration);};
     const mixed=mixedFrozenVstBuffer(activeTracks);if(mixed)scheduleStem(mixed,engine.master);
-    for(const track of activeTracks){const buffer=frozenBuffers.get(track.id);if(!buffer||mixed&&track.source.type==="vst3")continue;scheduleStem(buffer,track.source.type==="vst3"?engine.master:(engine.outputLeveler||engine.analyser));}
+    for(const track of activeTracks){const buffer=frozenBuffers.get(track.id);if(!buffer||mixed&&track.source.type==="vst3")continue;scheduleStem(buffer,track.source.type==="vst3"?engine.master:(engine.outputLeveler||engine.analyser),frozenGain(track));}
     const liveQueue=queue.filter(item=>!frozenBuffers.has(item.track.id)&&!(vstPrescheduled&&item.track.source.type==="vst3"));
     // Keep enough lead time for a busy UI, but avoid constructing two seconds of
     // live Web Audio graphs in one burst alongside already scheduled frozen stems.
@@ -305,11 +320,11 @@
     const update=()=>{if(!arrangementPlaying||run!==playbackRunId)return;const beat=Math.min(endBeat,startBeat+Math.max(0,engine.ctx.currentTime-cycleStart)/secondsPerBeat);showPlayhead(beat,true);if(beat<endBeat)playheadFrame=requestAnimationFrame(update);};
     update();
   }
-  function stopPreview(){playbackRunId++;cancelAnimationFrame(playheadFrame);if(completionTimer)clearTimeout(completionTimer);completionTimer=0;if(playbackTimer)clearTimeout(playbackTimer);playbackTimer=0;longTaskObserver?.disconnect();longTaskObserver=null;updatePlaybackTiming(true);for(const source of frozenSources){try{source.stop();}catch(_){}}frozenSources.clear();if(arrangementPlaying)window.vst3Router?.clearTrackEvents?.();arrangementPlaying=false;showPlayhead(project.playhead_beats,false);const stop=document.getElementById("clipStopBtn");if(stop)stop.disabled=true;}
+  function stopPreview(){playbackRunId++;cancelAnimationFrame(playheadFrame);if(completionTimer)clearTimeout(completionTimer);completionTimer=0;if(playbackTimer)clearTimeout(playbackTimer);playbackTimer=0;longTaskObserver?.disconnect();longTaskObserver=null;updatePlaybackTiming(true);for(const source of frozenSources){try{source.stop();}catch(_){}}frozenSources.clear();if(arrangementPlaying)window.vst3Router?.clearTrackEvents?.();arrangementPlaying=false;showPlayhead(project.playhead_beats,false);renderTrackList();const stop=document.getElementById("clipStopBtn");if(stop)stop.disabled=true;}
   async function previewClip(){
     if(freezingIds.size){status("フリーズ録音が終わるまでお待ちください。");return;}
-    const clip=selectedClip(),track=selectedTrack();if(!clip||!track){status("試聴するクリップを選択してください。");return;}stopPreview();if(track.mute){status("選択トラックはミュートされています。");return;}try{await engine.init();if(track.source.type!=="vst3"&&track.patch?.instrument_model==="licensed_pcm")await engine.ensureLicensedPCM?.();await window.vst3Router?.prepareTracks([track]);}catch(error){status(error.message);return;}if(track.source.type==="vst3"&&!window.vst3Router?.isTrackLoaded?.(track)){status(`VST3ロードエラー: ${window.vst3Router?.prepareErrors?.().join("、")||track.name}`);return;}applyTrack(track);document.getElementById("clipStopBtn").disabled=false;
-    arrangementPlaying=true;watchLongTasks();const queue=sliceQueue(buildPlaybackQueue([{...track,clips:[clip]}]),clip.start_beats,clip.start_beats+clip.length_beats);prepareInternalSamples([track],queue);const plannedStart=engine.ctx.currentTime+1.2;
+    const clip=selectedClip(),track=selectedTrack();if(!clip||!track){status("試聴するクリップを選択してください。");return;}stopPreview();if(track.mute){status("選択トラックはミュートされています。");return;}const request=playbackRunId;status(`${track.name}のVST3音源を準備中…`);try{await engine.init();if(track.source.type!=="vst3"&&track.patch?.instrument_model==="licensed_pcm")await engine.ensureLicensedPCM?.();await window.vst3Router?.ensurePlaybackReady?.([track]);}catch(error){status(`VST3準備エラー: ${error.message}`);return;}if(request!==playbackRunId)return;if(track.source.type==="vst3"&&!frozenBuffers.has(track.id)&&!window.vst3Router?.isTrackLoaded?.(track)){status(`VST3ロードエラー: ${window.vst3Router?.prepareErrors?.().join("、")||track.name}`);return;}applyTrack(track);document.getElementById("clipStopBtn").disabled=false;
+    arrangementPlaying=true;renderTrackList();watchLongTasks();const queue=sliceQueue(buildPlaybackQueue([{...track,clips:[clip]}]),clip.start_beats,clip.start_beats+clip.length_beats);prepareInternalSamples([track],queue);const plannedStart=engine.ctx.currentTime+1.2;
     let prescheduled=false;try{prescheduled=await window.vst3Router?.scheduleTrackCycle?.(queue,plannedStart,60/project.bpm)||false;}catch(error){stopPreview();status(`VST3予約エラー: ${error.message}`);return;}
     if(!arrangementPlaying)return;
     const cycleStart=startInternalScheduler(queue,()=>{stopPreview();applyTrack(track);status(`${track.name} · ${clip.name} の試聴が完了しました。`);},clip.length_beats,plannedStart,false,clip.start_beats,[track],prescheduled);followPlayhead(clip.start_beats,clip.start_beats+clip.length_beats,cycleStart);status(`${track.name} · ${clip.name} を共有BPM ${project.bpm}で内部スケジューラ再生中…`);
@@ -317,7 +332,7 @@
   function ensureRoleClip(track){if(track.clips.length)return;const key=ROLE_SAMPLE[track.role]||"melody",perf=SAMPLE_PERFORMANCES[key]||SAMPLE_PERFORMANCES.melody;track.clips.push(performanceToClip(perf,key));}
   async function playArrangement(){
     if(freezingIds.size){status("フリーズ録音が終わるまでお待ちください。");return;}
-    stopPreview();const solo=project.tracks.filter(track=>track.solo),tracks=(solo.length?solo:project.tracks.filter(track=>!track.mute));try{await engine.init();if(tracks.some(track=>track.source.type!=="vst3"&&track.patch?.instrument_model==="licensed_pcm"))await engine.ensureLicensedPCM?.();await window.vst3Router?.prepareTracks(tracks);}catch(error){status(`VST3準備エラー: ${error.message}`);return;}for(const track of tracks)ensureRoleClip(track);const queue=buildPlaybackQueue(tracks);prepareInternalSamples(tracks,queue);mixedFrozenVstBuffer(tracks);render();arrangementPlaying=true;watchLongTasks();document.getElementById("clipStopBtn").disabled=false;
+    stopPreview();const request=playbackRunId,solo=project.tracks.filter(track=>track.solo),tracks=(solo.length?solo:project.tracks.filter(track=>!track.mute));status("再生する全VST3音源の検索・ロード・音色復元・入出力確認が終わるまで待機中…");try{await engine.init();if(tracks.some(track=>track.source.type!=="vst3"&&track.patch?.instrument_model==="licensed_pcm"))await engine.ensureLicensedPCM?.();await window.vst3Router?.ensurePlaybackReady?.(tracks);}catch(error){status(`VST3準備エラー: ${error.message}`);return;}if(request!==playbackRunId)return;for(const track of tracks)ensureRoleClip(track);const queue=buildPlaybackQueue(tracks);prepareInternalSamples(tracks,queue);mixedFrozenVstBuffer(tracks);render();arrangementPlaying=true;renderTrackList();watchLongTasks();document.getElementById("clipStopBtn").disabled=false;
     const scheduleCycle=async(nextStart=null,from=project.playhead_beats)=>{if(!arrangementPlaying)return;const token=playbackRunId,loop=Boolean(document.getElementById("arrangementLoop")?.checked),to=loop?project.loop_end_beats:project.length_beats,begin=from>=to?(loop?project.loop_start_beats:0):from,part=sliceQueue(queue,begin,to);let plannedStart=nextStart??engine.ctx.currentTime+1.2;if(loop&&nextStart!==null){const duration=(to-begin)*60/project.bpm;if(duration>0&&engine.ctx.currentTime>=plannedStart+duration)plannedStart+=Math.floor((engine.ctx.currentTime-plannedStart)/duration)*duration;}
       let prescheduled=false;try{prescheduled=await window.vst3Router?.scheduleTrackCycle?.(part,plannedStart,60/project.bpm)||false;}catch(error){stopPreview();status(`VST3予約エラー: ${error.message}`);return;}
       if(!arrangementPlaying||token!==playbackRunId)return;
@@ -334,7 +349,7 @@
   function applyTrackPrompt(){const input=document.getElementById("trackPromptInput"),prompt=String(input?.value||"").trim();if(!prompt){status("自然言語の調整内容を入力してください。");return;}setTrackSource("internal");document.getElementById("prompt").value=prompt;document.getElementById("generateBtn").click();status(`${selectedTrack().name}の内蔵音源を自然言語で調整しています…`);}
   function setupTrackSoundPanel(){const select=document.getElementById("trackPresetSelect");if(select&&!select.options.length)for(const [id,label] of TRACK_PRESETS)select.append(new Option(label,id));const channel=document.getElementById("trackVstMidiChannel");if(channel&&channel.options.length===1)for(let i=0;i<16;i++)channel.append(new Option(`Ch ${i+1}`,String(i)));channel?.addEventListener("change",event=>updateTrackMidi(selectedTrack(),event.target.value));document.getElementById("trackInternalSourceBtn")?.addEventListener("click",()=>setTrackSource("internal"));document.getElementById("trackReferenceSourceBtn")?.addEventListener("click",()=>setTrackSource("reference"));document.getElementById("trackVstSourceBtn")?.addEventListener("click",()=>setTrackSource("vst3"));document.getElementById("trackVstPluginSelect")?.addEventListener("change",event=>{if(event.target.value)setTrackSource("vst3",event.target.value);});document.getElementById("trackVstScanBtn")?.addEventListener("click",()=>window.vst3Router?.scan?.());document.getElementById("trackVstLoadBtn")?.addEventListener("click",()=>loadSelectedVst());document.getElementById("trackVstEditorBtn")?.addEventListener("click",openSelectedVstEditor);document.getElementById("trackVstDiagBtn")?.addEventListener("click",async()=>{const track=selectedTrack(),node=document.getElementById("trackVstStatus");if(!track||!node)return;try{node.textContent=await window.vst3Router.trackDiagnostics(track);}catch(error){node.textContent=`発音診断エラー: ${error.message}`;}});window.addEventListener("vst3-catalog-changed",()=>{renderTrackList();renderTrackSoundPanel();});document.getElementById("trackPresetApplyBtn")?.addEventListener("click",applyTrackPreset);document.getElementById("trackPromptApplyBtn")?.addEventListener("click",applyTrackPrompt);}
   function sanitizeClip(raw,songBeats){const notes=Array.isArray(raw?.notes)?raw.notes.slice(0,MAX_NOTES).map(note=>({note:Math.round(bounded(note.note,0,127,60)),start_beats:bounded(note.start_beats,0,TIMELINE_BEATS,0),duration_beats:bounded(note.duration_beats,.03125,8,.25),velocity:bounded(note.velocity,.01,1,.82)})):[];return {id:uid("clip"),name:String(raw?.name||"Clip").slice(0,60),start_beats:bounded(raw?.start_beats,0,songBeats-.25,0),length_beats:bounded(raw?.length_beats,.25,Math.min(TIMELINE_BEATS,songBeats-bounded(raw?.start_beats,0,songBeats-.25,0)),4),notes};}
-  function sanitizeTrack(raw,index,songBeats){const fallback=newTrack(ROLE_DEFS[index]||null,index),patch=validatePatch(raw?.patch||fallback.patch),sourceType=["internal","reference","vst3"].includes(raw?.source?.type)?raw.source.type:"internal";return {...fallback,id:/^[\w-]{1,80}$/.test(String(raw?.id||""))?String(raw.id):fallback.id,name:String(raw?.name||fallback.name).slice(0,40),role:String(raw?.role||fallback.role).slice(0,24),color:/^#[0-9a-f]{6}$/i.test(raw?.color||"")?raw.color:fallback.color,mute:Boolean(raw?.mute),solo:Boolean(raw?.solo),volume:bounded(raw?.volume,0,1,.82),pan:bounded(raw?.pan,-1,1,0),midi_channel:Math.round(bounded(raw?.midi_channel,0,15,fallback.midi_channel)),midi_channel_mode:raw?.midi_channel_mode==="manual"?"manual":"auto",source:{type:sourceType,plugin_id:String(raw?.source?.plugin_id||"").slice(0,160),plugin_path:String(raw?.source?.plugin_path||"").slice(0,1024),plugin_state:typeof raw?.source?.plugin_state==="string"&&raw.source.plugin_state.length<=12000000?raw.source.plugin_state:"",name:String(raw?.source?.name||"内蔵音源").slice(0,80),shared_with:sourceType==="vst3"?String(raw?.source?.shared_with||"").slice(0,80):""},patch:clone(patch),generated_patch:clone(validatePatch(raw?.generated_patch||patch)),clips:Array.isArray(raw?.clips)?raw.clips.slice(0,MAX_CLIPS).map(clip=>sanitizeClip(clip,songBeats)):[]};}
+  function sanitizeTrack(raw,index,songBeats){const fallback=newTrack(ROLE_DEFS[index]||null,index),patch=validatePatch(raw?.patch||fallback.patch),sourceType=["internal","reference","vst3"].includes(raw?.source?.type)?raw.source.type:"internal";return {...fallback,id:/^[\w-]{1,80}$/.test(String(raw?.id||""))?String(raw.id):fallback.id,name:String(raw?.name||fallback.name).slice(0,40),role:String(raw?.role||fallback.role).slice(0,24),color:/^#[0-9a-f]{6}$/i.test(raw?.color||"")?raw.color:fallback.color,mute:Boolean(raw?.mute),solo:Boolean(raw?.solo),volume:bounded(raw?.volume,0,1,.82),freeze_volume:raw?.freeze_volume==null?bounded(raw?.volume,0,1,.82):bounded(raw.freeze_volume,0,1,.82),pan:bounded(raw?.pan,-1,1,0),midi_channel:Math.round(bounded(raw?.midi_channel,0,15,fallback.midi_channel)),midi_channel_mode:raw?.midi_channel_mode==="manual"?"manual":"auto",source:{type:sourceType,plugin_id:String(raw?.source?.plugin_id||"").slice(0,160),plugin_path:String(raw?.source?.plugin_path||"").slice(0,1024),plugin_state:typeof raw?.source?.plugin_state==="string"&&raw.source.plugin_state.length<=12000000?raw.source.plugin_state:"",name:String(raw?.source?.name||"内蔵音源").slice(0,80),shared_with:sourceType==="vst3"?String(raw?.source?.shared_with||"").slice(0,80):""},patch:clone(patch),generated_patch:clone(validatePatch(raw?.generated_patch||patch)),clips:Array.isArray(raw?.clips)?raw.clips.slice(0,MAX_CLIPS).map(clip=>sanitizeClip(clip,songBeats)):[]};}
   async function exportProject(){
     if(freezingIds.size){status("フリーズ録音が終わってから保存してください。");return;}
     if(arrangementPlaying)stopPreview();
