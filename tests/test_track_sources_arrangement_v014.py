@@ -74,7 +74,7 @@ def test_each_track_exposes_and_persists_an_independent_source_selector():
     assert "特徴量解析だけに使い" in runtime
     assert ".track-source-select" in css
     assert "/multitrack.css?v=0.18.7" in html
-    assert "/multitrack_runtime.js?v=0.19.2" in html
+    assert "/multitrack_runtime.js?v=0.19.3" in html
 
 
 def test_track_vst3_playback_uses_independent_scanned_host_instances():
@@ -82,7 +82,7 @@ def test_track_vst3_playback_uses_independent_scanned_host_instances():
     vst3 = read("web/vst3_runtime.js")
     assert "router?.trackNoteOn(track.id" in runtime
     assert "router?.trackNoteOff(track.id" in runtime
-    assert "prepareTracks(tracks)" in runtime
+    assert "ensurePlaybackReady?.(tracks)" in runtime
     assert "loadedPlugin:()=>" in vst3
     assert "const trackInstances=new Map()" in vst3
     assert "instance_id:target.instanceId" in vst3

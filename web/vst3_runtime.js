@@ -172,6 +172,20 @@
     for(const track of requested){try{await loadTrack(track);}catch(error){lastPrepareErrors.push(`${track.name||track.id}: ${error.message}`);}}
     return requested.length-lastPrepareErrors.length;
   }
+  async function ensurePlaybackReady(tracks){
+    const requested=(tracks||[]).filter(track=>track?.source?.type==="vst3"&&track.source.plugin_id&&!window.multitrackProject?.isFrozen?.(track.id));
+    if(!requested.length)return;
+    if(requested.some(track=>!scannedPlugins().some(plugin=>plugin.id===track.source.plugin_id)))await scanForTracks(requested);
+    await prepareTracks(requested);
+    if(lastPrepareErrors.length)throw new Error(lastPrepareErrors.join("、"));
+    for(const instanceId of new Set(requested.map(track=>trackInstances.get(track.id)?.instanceId))){
+      if(!instanceId)throw new Error("VST3インスタンスの準備が完了しませんでした。");
+      const data=await api(`/api/vst3/diagnostics?instance_id=${encodeURIComponent(instanceId)}`);
+      if(!data.ok||!data.loaded||!Number.isFinite(Number(data.main_output_channels))||Number(data.main_output_channels)<1||
+         !Number.isInteger(data.main_event_input_bus)||data.main_event_input_bus<0)
+        throw new Error(`${requested.find(track=>trackInstances.get(track.id)?.instanceId===instanceId)?.name||instanceId}の音声出力またはMIDI入力が準備できていません。`);
+    }
+  }
   let lastPrepareErrors=[];
   async function loadTrack(track){
     const trackId=track?.id,pluginId=track?.source?.plugin_id;
@@ -298,5 +312,5 @@
     await trackEventsBatch(groups,true);return true;
   }
   function clearTrackEvents(){for(const instanceId of new Set([...trackInstances.values()].map(value=>value.instanceId))){forgetNotes(instanceId);api("/api/vst3/clear-events",{instance_id:instanceId}).catch(()=>{});}}
-  window["vst3Router"]={scan,scanForTracks,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,prepareErrors:()=>[...lastPrepareErrors],loadTrack,releaseTrack,openTrackEditor,trackParameters,trackDiagnostics,trackSetParameter,snapshotTrack,freezeTrack,resumeTrack,isTrackLoaded:track=>trackInstances.get(track?.id)?.pluginId===track?.source?.plugin_id,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,nextNoteId,baseNoteOn,baseNoteOff,scheduleTrackCycle};
+  window["vst3Router"]={scan,scanForTracks,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,ensurePlaybackReady,prepareErrors:()=>[...lastPrepareErrors],loadTrack,releaseTrack,openTrackEditor,trackParameters,trackDiagnostics,trackSetParameter,snapshotTrack,freezeTrack,resumeTrack,isTrackLoaded:track=>trackInstances.get(track?.id)?.pluginId===track?.source?.plugin_id,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,nextNoteId,baseNoteOn,baseNoteOff,scheduleTrackCycle};
 })();

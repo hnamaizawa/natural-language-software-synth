@@ -72,7 +72,7 @@ def test_inline_track_settings_route_editor_and_parameters_by_track_instance(mon
     assert calls == [("editor", "track-drums"), ("editor", "track-bass"), ("parameters", "track-drums"), ("set", "track-bass", 7, 0.4)]
     runtime = read("web/multitrack_runtime.js")
     router = read("web/vst3_runtime.js")
-    assert 'row.append(color,copyNode,sourceSelect,controls,inlineVstSettings(track))' in runtime
+    assert 'row.append(color,copyNode,sourceSelect,controls,volumeLabel,inlineVstSettings(track))' in runtime
     assert 'openTrackVstEditor(track)' in runtime
     assert 'trackSetParameter(track,param.id' in runtime
     assert 'api("/api/vst3/parameters",{instance_id:target.instanceId})' in router
