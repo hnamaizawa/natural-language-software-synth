@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.19.5 Playback diagnostic deltas
+
+- [x] 1再生の開始・終了における内蔵音源の遅延・期限切れ・画面長時間処理の記録
+- [x] ライブVST3のHost締切超過とインスタンス別予約遅延・処理失敗の増分表示
+- [x] 再生中の診断通信を避け、計測不能／カウンターリセットを明示
+- [ ] GitHub CI pytest／Harness、およびWindows実機での比較確認
+
 ## v0.19.4 Pan, overwrite and full-part song chooser
 
 - [x] パートごとの左右パン、JSON保存・読込、内蔵／VST3／フリーズ音声への適用
