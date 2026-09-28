@@ -237,6 +237,18 @@
     const rate=Number(data.sample_rate)||48000,latency=(1000*Number(data.reported_latency_samples||0)/rate).toFixed(1),late=(1000*Number(data.max_note_lateness_frames||0)/rate).toFixed(1);
     return `VST3発音診断: 音源報告遅延 ${latency} ms（曲再生で補正） / 予約遅延 ${data.late_note_events||0}件（最大 ${late} ms） / Host負荷 ${Number(host.cpu_load_percent||0).toFixed(1)}% / 音切れ候補 ${host.audio_overruns||0} / Native音声デバイス ${host.audio_device_running===false?"休止":"稼働"}。予約遅延0件でも遅く聞こえる場合は音色のアタックを確認してください。`;
   }
+  async function playbackMetrics(tracks){
+    const ids=new Map();
+    for(const track of tracks||[]){
+      if(track?.source?.type!=="vst3"||window.multitrackProject?.isFrozen?.(track.id))continue;
+      const instance=trackInstances.get(track.id)?.instanceId;
+      if(instance){const names=ids.get(instance)||[];names.push(track.name||track.id);ids.set(instance,names);}
+    }
+    if(!ids.size)return null;
+    const [host,...diagnostics]=await Promise.all([api("/api/vst3/status"),...[...ids.keys()].map(id=>api(`/api/vst3/diagnostics?instance_id=${encodeURIComponent(id)}`))]);
+    if(!host.ok||diagnostics.some(item=>!item.ok))throw new Error("VST3診断値を取得できませんでした。");
+    return {overruns:Number(host.audio_overruns),load:Number(host.cpu_load_percent),instances:[...ids].map(([id,names],index)=>({id,names,late:Number(diagnostics[index].late_note_events),processFailures:Number(diagnostics[index].process_failures),eventFailures:Number(diagnostics[index].event_add_failures)}))};
+  }
   async function trackSetParameter(track,id,value){const target=await loadTrack(track);const data=await api("/api/vst3/parameter",{instance_id:target.instanceId,id:Math.round(clamp(id,0,0x7fffffff)),value:clamp(value,0,1)});if(!data.ok)throw new Error(data.error||"パラメータ設定失敗");return data;}
   async function snapshotTrack(track){const target=await loadTrack(track);const data=await api("/api/vst3/state/save",{instance_id:target.instanceId});if(!data.ok)throw new Error(data.error||"VST3音色の保存に失敗");return data.state;}
   async function freezeTrack(track,events,durationMs){const target=await loadTrack(track);if(target.instanceId!==track.id)throw new Error("共有中のパートは先に共有を解除してください。");const started=await api("/api/vst3/freeze/start",{instance_id:target.instanceId,events,duration_ms:durationMs});if(!started.ok)throw new Error(started.error||"フリーズ開始失敗");try{let state;for(let i=0;i<Math.ceil(durationMs/250)+24;i++){await new Promise(resolve=>setTimeout(resolve,250));state=await api("/api/vst3/freeze/status",{instance_id:target.instanceId});if(!state.ok)throw new Error(state.error||"録音状態を確認できません");if(state.target_frames>0&&state.frames>=state.target_frames)break;}if(!state||state.frames<state.target_frames)throw new Error("音声の記録が時間内に完了しませんでした");const done=await api("/api/vst3/freeze/finish",{instance_id:target.instanceId});if(!done.ok)throw new Error(done.error||"フリーズ音声保存失敗");const response=await fetch(done.audio_url,{cache:"no-store"});if(!response.ok)throw new Error(`音声読込エラー: ${response.status}`);return await engine.ctx.decodeAudioData(await response.arrayBuffer());}catch(error){await api("/api/vst3/freeze/resume",{instance_id:target.instanceId}).catch(()=>{});throw error;}}
@@ -314,5 +326,5 @@
   }
   function clearTrackEvents(){for(const instanceId of new Set([...trackInstances.values()].map(value=>value.instanceId))){forgetNotes(instanceId);api("/api/vst3/clear-events",{instance_id:instanceId}).catch(()=>{});}}
   async function setTrackPan(track){const target=trackInstances.get(track.id);if(!target)return;if(target.instanceId!==track.id)return;const data=await api("/api/vst3/pan",{instance_id:target.instanceId,pan:clamp(track.pan??0,-1,1)});if(!data.ok)throw new Error(data.error||"パン設定失敗");}
-  window["vst3Router"]={scan,scanForTracks,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,ensurePlaybackReady,prepareErrors:()=>[...lastPrepareErrors],loadTrack,releaseTrack,setTrackPan,openTrackEditor,trackParameters,trackDiagnostics,trackSetParameter,snapshotTrack,freezeTrack,resumeTrack,isTrackLoaded:track=>trackInstances.get(track?.id)?.pluginId===track?.source?.plugin_id,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,nextNoteId,baseNoteOn,baseNoteOff,scheduleTrackCycle};
+  window["vst3Router"]={scan,scanForTracks,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,ensurePlaybackReady,prepareErrors:()=>[...lastPrepareErrors],loadTrack,releaseTrack,setTrackPan,playbackMetrics,openTrackEditor,trackParameters,trackDiagnostics,trackSetParameter,snapshotTrack,freezeTrack,resumeTrack,isTrackLoaded:track=>trackInstances.get(track?.id)?.pluginId===track?.source?.plugin_id,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,nextNoteId,baseNoteOn,baseNoteOff,scheduleTrackCycle};
 })();

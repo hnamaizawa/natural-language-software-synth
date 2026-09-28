@@ -35,7 +35,7 @@ def test_frozen_only_playback_avoids_note_timer_and_shows_import_filename():
     assert 'id="projectLoadedFile"' in html
     assert 'loadedProjectFilename=String(file.name||"").slice(0,255)' in runtime
     assert 'node.textContent=`読込ファイル: ${loadedProjectFilename||"なし"}`' in runtime
-    assert 'mixedFrozenVstBuffer(tracks);render();arrangementPlaying=true' in runtime
+    assert runtime.index('mixedFrozenVstBuffer(tracks);render();const report=await preparePlaybackDiagnostics(tracks)') < runtime.index('playbackDiagnosticSession=report;arrangementPlaying=true')
     assert 'if(mixed)scheduleStem(mixed,engine.master)' in runtime
     assert 'const liveQueue=queue.filter(item=>!frozenBuffers.has(item.track.id)' in runtime
     assert 'if(liveQueue.length)pump()' in runtime
