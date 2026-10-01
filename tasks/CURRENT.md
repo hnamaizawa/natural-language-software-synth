@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.19.7 Piano-roll playback follow
+
+- [x] 再生位置を選択クリップの拍位置に変換してピアノロールに表示
+- [x] 全パート演奏中の選択パートのクリップ切替、横スクロール、停止後の表示解除
+- [x] 表示更新のみを既存AudioContext時計に接続
+- [ ] GitHub CI pytest／HarnessとWindows実機での表示確認
+
 ## v0.19.6 Stable toolbar, distinct song styles, piano keys
 
 - [x] トラック選択に依存しない操作ボタンの配置

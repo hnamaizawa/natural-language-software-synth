@@ -21,7 +21,7 @@
     ["studio_tenor_sax","Studio Tenor Sax"]
   ];
   const ROLE_SAMPLE={drums:"drum_straight",bass:"bass",keyboard:"chords",guitar:"chords",melody:"melody",chorus:"chords",pad:"chords",custom:"melody"};
-  let serial=0,applyingTrack=false,selectedClipId=null,completionTimer=0,playbackTimer=0,playbackRunId=0,arrangementPlaying=false,expandedTrackId=null,playheadFrame=0,loadedProjectFilename="",frozenMixCache=null;
+  let serial=0,applyingTrack=false,selectedClipId=null,completionTimer=0,playbackTimer=0,playbackRunId=0,arrangementPlaying=false,followArrangementClips=false,expandedTrackId=null,playheadFrame=0,displayBeat=0,loadedProjectFilename="",frozenMixCache=null;
   const schedulerStats={late:0,expired:0,maxLateMs:0,longTasks:0};
   let longTaskObserver=null,lastTimingUpdate=0,playbackDiagnosticSession=null,diagnosticSerial=0;
   function updatePlaybackTiming(force=false){const now=performance.now();if(!force&&now-lastTimingUpdate<1000)return;lastTimingUpdate=now;const node=document.getElementById("playbackTimingStatus");if(node)node.textContent=`内蔵音源の予約遅延 ${schedulerStats.late}件（最大 ${schedulerStats.maxLateMs.toFixed(0)} ms）・期限切れ ${schedulerStats.expired}件・長い画面処理 ${schedulerStats.longTasks}件` ;}
@@ -248,10 +248,10 @@
   function renderTimeline(){
     const root=document.getElementById("arrangementTimeline");if(!root)return;root.replaceChildren();const ruler=document.getElementById("timelineRuler"),bars=project.length_beats/4;if(ruler){ruler.replaceChildren();for(let i=0;i<bars;i++){const button=document.createElement("button");button.type="button";button.textContent=String(i+1);button.className=i*4===project.playhead_beats?"current-bar":"";button.addEventListener("click",()=>{if(arrangementPlaying)stopPreview();project.playhead_beats=i*4;renderTimeline();renderTransport();status(`再生位置を${i+1}小節に移動しました。`);});ruler.append(button);}}root.style.setProperty("--bars",bars);
     for(const track of project.tracks){const row=document.createElement("div");row.className="timeline-row";const label=document.createElement("span");label.className="timeline-label";label.textContent=track.name;const lane=document.createElement("div");lane.className="timeline-lane";
-      for(const clip of track.clips){const block=document.createElement("button");block.type="button";block.className=`clip-block${clip.id===selectedClipId?" selected":""}`;block.textContent=clip.name;block.style.background=track.color;block.style.left=`${Math.min(100,clip.start_beats/project.length_beats*100)}%`;block.style.width=`${Math.min(100-clip.start_beats/project.length_beats*100,Math.max(3,clip.length_beats/project.length_beats*100))}%`;
+      for(const clip of track.clips){const block=document.createElement("button");block.type="button";block.dataset.clipId=clip.id;block.className=`clip-block${clip.id===selectedClipId?" selected":""}`;block.textContent=clip.name;block.style.background=track.color;block.style.left=`${Math.min(100,clip.start_beats/project.length_beats*100)}%`;block.style.width=`${Math.min(100-clip.start_beats/project.length_beats*100,Math.max(3,clip.length_beats/project.length_beats*100))}%`;
         block.addEventListener("pointerdown",event=>{if(project.selected_track_id!==track.id){selectTrack(track.id);selectedClipId=clip.id;renderTimeline();renderPianoRoll();return;}selectedClipId=clip.id;renderPianoRoll();const startX=event.clientX,initial=clip.start_beats,step=rollStep();block.setPointerCapture(event.pointerId);block.onpointermove=move=>{if(arrangementPlaying||freezingIds.size||frozenBuffers.has(track.id))return;const beats=Math.round((move.clientX-startX)/Math.max(1,lane.clientWidth)*project.length_beats/step)*step;clip.start_beats=bounded(initial+beats,0,project.length_beats-clip.length_beats,initial);block.style.left=`${clip.start_beats/project.length_beats*100}%`;};block.onpointerup=()=>{block.onpointermove=null;block.onpointerup=null;renderTimeline();renderPianoRoll();};});
         block.addEventListener("click",()=>{if(project.selected_track_id!==track.id)selectTrack(track.id);selectedClipId=clip.id;renderTimeline();renderPianoRoll();});lane.append(block);}row.append(label,lane);root.append(row);}
-    const marker=document.createElement("div");marker.id="arrangementPlayhead";marker.className="arrangement-playhead";marker.setAttribute("aria-hidden","true");root.append(marker);showPlayhead(project.playhead_beats,arrangementPlaying);
+    const marker=document.createElement("div");marker.id="arrangementPlayhead";marker.className="arrangement-playhead";marker.setAttribute("aria-hidden","true");root.append(marker);showPlayhead(arrangementPlaying?displayBeat:project.playhead_beats,arrangementPlaying);
   }
   const rollUndo=[],rollRedo=[];let selectedNoteIndex=-1;
   function rollHistory(){const clip=selectedClip();if(!clip)return;rollUndo.push({clip:clip.id,notes:clone(clip.notes)});if(rollUndo.length>50)rollUndo.shift();rollRedo.length=0;}
@@ -293,7 +293,8 @@
       block.addEventListener("click",event=>{event.stopPropagation();selectedNoteIndex=index;renderPianoRoll();});
       grid.append(block);
     });
-    root.append(grid);
+    const marker=document.createElement("div");marker.id="rollPlayhead";marker.className="roll-playhead";marker.setAttribute("aria-hidden","true");grid.append(marker);
+    root.append(grid);showRollPlayhead(displayBeat,arrangementPlaying);
   }
   function deleteRollNote(){if(!rollCanEdit())return;const clip=selectedClip();if(selectedNoteIndex<0||selectedNoteIndex>=clip.notes.length)return;rollHistory();clip.notes.splice(selectedNoteIndex,1);selectedNoteIndex=-1;renderPianoRoll();status("ノートを削除しました。");}
   function travelRollHistory(from,to){if(!rollCanEdit())return;const clip=selectedClip(),entry=from.pop();if(!entry)return;if(entry.clip!==clip.id){from.push(entry);return;}to.push({clip:clip.id,notes:clone(clip.notes)});clip.notes=clone(entry.notes);selectedNoteIndex=-1;renderPianoRoll();}
@@ -347,7 +348,21 @@
     completionTimer=setTimeout(()=>{completionTimer=0;if(runId===playbackRunId)onCycleComplete(cycleStart+cycleBeats*secondsPerBeat);},Math.max(0,(cycleStart+cycleBeats*secondsPerBeat-engine.ctx.currentTime)*1000+(loopAhead?-800:30)));
     return cycleStart;
   }
+  function showRollPlayhead(beat,playing){
+    const root=document.getElementById("projectPianoRoll"),marker=document.getElementById("rollPlayhead"),clip=selectedClip();if(!root||!marker||!clip)return;
+    const relative=beat-clip.start_beats,visible=playing&&relative>=0&&relative<clip.length_beats;
+    marker.classList.toggle("playing",visible);if(!visible)return;
+    const x=64+relative/TIMELINE_BEATS*896;marker.style.left=`${x}px`;
+    if(x>root.scrollLeft+root.clientWidth-24||x<root.scrollLeft+64)root.scrollLeft=Math.max(0,x-root.clientWidth*.45);
+  }
   function showPlayhead(beat,playing){
+    displayBeat=beat;
+    if(playing&&followArrangementClips){
+      const track=selectedTrack(),current=selectedClip(),contains=clip=>clip&&beat>=clip.start_beats&&beat<clip.start_beats+clip.length_beats;
+      const active=contains(current)?current:track?.clips.find(contains);
+      if(active&&active.id!==selectedClipId){selectedClipId=active.id;renderPianoRoll();for(const block of document.querySelectorAll("#arrangementTimeline .clip-block"))block.classList.toggle("selected",block.dataset.clipId===active.id);}
+    }
+    showRollPlayhead(beat,playing);
     const position=document.getElementById("playPosition");if(position)position.textContent=`${playing?"再生中":"停止"} · ${Math.floor(beat/4)+1}小節 ${Math.floor(beat%4)+1}拍`;
     const lane=document.querySelector("#arrangementTimeline .timeline-lane"),marker=document.getElementById("arrangementPlayhead");if(marker&&lane)marker.style.left=`${lane.offsetLeft+lane.clientWidth*beat/project.length_beats}px`;
     const ruler=document.getElementById("timelineRuler");if(ruler)for(let i=0;i<ruler.children.length;i++)ruler.children[i].classList.toggle("current-bar",i===Math.floor(beat/4));
@@ -359,7 +374,7 @@
     const update=()=>{if(!arrangementPlaying||run!==playbackRunId)return;const beat=Math.min(endBeat,startBeat+Math.max(0,engine.ctx.currentTime-cycleStart)/secondsPerBeat);showPlayhead(beat,true);if(beat<endBeat)playheadFrame=requestAnimationFrame(update);};
     update();
   }
-  function stopPreview(){playbackRunId++;cancelAnimationFrame(playheadFrame);if(completionTimer)clearTimeout(completionTimer);completionTimer=0;if(playbackTimer)clearTimeout(playbackTimer);playbackTimer=0;longTaskObserver?.disconnect();longTaskObserver=null;updatePlaybackTiming(true);finishPlaybackDiagnostics();for(const source of frozenSources){try{source.stop();}catch(_){}}frozenSources.clear();if(arrangementPlaying)window.vst3Router?.clearTrackEvents?.();arrangementPlaying=false;showPlayhead(project.playhead_beats,false);renderTrackList();const stop=document.getElementById("clipStopBtn");if(stop)stop.disabled=true;}
+  function stopPreview(){playbackRunId++;cancelAnimationFrame(playheadFrame);if(completionTimer)clearTimeout(completionTimer);completionTimer=0;if(playbackTimer)clearTimeout(playbackTimer);playbackTimer=0;longTaskObserver?.disconnect();longTaskObserver=null;updatePlaybackTiming(true);finishPlaybackDiagnostics();for(const source of frozenSources){try{source.stop();}catch(_){}}frozenSources.clear();if(arrangementPlaying)window.vst3Router?.clearTrackEvents?.();arrangementPlaying=false;followArrangementClips=false;showPlayhead(project.playhead_beats,false);renderTrackList();const stop=document.getElementById("clipStopBtn");if(stop)stop.disabled=true;}
   async function previewClip(){
     if(freezingIds.size){status("フリーズ録音が終わるまでお待ちください。");return;}
     const clip=selectedClip(),track=selectedTrack();if(!clip||!track){status("試聴するクリップを選択してください。");return;}stopPreview();if(track.mute){status("選択トラックはミュートされています。");return;}const request=playbackRunId;status(`${track.name}のVST3音源を準備中…`);try{await engine.init();if(track.source.type!=="vst3"&&track.patch?.instrument_model==="licensed_pcm")await engine.ensureLicensedPCM?.();await window.vst3Router?.ensurePlaybackReady?.([track]);}catch(error){status(`VST3準備エラー: ${error.message}`);return;}if(request!==playbackRunId)return;if(track.source.type==="vst3"&&!frozenBuffers.has(track.id)&&!window.vst3Router?.isTrackLoaded?.(track)){status(`VST3ロードエラー: ${window.vst3Router?.prepareErrors?.().join("、")||track.name}`);return;}applyTrack(track);document.getElementById("clipStopBtn").disabled=false;
@@ -372,7 +387,7 @@
   function ensureRoleClip(track){if(track.clips.length)return;const key=ROLE_SAMPLE[track.role]||"melody",perf=SAMPLE_PERFORMANCES[key]||SAMPLE_PERFORMANCES.melody;track.clips.push(performanceToClip(perf,key));}
   async function playArrangement(){
     if(freezingIds.size){status("フリーズ録音が終わるまでお待ちください。");return;}
-    stopPreview();const request=playbackRunId,solo=project.tracks.filter(track=>track.solo),tracks=(solo.length?solo:project.tracks.filter(track=>!track.mute));status("再生する全VST3音源の検索・ロード・音色復元・入出力確認が終わるまで待機中…");try{await engine.init();if(tracks.some(track=>track.source.type!=="vst3"&&track.patch?.instrument_model==="licensed_pcm"))await engine.ensureLicensedPCM?.();await window.vst3Router?.ensurePlaybackReady?.(tracks);}catch(error){status(`VST3準備エラー: ${error.message}`);return;}if(request!==playbackRunId)return;for(const track of tracks)ensureRoleClip(track);const queue=buildPlaybackQueue(tracks);prepareInternalSamples(tracks,queue);mixedFrozenVstBuffer(tracks);render();const report=await preparePlaybackDiagnostics(tracks);if(request!==playbackRunId)return;playbackDiagnosticSession=report;arrangementPlaying=true;renderTrackList();watchLongTasks();document.getElementById("clipStopBtn").disabled=false;
+    stopPreview();const request=playbackRunId,solo=project.tracks.filter(track=>track.solo),tracks=(solo.length?solo:project.tracks.filter(track=>!track.mute));status("再生する全VST3音源の検索・ロード・音色復元・入出力確認が終わるまで待機中…");try{await engine.init();if(tracks.some(track=>track.source.type!=="vst3"&&track.patch?.instrument_model==="licensed_pcm"))await engine.ensureLicensedPCM?.();await window.vst3Router?.ensurePlaybackReady?.(tracks);}catch(error){status(`VST3準備エラー: ${error.message}`);return;}if(request!==playbackRunId)return;for(const track of tracks)ensureRoleClip(track);const queue=buildPlaybackQueue(tracks);prepareInternalSamples(tracks,queue);mixedFrozenVstBuffer(tracks);render();const report=await preparePlaybackDiagnostics(tracks);if(request!==playbackRunId)return;playbackDiagnosticSession=report;arrangementPlaying=true;followArrangementClips=true;renderTrackList();watchLongTasks();document.getElementById("clipStopBtn").disabled=false;
     const scheduleCycle=async(nextStart=null,from=project.playhead_beats)=>{if(!arrangementPlaying)return;const token=playbackRunId,loop=Boolean(document.getElementById("arrangementLoop")?.checked),to=loop?project.loop_end_beats:project.length_beats,begin=from>=to?(loop?project.loop_start_beats:0):from,part=sliceQueue(queue,begin,to);let plannedStart=nextStart??engine.ctx.currentTime+1.2;if(loop&&nextStart!==null){const duration=(to-begin)*60/project.bpm;if(duration>0&&engine.ctx.currentTime>=plannedStart+duration)plannedStart+=Math.floor((engine.ctx.currentTime-plannedStart)/duration)*duration;}
       let prescheduled=false;try{prescheduled=await window.vst3Router?.scheduleTrackCycle?.(part,plannedStart,60/project.bpm)||false;}catch(error){stopPreview();status(`VST3予約エラー: ${error.message}`);return;}
       if(!arrangementPlaying||token!==playbackRunId)return;
