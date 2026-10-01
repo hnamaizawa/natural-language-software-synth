@@ -28,5 +28,4 @@
 .roll-piano-key.white{width:64px;background:linear-gradient(90deg,#c6d3de,#f4f6f8 75%,#c0ccd7);color:#25364c}
 .roll-piano-key.black{width:43px;background:linear-gradient(90deg,#0b1422,#344458 75%,#172132);border-bottom-color:#0a1321;border-radius:0 0 4px 0;box-shadow:2px 1px 2px #07101d;color:#d6e7f6;z-index:1}
 .roll-grid .roll-note{z-index:2}.roll-grid .roll-note.selected{z-index:3}
-.roll-playhead{position:absolute;top:0;bottom:0;width:2px;background:#ffe17a;box-shadow:0 0 7px #ffe17a;z-index:4;pointer-events:none;display:none}
-.roll-playhead.playing{display:block}
+.roll-playhead{z-index:4}

@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.19.8 Visible piano-roll playhead
+
+- [x] ピアノロールの縦線をタイムラインと同じ描画クラスで表示
+- [x] 表示状態を再生中／停止中で明示切替
+- [x] 自動作成したクリップを再生開始前に選択
+- [ ] GitHub CI pytest／HarnessとWindows実機での縦線確認
+
 ## v0.19.7 Piano-roll playback follow
 
 - [x] 再生位置を選択クリップの拍位置に変換してピアノロールに表示

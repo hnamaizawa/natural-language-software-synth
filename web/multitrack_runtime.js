@@ -293,7 +293,7 @@
       block.addEventListener("click",event=>{event.stopPropagation();selectedNoteIndex=index;renderPianoRoll();});
       grid.append(block);
     });
-    const marker=document.createElement("div");marker.id="rollPlayhead";marker.className="roll-playhead";marker.setAttribute("aria-hidden","true");grid.append(marker);
+    const marker=document.createElement("div");marker.id="rollPlayhead";marker.className="arrangement-playhead roll-playhead";marker.style.display="none";marker.setAttribute("aria-hidden","true");grid.append(marker);
     root.append(grid);showRollPlayhead(displayBeat,arrangementPlaying);
   }
   function deleteRollNote(){if(!rollCanEdit())return;const clip=selectedClip();if(selectedNoteIndex<0||selectedNoteIndex>=clip.notes.length)return;rollHistory();clip.notes.splice(selectedNoteIndex,1);selectedNoteIndex=-1;renderPianoRoll();status("ノートを削除しました。");}
@@ -351,7 +351,7 @@
   function showRollPlayhead(beat,playing){
     const root=document.getElementById("projectPianoRoll"),marker=document.getElementById("rollPlayhead"),clip=selectedClip();if(!root||!marker||!clip)return;
     const relative=beat-clip.start_beats,visible=playing&&relative>=0&&relative<clip.length_beats;
-    marker.classList.toggle("playing",visible);if(!visible)return;
+    marker.classList.toggle("playing",visible);marker.style.display=visible?"block":"none";if(!visible)return;
     const x=64+relative/TIMELINE_BEATS*896;marker.style.left=`${x}px`;
     if(x>root.scrollLeft+root.clientWidth-24||x<root.scrollLeft+64)root.scrollLeft=Math.max(0,x-root.clientWidth*.45);
   }
@@ -387,7 +387,7 @@
   function ensureRoleClip(track){if(track.clips.length)return;const key=ROLE_SAMPLE[track.role]||"melody",perf=SAMPLE_PERFORMANCES[key]||SAMPLE_PERFORMANCES.melody;track.clips.push(performanceToClip(perf,key));}
   async function playArrangement(){
     if(freezingIds.size){status("フリーズ録音が終わるまでお待ちください。");return;}
-    stopPreview();const request=playbackRunId,solo=project.tracks.filter(track=>track.solo),tracks=(solo.length?solo:project.tracks.filter(track=>!track.mute));status("再生する全VST3音源の検索・ロード・音色復元・入出力確認が終わるまで待機中…");try{await engine.init();if(tracks.some(track=>track.source.type!=="vst3"&&track.patch?.instrument_model==="licensed_pcm"))await engine.ensureLicensedPCM?.();await window.vst3Router?.ensurePlaybackReady?.(tracks);}catch(error){status(`VST3準備エラー: ${error.message}`);return;}if(request!==playbackRunId)return;for(const track of tracks)ensureRoleClip(track);const queue=buildPlaybackQueue(tracks);prepareInternalSamples(tracks,queue);mixedFrozenVstBuffer(tracks);render();const report=await preparePlaybackDiagnostics(tracks);if(request!==playbackRunId)return;playbackDiagnosticSession=report;arrangementPlaying=true;followArrangementClips=true;renderTrackList();watchLongTasks();document.getElementById("clipStopBtn").disabled=false;
+    stopPreview();const request=playbackRunId,solo=project.tracks.filter(track=>track.solo),tracks=(solo.length?solo:project.tracks.filter(track=>!track.mute));status("再生する全VST3音源の検索・ロード・音色復元・入出力確認が終わるまで待機中…");try{await engine.init();if(tracks.some(track=>track.source.type!=="vst3"&&track.patch?.instrument_model==="licensed_pcm"))await engine.ensureLicensedPCM?.();await window.vst3Router?.ensurePlaybackReady?.(tracks);}catch(error){status(`VST3準備エラー: ${error.message}`);return;}if(request!==playbackRunId)return;for(const track of tracks)ensureRoleClip(track);if(!selectedClip())selectedClipId=selectedTrack()?.clips[0]?.id||null;const queue=buildPlaybackQueue(tracks);prepareInternalSamples(tracks,queue);mixedFrozenVstBuffer(tracks);render();const report=await preparePlaybackDiagnostics(tracks);if(request!==playbackRunId)return;playbackDiagnosticSession=report;arrangementPlaying=true;followArrangementClips=true;renderTrackList();watchLongTasks();document.getElementById("clipStopBtn").disabled=false;
     const scheduleCycle=async(nextStart=null,from=project.playhead_beats)=>{if(!arrangementPlaying)return;const token=playbackRunId,loop=Boolean(document.getElementById("arrangementLoop")?.checked),to=loop?project.loop_end_beats:project.length_beats,begin=from>=to?(loop?project.loop_start_beats:0):from,part=sliceQueue(queue,begin,to);let plannedStart=nextStart??engine.ctx.currentTime+1.2;if(loop&&nextStart!==null){const duration=(to-begin)*60/project.bpm;if(duration>0&&engine.ctx.currentTime>=plannedStart+duration)plannedStart+=Math.floor((engine.ctx.currentTime-plannedStart)/duration)*duration;}
       let prescheduled=false;try{prescheduled=await window.vst3Router?.scheduleTrackCycle?.(part,plannedStart,60/project.bpm)||false;}catch(error){stopPreview();status(`VST3予約エラー: ${error.message}`);return;}
       if(!arrangementPlaying||token!==playbackRunId)return;
