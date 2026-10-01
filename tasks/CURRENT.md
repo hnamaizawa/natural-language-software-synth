@@ -1,5 +1,13 @@
 # CURRENT
 
+## v0.19.6 Stable toolbar, distinct song styles, piano keys
+
+- [x] トラック選択に依存しない操作ボタンの配置
+- [x] 11ジャンルの7パート用独立フレーズと調性検証
+- [x] 曲選択時の全クリップ更新と置換確認
+- [x] ピアノロールの白鍵・黒鍵と編集座標の一致
+- [ ] GitHub CI pytest／HarnessとWindows実機での操作確認
+
 ## v0.19.5 Playback diagnostic deltas
 
 - [x] 1再生の開始・終了における内蔵音源の遅延・期限切れ・画面長時間処理の記録

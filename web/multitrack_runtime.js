@@ -261,12 +261,13 @@
   function renderPianoRoll(){
     const root=document.getElementById("projectPianoRoll"),clip=selectedClip();if(!root)return;
     root.replaceChildren();root.classList.toggle("empty",!clip);for(const [id,value] of [["clipStartBeat",clip?.start_beats],["clipLengthBeat",clip?.length_beats],["noteVelocity",clip?.notes[selectedNoteIndex]?.velocity*100]]){const input=document.getElementById(id);if(input){input.disabled=value===undefined;input.value=String(value??(id==="noteVelocity"?82:0));}}if(!clip)return;
-    const lowest=Math.round(bounded(document.getElementById("rollRange")?.value,24,48,36)),width=924,rowHeight=12;
+    const lowest=Math.round(bounded(document.getElementById("rollRange")?.value,24,48,36)),keyWidth=64,width=896,rowHeight=12;
     const grid=document.createElement("div");grid.className="roll-grid";grid.style.height=`${48*rowHeight}px`;
-    for(let pitch=lowest;pitch<lowest+48;pitch+=12){const key=document.createElement("span");key.className="roll-key-label";key.style.top=`${(lowest+47-pitch)*rowHeight}px`;key.textContent=`C${Math.floor(pitch/12)-1}`;grid.append(key);}
+    for(let pitch=lowest;pitch<lowest+48;pitch++){const key=document.createElement("span"),black=[1,3,6,8,10].includes(pitch%12);key.className=`roll-piano-key ${black?"black":"white"}`;key.style.top=`${(lowest+47-pitch)*rowHeight}px`;key.textContent=pitch%12===0?`C${Math.floor(pitch/12)-1}`:"";grid.append(key);}
     grid.addEventListener("pointerdown",event=>{
       if(event.target!==grid||!rollCanEdit()||clip.notes.length>=MAX_NOTES)return;
-      const rect=grid.getBoundingClientRect(),step=rollStep(),beat=Math.floor(Math.max(0,event.clientX-rect.left-36)/width*TIMELINE_BEATS/step)*step;
+      const rect=grid.getBoundingClientRect();if(event.clientX-rect.left<keyWidth)return;
+      const step=rollStep(),beat=Math.floor(Math.max(0,event.clientX-rect.left-keyWidth)/width*TIMELINE_BEATS/step)*step;
       const pitch=lowest+47-Math.floor(Math.max(0,event.clientY-rect.top)/rowHeight);
       if(pitch<lowest||pitch>=lowest+48||beat>=rollLimit(clip))return;
       rollHistory();clip.notes.push({note:pitch,start_beats:beat,duration_beats:Math.min(1,rollLimit(clip)-beat),velocity:.82});selectedNoteIndex=clip.notes.length-1;renderPianoRoll();status(`MIDI ${pitch} のノートを追加しました。`);
@@ -274,7 +275,7 @@
     clip.notes.forEach((note,index)=>{
       if(note.note<lowest||note.note>=lowest+48)return;
       const block=document.createElement("button");block.type="button";block.className=`roll-note${index===selectedNoteIndex?" selected":""}`;
-      block.style.left=`${36+note.start_beats/TIMELINE_BEATS*width}px`;block.style.top=`${(lowest+47-note.note)*rowHeight}px`;
+      block.style.left=`${keyWidth+note.start_beats/TIMELINE_BEATS*width}px`;block.style.top=`${(lowest+47-note.note)*rowHeight}px`;
       block.style.width=`${Math.max(5,note.duration_beats/TIMELINE_BEATS*width-1)}px`;block.style.opacity=String(.35+note.velocity*.65);block.title=`MIDI ${note.note} · ${note.start_beats}拍 · 長さ${note.duration_beats}拍 · 強さ${Math.round(note.velocity*100)}%`;
       block.setAttribute("aria-label",block.title);
       block.addEventListener("pointerdown",event=>{
@@ -285,7 +286,7 @@
           const beats=Math.round((move.clientX-startX)/width*TIMELINE_BEATS/step)*step;
           const pitchDelta=-Math.round((move.clientY-startY)/rowHeight);
           const next=resize?{...initial,duration_beats:bounded(initial.duration_beats+beats,step,rollLimit(clip)-initial.start_beats,step)}:{...initial,start_beats:bounded(initial.start_beats+beats,0,Math.max(0,rollLimit(clip)-initial.duration_beats),0),note:Math.round(bounded(initial.note+pitchDelta,0,127,60))};
-          if(next.start_beats!==note.start_beats||next.duration_beats!==note.duration_beats||next.note!==note.note){if(!changed){rollHistory();changed=true;}Object.assign(note,next);block.style.left=`${36+note.start_beats/TIMELINE_BEATS*width}px`;block.style.top=`${(lowest+47-note.note)*rowHeight}px`;block.style.width=`${Math.max(5,note.duration_beats/TIMELINE_BEATS*width-1)}px`;}
+          if(next.start_beats!==note.start_beats||next.duration_beats!==note.duration_beats||next.note!==note.note){if(!changed){rollHistory();changed=true;}Object.assign(note,next);block.style.left=`${keyWidth+note.start_beats/TIMELINE_BEATS*width}px`;block.style.top=`${(lowest+47-note.note)*rowHeight}px`;block.style.width=`${Math.max(5,note.duration_beats/TIMELINE_BEATS*width-1)}px`;}
         };
         block.onpointerup=()=>{block.onpointermove=null;block.onpointerup=null;renderPianoRoll();if(changed)status("ノートを更新しました。");};
       });
@@ -307,12 +308,12 @@
   }
   function addDemoSong(){
     const demo=window.sequencerSamples?.makeSong(document.getElementById("demoSongSelect")?.value);
-    if(!demo)return;
-    if(arrangementPlaying||freezingIds.size||frozenBuffers.size){status("再生を停止し、各パートのフリーズを解除してからサンプル曲を配置してください。");return;}
-    if(project.tracks.some(track=>track.clips.length)&&!window.confirm("既存の全クリップをサンプル曲に置き換えます。Project JSONへ保存済みか確認してください。続けますか？"))return;
+    if(!demo)return false;
+    if(arrangementPlaying||freezingIds.size||frozenBuffers.size){status("再生を停止し、各パートのフリーズを解除してからサンプル曲を配置してください。");return false;}
+    if(project.tracks.some(track=>track.clips.length)&&!window.confirm("既存の全クリップをサンプル曲に置き換えます。Project JSONへ保存済みか確認してください。続けますか？"))return false;
     project.length_beats=demo.length_beats;project.bpm=demo.bpm;project.playhead_beats=0;project.loop_start_beats=0;project.loop_end_beats=demo.length_beats;
     for(const track of project.tracks){track.clips=(demo.clips[track.role]||demo.clips.melody).map(clip=>({...clip,id:uid("clip"),notes:clip.notes.map(note=>({...note}))}));}
-    selectedClipId=selectedTrack()?.clips[0]?.id||null;rollUndo.length=0;rollRedo.length=0;render();status(`${demo.name}（${demo.key}、8小節）を全パートへ配置しました。`);
+    selectedClipId=selectedTrack()?.clips[0]?.id||null;rollUndo.length=0;rollRedo.length=0;render();status(`${demo.name}（${demo.key}、8小節）を全パートへ配置しました。`);return true;
   }
   function preparedPatchFor(track){let patch=preparedTrackPatches.get(track.id);if(!patch){patch=engine.preparePlaybackPatch(track.patch);preparedTrackPatches.set(track.id,patch);}return patch;}
   function allocateVstChannel(track){if(track.midi_channel_mode==="manual")return;const used=new Set(project.tracks.filter(other=>other.id!==track.id&&other.source.type==="vst3").map(other=>other.midi_channel));const choices=track.role==="drums"?[9,...Array.from({length:16},(_,i)=>i).filter(i=>i!==9)]:Array.from({length:16},(_,i)=>i).filter(i=>i!==9).concat(9);track.midi_channel=choices.find(channel=>!used.has(channel))??(track.role==="drums"?9:choices[0]);}
@@ -462,7 +463,7 @@
     document.getElementById("rollRedo")?.addEventListener("click",()=>travelRollHistory(rollRedo,rollUndo));
     document.getElementById("rollDelete")?.addEventListener("click",deleteRollNote);
     document.getElementById("projectPianoRoll")?.addEventListener("keydown",event=>{if(event.key==="Delete"){deleteRollNote();event.preventDefault();}});
-    setupTrackSoundPanel();document.getElementById("trackAddBtn")?.addEventListener("click",addTrack);document.getElementById("clipFromSampleBtn")?.addEventListener("click",addClipFromSample);document.getElementById("demoSongBtn")?.addEventListener("click",addDemoSong);const songSelect=document.getElementById("demoSongSelect"),songDescription=document.getElementById("demoSongDescription");if(songSelect&&window.sequencerSamples){songSelect.replaceChildren();for(const [id,song] of Object.entries(window.sequencerSamples.songs))songSelect.append(new Option(song.name,id));const describe=()=>{const song=window.sequencerSamples.songs[songSelect.value];if(songDescription&&song)songDescription.textContent=`${song.genre} · ${song.key} · ${song.bpm} BPM · 8小節。${song.description}`;};songSelect.addEventListener("change",describe);describe();}document.getElementById("clipPreviewBtn")?.addEventListener("click",previewClip);document.getElementById("arrangementPlayBtn")?.addEventListener("click",playArrangement);document.getElementById("clipStopBtn")?.addEventListener("click",()=>{stopPreview();applyTrack(selectedTrack());status("再生を停止しました。");});document.getElementById("projectExportBtn")?.addEventListener("click",exportProject);document.getElementById("projectOverwriteBtn")?.addEventListener("click",overwriteProject);
+    setupTrackSoundPanel();document.getElementById("trackAddBtn")?.addEventListener("click",addTrack);document.getElementById("clipFromSampleBtn")?.addEventListener("click",addClipFromSample);document.getElementById("demoSongBtn")?.addEventListener("click",addDemoSong);const songSelect=document.getElementById("demoSongSelect"),songDescription=document.getElementById("demoSongDescription");if(songSelect&&window.sequencerSamples){songSelect.replaceChildren();for(const [id,song] of Object.entries(window.sequencerSamples.songs))songSelect.append(new Option(song.name,id));const describe=()=>{const song=window.sequencerSamples.songs[songSelect.value];if(songDescription&&song)songDescription.textContent=`${song.genre} · ${song.key} · ${song.bpm} BPM · 8小節。${song.description}`;};songSelect.addEventListener("change",()=>{describe();addDemoSong();});describe();}document.getElementById("clipPreviewBtn")?.addEventListener("click",previewClip);document.getElementById("arrangementPlayBtn")?.addEventListener("click",playArrangement);document.getElementById("clipStopBtn")?.addEventListener("click",()=>{stopPreview();applyTrack(selectedTrack());status("再生を停止しました。");});document.getElementById("projectExportBtn")?.addEventListener("click",exportProject);document.getElementById("projectOverwriteBtn")?.addEventListener("click",overwriteProject);
     document.getElementById("projectOpenBtn")?.addEventListener("click",async()=>{if(typeof window.showOpenFilePicker!=="function"){document.getElementById("projectImportInput")?.click();return;}try{const [handle]=await window.showOpenFilePicker({types:[{description:"Project JSON",accept:{"application/json":[".json"]}}]});if(!handle)return;await importProject(await handle.getFile());projectFileHandle=handle;}catch(error){if(error.name!=="AbortError")status(`読込エラー: ${error.message}`);}});
     document.getElementById("projectImportInput")?.addEventListener("change",async event=>{const file=event.target.files?.[0];if(!file)return;try{await importProject(file);projectFileHandle=null;}catch(error){status(`読込エラー: ${error.message}`);}finally{event.target.value="";}});
     document.getElementById("projectName")?.addEventListener("change",event=>{project.name=String(event.target.value||"新しい曲").slice(0,60);render();});document.getElementById("projectBpm")?.addEventListener("change",event=>{if(frozenBuffers.size||freezingIds.size){status("BPMを変える前にフリーズを解除してください。");render();return;}project.bpm=Math.round(bounded(event.target.value,40,240,100));render();});

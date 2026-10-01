@@ -1,50 +1,50 @@
 "use strict";
-// Original MIDI demo arrangements. Every pitched event is drawn from the selected
-// key and the chord at its bar; percussion retains standard GM drum notes.
+// Original, local MIDI arrangements: pitched notes always belong to the bar's
+// diatonic triad. A song's rhythm templates shape all seven parts independently.
 (() => {
   const songs=Object.freeze({
-    pop:{name:"ポップ · Cメジャー",genre:"ポップ",description:"明るい四つ打ちと歌えるメロディー。I–V–vi–IVを中心に展開します。",key:"C major",bpm:104,groove:"straight",roots:[48,43,45,41,48,43,41,43],qualities:["maj","maj","min","maj","maj","maj","maj","maj"]},
-    fusion:{name:"フュージョン · Aマイナー",genre:"フュージョン",description:"シンコペーションしたハイハットと跳ねるベースの都会的な短編です。",key:"A minor",bpm:112,groove:"funk",roots:[45,41,48,43,45,41,43,45],qualities:["min","maj","maj","maj","min","maj","maj","min"]},
-    ballad:{name:"バラード · Gメジャー",genre:"バラード",description:"ゆったりしたピアノとパッドに、余白のある旋律を重ねます。",key:"G major",bpm:80,groove:"slow",roots:[43,40,36,38,43,40,38,43],qualities:["maj","min","maj","maj","maj","min","maj","maj"]},
-    rock:{name:"ロック · Dメジャー",genre:"ロック",description:"強いスネアの2拍4拍とギターの刻みで前へ進む構成です。",key:"D major",bpm:126,groove:"rock",roots:[38,45,35,43,38,45,43,45],qualities:["maj","maj","min","maj","maj","maj","maj","maj"]},
-    bossa:{name:"ボサノヴァ · Fメジャー",genre:"ボサノヴァ",description:"軽いクラーベのアクセントと交互に動く低音、柔らかな和音。",key:"F major",bpm:92,groove:"bossa",roots:[41,36,38,43,41,36,43,41],qualities:["maj","maj","min","min","maj","maj","min","maj"]},
-    funk:{name:"ファンク · Eマイナー",genre:"ファンク",description:"16分音符の刻みと休符を効かせたベース、短いコードの応答。",key:"E minor",bpm:108,groove:"funk",roots:[40,36,43,38,40,36,38,40],qualities:["min","maj","maj","maj","min","maj","maj","min"]},
-    ambient:{name:"アンビエント · Dマイナー",genre:"アンビエント",description:"長いパッドと間のあるメロディーで静かな空間を作ります。",key:"D minor",bpm:72,groove:"ambient",roots:[38,34,41,36,38,34,36,38],qualities:["min","maj","maj","maj","min","maj","maj","min"]},
-    synthwave:{name:"シンセウェーブ · Cマイナー",genre:"シンセウェーブ",description:"反復する低音と規則的なビート、広がりのあるコーラス。",key:"C minor",bpm:116,groove:"drive",roots:[36,44,39,41,36,44,41,39],qualities:["min","maj","maj","min","min","maj","min","maj"]}
+    pop:{name:"ポップ · Cメジャー",genre:"ポップ",description:"歌えるフック、四つ打ち、I–V–vi–IVの進行。",key:"C major",bpm:104,groove:"pop",roots:[48,43,45,41,48,43,41,43],qualities:["maj","maj","min","maj","maj","maj","maj","maj"]},
+    fusion:{name:"フュージョン · Aマイナー",genre:"フュージョン",description:"裏拍で跳ねるベースと細かいドラム、短い和音。",key:"A minor",bpm:112,groove:"fusion",roots:[45,41,48,43,45,41,43,45],qualities:["min","maj","maj","maj","min","maj","maj","min"]},
+    ballad:{name:"バラード · Gメジャー",genre:"バラード",description:"余白のある旋律と長いピアノ・パッド。",key:"G major",bpm:80,groove:"ballad",roots:[43,40,36,38,43,40,38,43],qualities:["maj","min","maj","maj","maj","min","maj","maj"]},
+    rock:{name:"ロック · Dメジャー",genre:"ロック",description:"ギターの8分刻みと力強い2拍4拍。",key:"D major",bpm:126,groove:"rock",roots:[38,45,35,43,38,45,43,45],qualities:["maj","maj","min","maj","maj","maj","maj","maj"]},
+    bossa:{name:"ボサノヴァ · Fメジャー",genre:"ボサノヴァ",description:"柔らかいクロススティックとシンコペーション。",key:"F major",bpm:92,groove:"bossa",roots:[41,36,38,43,41,36,43,41],qualities:["maj","maj","min","min","maj","maj","min","maj"]},
+    funk:{name:"ファンク · Eマイナー",genre:"ファンク",description:"休符を活かした16分ベースと鋭い和音の応答。",key:"E minor",bpm:108,groove:"funk",roots:[40,36,43,38,40,36,38,40],qualities:["min","maj","maj","maj","min","maj","maj","min"]},
+    ambient:{name:"アンビエント · Dマイナー",genre:"アンビエント",description:"まばらな打楽器と長いパッド、ゆっくり動く旋律。",key:"D minor",bpm:72,groove:"ambient",roots:[38,34,41,36,38,34,36,38],qualities:["min","maj","maj","maj","min","maj","maj","min"]},
+    synthwave:{name:"シンセウェーブ · Cマイナー",genre:"シンセウェーブ",description:"反復する8分ベースと機械的なビート。",key:"C minor",bpm:116,groove:"synthwave",roots:[36,44,39,41,36,44,41,39],qualities:["min","maj","maj","min","min","maj","min","maj"]},
+    jazz:{name:"ジャズ · Cメジャー",genre:"ジャズ",description:"スウィングのライドとウォーキングベース、コンピング。",key:"C major",bpm:132,groove:"jazz",roots:[48,45,50,43,48,45,43,48],qualities:["maj","min","min","maj","maj","min","maj","maj"]},
+    jpop:{name:"J-Pop · Gメジャー",genre:"J-Pop",description:"歌のシンコペーションと8分ベース、明るいサビ。",key:"G major",bpm:118,groove:"jpop",roots:[43,38,40,36,43,38,36,38],qualities:["maj","maj","min","maj","maj","maj","maj","maj"]},
+    anison:{name:"アニソン · Eマイナー",genre:"アニソン",description:"速いメロディーと細かいキック、推進力のあるサビ。",key:"E minor",bpm:152,groove:"anison",roots:[40,36,43,38,40,36,38,40],qualities:["min","maj","maj","maj","min","maj","maj","min"]}
   });
   const triad=(root,quality)=>[root,root+(quality==="min"?3:4),root+7];
   const event=(note,start,duration,velocity=.8)=>({note,start_beats:start,duration_beats:duration,velocity});
-  const melodicShapes=[[0,1,2,1],[2,1,0,1],[1,2,1,0],[2,0,1,2]];
-  function closeChordTone(pitch,previous){
-    const candidates=[pitch+12,pitch+24,pitch+36].filter(note=>note>=68&&note<=84);
-    return candidates.sort((a,b)=>Math.abs(a-previous)-Math.abs(b-previous)||Math.abs(a-75)-Math.abs(b-75))[0];
-  }
+  const rhythms={
+    pop:{melody:[0,1,2,3],bass:[0,1,2,3],keys:[0,2],guitar:[.5,2.5],kick:[0,2],snare:[1,3],hat:[0,.5,1,1.5,2,2.5,3,3.5]},
+    fusion:{melody:[0,.75,1.5,2.75,3.5],bass:[0,.75,1.5,2.5,3.5],keys:[0,1.5,3],guitar:[.75,2.75],kick:[0,1.5,2.75],snare:[1,3],hat:[0,.75,1.5,2.25,3,3.75]},
+    ballad:{melody:[0,2,3],bass:[0,2],keys:[0],guitar:[2.5],kick:[0],snare:[2],hat:[0,1,2,3]},
+    rock:{melody:[0,.5,1.5,2,3],bass:[0,.5,1,1.5,2,2.5,3,3.5],keys:[0,2],guitar:[0,.5,1,1.5,2,2.5,3,3.5],kick:[0,2,2.5],snare:[1,3],hat:[0,.5,1,1.5,2,2.5,3,3.5]},
+    bossa:{melody:[0,1.5,2.5,3.25],bass:[0,1.5,2,3.5],keys:[.5,2.5],guitar:[.5,1.5,2.5,3.5],kick:[0,2.5],snare:[1.5,3.5],hat:[0,1,2,3]},
+    funk:{melody:[0,.75,1.75,2.5,3.25],bass:[0,.75,1.5,2.75,3.25],keys:[.5,1.75,3.25],guitar:[.25,1.75,3],kick:[0,1.75,2.75],snare:[1,3],hat:[0,.25,.75,1,1.5,2,2.5,3,3.5]},
+    ambient:{melody:[0,2.5],bass:[0],keys:[0],guitar:[2],kick:[0],snare:[],hat:[0,2]},
+    synthwave:{melody:[0,.5,1.5,2.5,3],bass:[0,.5,1,1.5,2,2.5,3,3.5],keys:[0,2],guitar:[1,3],kick:[0,1,2,3],snare:[1,3],hat:[0,.5,1,1.5,2,2.5,3,3.5]},
+    jazz:{melody:[0,.67,1.67,2.67,3.33],bass:[0,1,2,3],keys:[.67,2.67],guitar:[1.67,3.67],kick:[0,2],snare:[1.67,3.67],hat:[0,.67,1,1.67,2,2.67,3,3.67]},
+    jpop:{melody:[0,.5,1.5,2,2.5,3.5],bass:[0,.5,1.5,2,2.5,3.5],keys:[0,1.5,3],guitar:[.5,1.5,2.5,3.5],kick:[0,2,3.5],snare:[1,3],hat:[0,.5,1,1.5,2,2.5,3,3.5]},
+    anison:{melody:[0,.25,.75,1.5,2,2.5,3,3.5],bass:[0,.5,1,1.5,2,2.5,3,3.5],keys:[0,1,2,3],guitar:[0,.5,1,1.5,2,2.5,3,3.5],kick:[0,.75,2,2.75,3.5],snare:[1,3],hat:[0,.5,1,1.5,2,2.5,3,3.5]}
+  };
   function makeSong(id){
     const spec=songs[id];if(!spec)return null;
-    const parts={drums:[],bass:[],keyboard:[],guitar:[],melody:[],chorus:[],pad:[]};
-    let previousMelody=spec.roots[0]+24;
+    const pattern=rhythms[spec.groove],parts={drums:[],bass:[],keyboard:[],guitar:[],melody:[],chorus:[],pad:[]};
+    const add=(role,note,bar,at,duration,velocity)=>parts[role].push(event(note,bar*4+at,Math.min(duration,4-at),velocity));
     for(let bar=0;bar<8;bar++){
-      const chord=triad(spec.roots[bar],spec.qualities[bar]),base=bar*4;
-      for(let beat=0;beat<4;beat++){
-        const at=base+beat;
-        if(spec.groove!=="ambient"||beat%2===0)parts.drums.push(event(spec.groove==="bossa"?37:42,at,.18,.46));
-        if(beat===0||beat===2&&spec.groove!=="bossa"&&spec.groove!=="ambient")parts.drums.push(event(36,at,.22,.87));
-        if((beat===1||beat===3)&&spec.groove!=="ambient")parts.drums.push(event(spec.groove==="bossa"?37:38,at,.22,.76));
-        if(["funk","drive"].includes(spec.groove))parts.drums.push(event(42,at+.5,.14,.36));
-        if(spec.groove!=="ambient"||beat%2===0)parts.bass.push(event(chord[spec.groove==="funk"?(beat+1)%3:beat%3]-12,at,spec.groove==="slow"?1.2:.72,beat===0?.85:.7));
-      }
-      for(const pitch of chord){parts.keyboard.push(event(pitch+12,base,1.8,.58));parts.pad.push(event(pitch+12,base,3.8,.43));}
-      for(const pitch of chord)parts.guitar.push(event(pitch+12,base+(spec.groove==="bossa"?1.5:spec.groove==="rock"?1:2),spec.groove==="funk"?.35:1.5,.55));
-      const motif=melodicShapes[bar%melodicShapes.length];
-      for(let beat=0;beat<4;beat++){
-        // Land on chord tones on every beat. A major-chord fourth or a minor
-        // chord flat sixth would clash against the sustained accompaniment.
-        const note=closeChordTone(chord[motif[beat]],previousMelody);
-        parts.melody.push(event(note,base+beat,beat===3?.65:beat===1?.7:.85,spec.groove==="ambient"?.56:beat===0?.82:.72));
-        previousMelody=note;
-      }
-      if(bar%2===1)parts.melody.push(event(previousMelody,base+3.5,.38,.48));
-      parts.chorus.push(event(chord[2]+12,base+2,1.8,.42));
+      const chord=triad(spec.roots[bar],spec.qualities[bar]);
+      pattern.kick.forEach(at=>add("drums",36,bar,at,.18,.82));
+      pattern.snare.forEach(at=>add("drums",spec.groove==="bossa"?37:38,bar,at,.18,.72));
+      pattern.hat.forEach(at=>add("drums",spec.groove==="jazz"?51:42,bar,at,.12,.38));
+      pattern.bass.forEach((at,i)=>add("bass",chord[(i+bar)%3]-12,bar,at,Math.min(.8,4-at),i===0?.82:.7));
+      pattern.keys.forEach((at,i)=>chord.forEach(pitch=>add("keyboard",pitch+12,bar,at,spec.groove==="ambient"?3.8:Math.min(1.3,4-at),i===0?.55:.45)));
+      pattern.guitar.forEach((at,i)=>chord.forEach(pitch=>add("guitar",pitch+12,bar,at,spec.groove==="ambient"?1.7:Math.min(.48,4-at),.48)));
+      chord.forEach(pitch=>add("pad",pitch+12,bar,0,spec.groove==="anison"?2.8:3.8,.38));
+      pattern.melody.forEach((at,i)=>add("melody",chord[(i+Math.floor(bar/2))%3]+24,bar,at,Math.min(i===pattern.melody.length-1?.7:.56,4-at),i===0?.85:.71));
+      [pattern.melody[1],pattern.melody.at(-1)].forEach((at,i)=>add("chorus",chord[(i+bar)%3]+12,bar,at,spec.groove==="ambient"?.85:.65,.4));
     }
     const clips={};for(const [role,notes] of Object.entries(parts))clips[role]=[0,16].map((start,index)=>({name:`${spec.name} · ${index?"B":"A"}`,start_beats:start,length_beats:16,notes:notes.filter(note=>note.start_beats>=start&&note.start_beats<start+16).map(note=>({...note,start_beats:note.start_beats-start,duration_beats:Math.min(note.duration_beats,start+16-note.start_beats)}))}));
     return {name:spec.name,key:spec.key,genre:spec.genre,description:spec.description,bpm:spec.bpm,length_beats:32,clips};
