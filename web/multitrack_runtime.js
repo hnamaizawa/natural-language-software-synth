@@ -253,14 +253,17 @@
         block.addEventListener("click",()=>{if(project.selected_track_id!==track.id)selectTrack(track.id);selectedClipId=clip.id;renderTimeline();renderPianoRoll();});lane.append(block);}row.append(label,lane);root.append(row);}
     const marker=document.createElement("div");marker.id="arrangementPlayhead";marker.className="arrangement-playhead";marker.setAttribute("aria-hidden","true");root.append(marker);showPlayhead(arrangementPlaying?displayBeat:project.playhead_beats,arrangementPlaying);
   }
-  const rollUndo=[],rollRedo=[];let selectedNoteIndex=-1;
+  const rollUndo=[],rollRedo=[];let selectedNoteIndex=-1,lastRollClipId=null,lastRollHighlightTick=null,lastRollPositionText="";
   function rollHistory(){const clip=selectedClip();if(!clip)return;rollUndo.push({clip:clip.id,notes:clone(clip.notes)});if(rollUndo.length>50)rollUndo.shift();rollRedo.length=0;}
   function rollCanEdit(){const track=selectedTrack();if(!selectedClip()){status("先にクリップを選択してください。");return false;}if(arrangementPlaying||freezingIds.size||frozenBuffers.has(track.id)){status("再生を停止し、このパートのフリーズを解除してから編集してください。");return false;}return true;}
   function rollStep(){return bounded(document.getElementById("rollSnap")?.value,.125,1,.25);}
   function rollLimit(clip){return Math.min(clip.length_beats,project.length_beats-clip.start_beats);}
   function renderPianoRoll(){
     const root=document.getElementById("projectPianoRoll"),clip=selectedClip();if(!root)return;
-    root.replaceChildren();root.classList.toggle("empty",!clip);for(const [id,value] of [["clipStartBeat",clip?.start_beats],["clipLengthBeat",clip?.length_beats],["noteVelocity",clip?.notes[selectedNoteIndex]?.velocity*100]]){const input=document.getElementById(id);if(input){input.disabled=value===undefined;input.value=String(value??(id==="noteVelocity"?82:0));}}if(!clip)return;
+    root.replaceChildren();root.classList.toggle("empty",!clip);for(const [id,value] of [["clipStartBeat",clip?.start_beats],["clipLengthBeat",clip?.length_beats],["noteVelocity",clip?.notes[selectedNoteIndex]?.velocity*100]]){const input=document.getElementById(id);if(input){input.disabled=value===undefined;input.value=String(value??(id==="noteVelocity"?82:0));}}if(!clip){lastRollClipId=null;return;}
+    const range=document.getElementById("rollRange"),newClip=lastRollClipId!==clip.id;
+    if(newClip&&range&&clip.notes.length){const pitches=clip.notes.map(note=>note.note).sort((a,b)=>a-b),middle=pitches[Math.floor(pitches.length/2)];range.value=String(middle<48?24:middle>=72?48:36);}
+    lastRollClipId=clip.id;lastRollHighlightTick=null;
     const lowest=Math.round(bounded(document.getElementById("rollRange")?.value,24,48,36)),keyWidth=64,width=896,rowHeight=12;
     const grid=document.createElement("div");grid.className="roll-grid";grid.style.height=`${48*rowHeight}px`;
     for(let pitch=lowest;pitch<lowest+48;pitch++){const key=document.createElement("span"),black=[1,3,6,8,10].includes(pitch%12);key.className=`roll-piano-key ${black?"black":"white"}`;key.style.top=`${(lowest+47-pitch)*rowHeight}px`;key.textContent=pitch%12===0?`C${Math.floor(pitch/12)-1}`:"";grid.append(key);}
@@ -274,7 +277,7 @@
     });
     clip.notes.forEach((note,index)=>{
       if(note.note<lowest||note.note>=lowest+48)return;
-      const block=document.createElement("button");block.type="button";block.className=`roll-note${index===selectedNoteIndex?" selected":""}`;
+      const block=document.createElement("button");block.type="button";block.className=`roll-note${index===selectedNoteIndex?" selected":""}`;block.dataset.startBeats=String(note.start_beats);block.dataset.endBeats=String(note.start_beats+note.duration_beats);
       block.style.left=`${keyWidth+note.start_beats/TIMELINE_BEATS*width}px`;block.style.top=`${(lowest+47-note.note)*rowHeight}px`;
       block.style.width=`${Math.max(5,note.duration_beats/TIMELINE_BEATS*width-1)}px`;block.style.opacity=String(.35+note.velocity*.65);block.title=`MIDI ${note.note} · ${note.start_beats}拍 · 長さ${note.duration_beats}拍 · 強さ${Math.round(note.velocity*100)}%`;
       block.setAttribute("aria-label",block.title);
@@ -294,7 +297,9 @@
       grid.append(block);
     });
     const marker=document.createElement("div");marker.id="rollPlayhead";marker.className="arrangement-playhead roll-playhead";marker.style.display="none";marker.setAttribute("aria-hidden","true");grid.append(marker);
-    root.append(grid);showRollPlayhead(displayBeat,arrangementPlaying);
+    root.append(grid);
+    if(newClip&&clip.notes.length){const visibleNotes=clip.notes.filter(note=>note.note>=lowest&&note.note<lowest+48).map(note=>note.note).sort((a,b)=>a-b);if(visibleNotes.length){const middle=visibleNotes[Math.floor(visibleNotes.length/2)],y=(lowest+47-middle)*rowHeight;root.scrollTop=Math.max(0,y-root.clientHeight/2);}}
+    showRollPlayhead(displayBeat,arrangementPlaying);
   }
   function deleteRollNote(){if(!rollCanEdit())return;const clip=selectedClip();if(selectedNoteIndex<0||selectedNoteIndex>=clip.notes.length)return;rollHistory();clip.notes.splice(selectedNoteIndex,1);selectedNoteIndex=-1;renderPianoRoll();status("ノートを削除しました。");}
   function travelRollHistory(from,to){if(!rollCanEdit())return;const clip=selectedClip(),entry=from.pop();if(!entry)return;if(entry.clip!==clip.id){from.push(entry);return;}to.push({clip:clip.id,notes:clone(clip.notes)});clip.notes=clone(entry.notes);selectedNoteIndex=-1;renderPianoRoll();}
@@ -349,9 +354,15 @@
     return cycleStart;
   }
   function showRollPlayhead(beat,playing){
-    const root=document.getElementById("projectPianoRoll"),marker=document.getElementById("rollPlayhead"),clip=selectedClip();if(!root||!marker||!clip)return;
+    const root=document.getElementById("projectPianoRoll"),marker=document.getElementById("rollPlayhead"),clip=selectedClip(),label=document.getElementById("rollPlaybackPosition");
+    const labelText=playing?`▶ 再生中 · ${Math.floor(beat/4)+1}小節 ${Math.floor(beat%4)+1}拍${clip?"":" · 選択クリップなし"}`:"■ 停止中";
+    if(label&&labelText!==lastRollPositionText){label.textContent=labelText;lastRollPositionText=labelText;}
+    if(!root||!marker||!clip)return;
     const relative=beat-clip.start_beats,visible=playing&&relative>=0&&relative<clip.length_beats;
-    marker.classList.toggle("playing",visible);marker.style.display=visible?"block":"none";if(!visible)return;
+    marker.classList.toggle("playing",visible);marker.style.display=visible?"block":"none";
+    const tick=visible?Math.floor(relative*8):-1;
+    if(tick!==lastRollHighlightTick){for(const note of marker.parentElement.querySelectorAll(".roll-note")){const start=Number(note.dataset.startBeats),end=Number(note.dataset.endBeats);note.classList.toggle("sounding",visible&&relative>=start&&relative<end);}lastRollHighlightTick=tick;}
+    if(!visible)return;
     const x=64+relative/TIMELINE_BEATS*896;marker.style.left=`${x}px`;
     if(x>root.scrollLeft+root.clientWidth-24||x<root.scrollLeft+64)root.scrollLeft=Math.max(0,x-root.clientWidth*.45);
   }
