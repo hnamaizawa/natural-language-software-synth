@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.19.9 Audible notes visible in piano roll
+
+- [x] 選択クリップの音域へ初期表示を調整し、ドラム・ベースのノートを見える位置にする
+- [x] 再生中のノートと小節・拍をピアノロール内に表示する
+- [x] 音楽再生用AudioContext時計から表示のみ更新
+- [ ] Windows実機の表示検証、GitHub CI pytest／Harness
+
 ## v0.19.8 Visible piano-roll playhead
 
 - [x] ピアノロールの縦線をタイムラインと同じ描画クラスで表示
