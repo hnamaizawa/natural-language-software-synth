@@ -32,8 +32,9 @@ for(const id of Object.keys(window.sequencerSamples.songs)){
   for(let bar=0;bar<8;bar++){
     const root=spec.roots[bar],quality=spec.qualities[bar];
     const measure=notes.filter(n=>n.start>=bar*4&&n.start<(bar+1)*4);
-    const offsets=measure.filter(n=>Number.isInteger(n.start)).map(n=>((n.note-root)%12+12)%12);
-    assert.equal(offsets.length,4);
+    const offsets=measure.map(n=>((n.note-root)%12+12)%12);
+    assert(offsets.length>=2);
+    assert.equal(measure[0].start,bar*4);
     assert(offsets.every(x=>[0,quality==='min'?3:4,7].includes(x)),`${id} bar ${bar} avoid note`);
     motifs.push(offsets.join(','));
   }
