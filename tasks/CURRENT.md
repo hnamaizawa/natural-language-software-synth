@@ -1,5 +1,11 @@
 # CURRENT
 
+## v0.20.1 Latin piano montuno demo
+
+- [x] 2小節の鍵盤モントゥーノ、ベースの裏拍、3-2クラーベを8小節のサンプル曲に追加
+- [x] 7パートの小節ごとのコードトーンとCメジャー調性を確認
+- [ ] Windows実機での楽器割当・聴感の確認
+
 ## v0.20.0 DAW goals and humming-to-track editing
 
 - [x] 自然言語音色、鼻歌、ピアノロール、再生位置、生音録音の現状と課題を照合
