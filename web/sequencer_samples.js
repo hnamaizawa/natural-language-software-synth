@@ -8,7 +8,7 @@
     ballad:{name:"バラード · Gメジャー",genre:"バラード",description:"余白のある旋律と長いピアノ・パッド。",key:"G major",bpm:80,groove:"ballad",roots:[43,40,36,38,43,40,38,43],qualities:["maj","min","maj","maj","maj","min","maj","maj"]},
     rock:{name:"ロック · Dメジャー",genre:"ロック",description:"ギターの8分刻みと力強い2拍4拍。",key:"D major",bpm:126,groove:"rock",roots:[38,45,35,43,38,45,43,45],qualities:["maj","maj","min","maj","maj","maj","maj","maj"]},
     bossa:{name:"ボサノヴァ · Fメジャー",genre:"ボサノヴァ",description:"柔らかいクロススティックとシンコペーション。",key:"F major",bpm:92,groove:"bossa",roots:[41,36,38,43,41,36,43,41],qualities:["maj","maj","min","min","maj","maj","min","maj"]},
-    montuno:{name:"ラテンピアノ・モントゥーノ · Cメジャー",genre:"ラテン / ソン",description:"2小節で反復するシンコペーションのピアノ、トゥンバオ風ベースと3-2クラーベ。C–F–G–Cを繰り返す8小節。",key:"C major",bpm:104,groove:"montuno",roots:[48,41,43,48,48,41,43,48],qualities:["maj","maj","maj","maj","maj","maj","maj","maj"]},
+    montuno:{name:"ラテンピアノ・モントゥーノ · Cメジャー",genre:"ラテン / ソン",description:"速いテンポのオクターブ奏法と裏拍の和音が交替する2小節モントゥーノ。トゥンバオ風ベースと3-2クラーベ、C–F–G–Cの8小節。",key:"C major",bpm:140,groove:"montuno",roots:[48,41,43,48,48,41,43,48],qualities:["maj","maj","maj","maj","maj","maj","maj","maj"]},
     funk:{name:"ファンク · Eマイナー",genre:"ファンク",description:"休符を活かした16分ベースと鋭い和音の応答。",key:"E minor",bpm:108,groove:"funk",roots:[40,36,43,38,40,36,38,40],qualities:["min","maj","maj","maj","min","maj","maj","min"]},
     ambient:{name:"アンビエント · Dマイナー",genre:"アンビエント",description:"まばらな打楽器と長いパッド、ゆっくり動く旋律。",key:"D minor",bpm:72,groove:"ambient",roots:[38,34,41,36,38,34,36,38],qualities:["min","maj","maj","maj","min","maj","maj","min"]},
     synthwave:{name:"シンセウェーブ · Cマイナー",genre:"シンセウェーブ",description:"反復する8分ベースと機械的なビート。",key:"C minor",bpm:116,groove:"synthwave",roots:[36,44,39,41,36,44,41,39],qualities:["min","maj","maj","min","min","maj","min","maj"]},
@@ -42,15 +42,16 @@
       pattern.snare.forEach(at=>add("drums",spec.groove==="bossa"?37:38,bar,at,.18,.72));
       pattern.hat.forEach(at=>add("drums",spec.groove==="jazz"?51:42,bar,at,.12,.38));
       if(spec.groove==="montuno"){
-        // A two-bar piano ostinato with chord-tone dyads, offbeat attacks and
-        // alternating 3-side / 2-side clave accents. MIDI 37 is cross-stick.
+        // A two-bar piano ostinato: syncopated octave strikes answer short
+        // chord-tone dyads against alternating 3-side / 2-side clave accents.
         const even=bar%2===0;
         (even?[0,1.5,3]:[1,3]).forEach(at=>add("drums",37,bar,at,.12,.56));
         pattern.bass.forEach((at,i)=>add("bass",(i===1?chord[2]:chord[0])-12,bar,at,Math.min(.38,4-at),i===2?.83:.75));
         const hits=even?[.5,1.5,2.5,3.5]:[0,.75,2,3.5];
         hits.forEach((at,i)=>{
-          const dyad=i%2?[chord[0]+12,chord[2]+12]:[chord[1]+12,chord[2]+12];
-          dyad.forEach(pitch=>add("keyboard",pitch,bar,at,Math.min(.32,4-at),i===0||i===3?.76:.62));
+          const octave=i%2===0,base=(even?(i===0?chord[0]:chord[2]):(i===0?chord[2]:chord[0]))+12;
+          const notes=octave?[base,base+12]:[chord[1]+12,chord[2]+12];
+          notes.forEach(pitch=>add("keyboard",pitch,bar,at,Math.min(octave?.25:.32,4-at),octave?.75:.6));
         });
       }else{
         pattern.bass.forEach((at,i)=>add("bass",chord[(i+bar)%3]-12,bar,at,Math.min(.8,4-at),i===0?.82:.7));
