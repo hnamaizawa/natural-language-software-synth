@@ -17,7 +17,8 @@ const api=ctx.window.sequencerSamples;
 for(const [id,spec] of Object.entries(api.songs)){
   const song=api.makeSong(id);assert.equal(song.length_beats,32);assert.equal(Object.keys(song.clips).length,7);
   const tonic={C:0,D:2,E:4,F:5,G:7,A:9,B:11}[spec.key[0]];
-  const intervals=spec.key.endsWith('minor')?[0,2,3,5,7,8,10]:[0,2,4,5,7,9,11];
+  const intervals=spec.key.includes('harmonic minor')?[0,2,3,5,7,8,11]:
+    spec.key.endsWith('minor')?[0,2,3,5,7,8,10]:[0,2,4,5,7,9,11];
   const scale=intervals.map(interval=>(tonic+interval)%12);
   for(const [role,clips] of Object.entries(song.clips)){
     assert.equal(clips.length,2);assert.deepEqual(Array.from(clips,c=>c.start_beats),[0,16]);

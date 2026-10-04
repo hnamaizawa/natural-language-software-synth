@@ -9,6 +9,7 @@
     rock:{name:"ロック · Dメジャー",genre:"ロック",description:"ギターの8分刻みと力強い2拍4拍。",key:"D major",bpm:126,groove:"rock",roots:[38,45,35,43,38,45,43,45],qualities:["maj","maj","min","maj","maj","maj","maj","maj"]},
     bossa:{name:"ボサノヴァ · Fメジャー",genre:"ボサノヴァ",description:"柔らかいクロススティックとシンコペーション。",key:"F major",bpm:92,groove:"bossa",roots:[41,36,38,43,41,36,43,41],qualities:["maj","maj","min","min","maj","maj","min","maj"]},
     montuno:{name:"ラテンピアノ・モントゥーノ · Cメジャー",genre:"ラテン / ソン",description:"140 BPMの2小節モントゥーノ。オクターブの跳躍と細かな分散和音、裏拍のアクセントを重ね、トゥンバオ風ベースと3-2クラーベで支えるC–F–G–Cの8小節。",key:"C major",bpm:140,groove:"montuno",roots:[48,41,43,48,48,41,43,48],qualities:["maj","maj","maj","maj","maj","maj","maj","maj"]},
+    salsa_montuno:{name:"サルサ・モントゥーノ · Gマイナー",genre:"ラテン / サルサ",description:"添付動画のSalsa例を参考にした独自の8小節。Gm–Cm–D7–Cm–Gmを両手の近い音域で刻み、3-2クラーベとトゥンバオ風ベースを重ねます。",key:"G harmonic minor",bpm:140,groove:"salsa_montuno",roots:[43,48,38,48,43,48,38,43],qualities:["min","min","maj","min","min","min","maj","min"]},
     funk:{name:"ファンク · Eマイナー",genre:"ファンク",description:"休符を活かした16分ベースと鋭い和音の応答。",key:"E minor",bpm:108,groove:"funk",roots:[40,36,43,38,40,36,38,40],qualities:["min","maj","maj","maj","min","maj","maj","min"]},
     ambient:{name:"アンビエント · Dマイナー",genre:"アンビエント",description:"まばらな打楽器と長いパッド、ゆっくり動く旋律。",key:"D minor",bpm:72,groove:"ambient",roots:[38,34,41,36,38,34,36,38],qualities:["min","maj","maj","maj","min","maj","maj","min"]},
     synthwave:{name:"シンセウェーブ · Cマイナー",genre:"シンセウェーブ",description:"反復する8分ベースと機械的なビート。",key:"C minor",bpm:116,groove:"synthwave",roots:[36,44,39,41,36,44,41,39],qualities:["min","maj","maj","min","min","maj","min","maj"]},
@@ -25,6 +26,7 @@
     rock:{melody:[0,.5,1.5,2,3],bass:[0,.5,1,1.5,2,2.5,3,3.5],keys:[0,2],guitar:[0,.5,1,1.5,2,2.5,3,3.5],kick:[0,2,2.5],snare:[1,3],hat:[0,.5,1,1.5,2,2.5,3,3.5]},
     bossa:{melody:[0,1.5,2.5,3.25],bass:[0,1.5,2,3.5],keys:[.5,2.5],guitar:[.5,1.5,2.5,3.5],kick:[0,2.5],snare:[1.5,3.5],hat:[0,1,2,3]},
     montuno:{melody:[0,1.5,2.5,3.5],bass:[0,2.5,3.5],keys:[.5,1.5,2.5,3.5],guitar:[1.5,3.5],kick:[0,2],snare:[],hat:[0,1,2,3]},
+    salsa_montuno:{melody:[0,1.5,2.5,3.5],bass:[0,2.5,3.5],keys:[],guitar:[1.5,3.5],kick:[0,2],snare:[],hat:[0,1,2,3]},
     funk:{melody:[0,.75,1.75,2.5,3.25],bass:[0,.75,1.5,2.75,3.25],keys:[.5,1.75,3.25],guitar:[.25,1.75,3],kick:[0,1.75,2.75],snare:[1,3],hat:[0,.25,.75,1,1.5,2,2.5,3,3.5]},
     ambient:{melody:[0,2.5],bass:[0],keys:[0],guitar:[2],kick:[0],snare:[],hat:[0,2]},
     synthwave:{melody:[0,.5,1.5,2.5,3],bass:[0,.5,1,1.5,2,2.5,3,3.5],keys:[0,2],guitar:[1,3],kick:[0,1,2,3],snare:[1,3],hat:[0,.5,1,1.5,2,2.5,3,3.5]},
@@ -53,6 +55,20 @@
           [[0,[chord[2]+12]],[.5,[chord[2]+12,chord[2]+24]],[1.25,[chord[1]+24]],[1.5,[chord[0]+24]],
            [2,[chord[1]+12]],[2.5,[chord[0]+12,chord[0]+24]],[3,[chord[2]+24]],[3.5,[chord[1]+12]]];
         piano.forEach(([at,notes])=>notes.forEach(pitch=>add("keyboard",pitch,bar,at,Math.min(notes.length===2?.22:.19,4-at),notes.length===2?.76:.56)));
+      }else if(spec.groove==="salsa_montuno"){
+        // An original accompaniment inspired by the filmed Gm-Cm-D7 salsa example.
+        // Low left-hand tones answer close right-hand chord inversions on the offbeats.
+        const even=bar%2===0;
+        (even?[0,1.5,3]:[1,3]).forEach(at=>add("drums",37,bar,at,.12,.56));
+        (even?[.5,2.5]:[1.5,3.5]).forEach(at=>add("drums",56,bar,at,.12,.36));
+        pattern.bass.forEach((at,i)=>add("bass",(i===1?chord[2]:chord[0])-12,bar,at,.36,i===2?.82:.74));
+        const left=even?[[0,0],[1,7],[2,0],[3,7]]:[[0,7],[1,0],[2,7],[3,0]];
+        left.forEach(([at,offset])=>add("keyboard",chord[0]+offset+12,bar,at,.24,.59));
+        const right=even?[.5,1.5,2.5,3.5]:[0,.75,2,3.5];
+        right.forEach((at,i)=>{
+          const pitches=i%2===0?[chord[1]+24,chord[2]+24]:[chord[0]+24,chord[1]+24];
+          pitches.forEach(pitch=>add("keyboard",pitch,bar,at,.25,i===1?.8:.7));
+        });
       }else{
         pattern.bass.forEach((at,i)=>add("bass",chord[(i+bar)%3]-12,bar,at,Math.min(.8,4-at),i===0?.82:.7));
         pattern.keys.forEach((at,i)=>chord.forEach(pitch=>add("keyboard",pitch+12,bar,at,spec.groove==="ambient"?3.8:Math.min(1.3,4-at),i===0?.55:.45)));
