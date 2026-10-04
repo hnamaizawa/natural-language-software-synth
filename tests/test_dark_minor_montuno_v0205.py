@@ -29,6 +29,8 @@ for(let bar=0;bar<8;bar++){
   assert(keys.every(n=>n.note<72),'piano voicing should remain restrained');
   const clave=notes('drums').filter(n=>n.note===37&&Math.floor(n.at/4)===bar).map(n=>n.at-bar*4);
   assert.deepEqual(clave,bar%2===0?[0,1.5,3]:[1,3]);
+  const bell=notes('drums').filter(n=>n.note===56&&Math.floor(n.at/4)===bar).map(n=>n.at-bar*4);
+  assert.deepEqual(bell,bar%2===0?[.75,2.75]:[.5,2.5,3.5]);
 }
 assert.equal(api.makeSong('montuno').key,'C major');
 """
