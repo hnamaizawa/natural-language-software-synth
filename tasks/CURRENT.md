@@ -1,5 +1,12 @@
 # CURRENT
 
+## v0.20.0 DAW goals and humming-to-track editing
+
+- [x] 自然言語音色、鼻歌、ピアノロール、再生位置、生音録音の現状と課題を照合
+- [x] 補正済み鼻歌を選択パートへNote Clipとして配置し、既存の編集・JSON保存経路へ接続
+- [ ] ギター・ベースの音声トラック、保存、波形、編集、採譜
+- [ ] Windows実機でのマイク・ピアノロール・音声再生の検証
+
 ## v0.19.9 Audible notes visible in piano roll
 
 - [x] 選択クリップの音域へ初期表示を調整し、ドラム・ベースのノートを見える位置にする
