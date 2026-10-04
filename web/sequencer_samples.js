@@ -75,6 +75,7 @@
         // Softer, lower-register minor-key answer to the brighter C-major montuno.
         const even=bar%2===0;
         (even?[0,1.5,3]:[1,3]).forEach(at=>add("drums",37,bar,at,.12,.48));
+        (even?[.75,2.75]:[.5,2.5,3.5]).forEach(at=>add("drums",56,bar,at,.12,.34));
         pattern.bass.forEach((at,i)=>add("bass",chord[i===1?2:0]-12,bar,at,.42,i===0?.66:.58));
         const left=even?[[0,0],[1,7],[2,0],[3,7]]:[[0,7],[1,0],[2,7],[3,0]];
         left.forEach(([at,offset])=>add("keyboard",chord[0]+offset,bar,at,.22,.46));
