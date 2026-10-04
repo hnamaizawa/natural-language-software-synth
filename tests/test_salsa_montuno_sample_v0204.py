@@ -11,7 +11,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const ctx={window:{}};vm.createContext(ctx);
 vm.runInContext(fs.readFileSync('web/sequencer_samples.js','utf8'),ctx);
 const api=ctx.window.sequencerSamples,song=api.makeSong('salsa_montuno');
-assert.equal(song.key,'G minor');assert.equal(song.length_beats,32);
+assert.equal(song.key,'G harmonic minor');assert.equal(song.length_beats,32);
 assert.equal(Object.keys(song.clips).length,7);
 assert.deepEqual(Array.from(api.songs.salsa_montuno.roots),[43,48,38,48,43,48,38,43]);
 const notes=role=>song.clips[role].flatMap(clip=>clip.notes.map(n=>({...n,at:clip.start_beats+n.start_beats})));
