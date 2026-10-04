@@ -8,7 +8,7 @@
     ballad:{name:"バラード · Gメジャー",genre:"バラード",description:"余白のある旋律と長いピアノ・パッド。",key:"G major",bpm:80,groove:"ballad",roots:[43,40,36,38,43,40,38,43],qualities:["maj","min","maj","maj","maj","min","maj","maj"]},
     rock:{name:"ロック · Dメジャー",genre:"ロック",description:"ギターの8分刻みと力強い2拍4拍。",key:"D major",bpm:126,groove:"rock",roots:[38,45,35,43,38,45,43,45],qualities:["maj","maj","min","maj","maj","maj","maj","maj"]},
     bossa:{name:"ボサノヴァ · Fメジャー",genre:"ボサノヴァ",description:"柔らかいクロススティックとシンコペーション。",key:"F major",bpm:92,groove:"bossa",roots:[41,36,38,43,41,36,43,41],qualities:["maj","maj","min","min","maj","maj","min","maj"]},
-    montuno:{name:"ラテンピアノ・モントゥーノ · Cメジャー",genre:"ラテン / ソン",description:"速いテンポのオクターブ奏法と裏拍の和音が交替する2小節モントゥーノ。トゥンバオ風ベースと3-2クラーベ、C–F–G–Cの8小節。",key:"C major",bpm:140,groove:"montuno",roots:[48,41,43,48,48,41,43,48],qualities:["maj","maj","maj","maj","maj","maj","maj","maj"]},
+    montuno:{name:"ラテンピアノ・モントゥーノ · Cメジャー",genre:"ラテン / ソン",description:"140 BPMの2小節モントゥーノ。オクターブの跳躍と細かな分散和音、裏拍のアクセントを重ね、トゥンバオ風ベースと3-2クラーベで支えるC–F–G–Cの8小節。",key:"C major",bpm:140,groove:"montuno",roots:[48,41,43,48,48,41,43,48],qualities:["maj","maj","maj","maj","maj","maj","maj","maj"]},
     funk:{name:"ファンク · Eマイナー",genre:"ファンク",description:"休符を活かした16分ベースと鋭い和音の応答。",key:"E minor",bpm:108,groove:"funk",roots:[40,36,43,38,40,36,38,40],qualities:["min","maj","maj","maj","min","maj","maj","min"]},
     ambient:{name:"アンビエント · Dマイナー",genre:"アンビエント",description:"まばらな打楽器と長いパッド、ゆっくり動く旋律。",key:"D minor",bpm:72,groove:"ambient",roots:[38,34,41,36,38,34,36,38],qualities:["min","maj","maj","maj","min","maj","maj","min"]},
     synthwave:{name:"シンセウェーブ · Cマイナー",genre:"シンセウェーブ",description:"反復する8分ベースと機械的なビート。",key:"C minor",bpm:116,groove:"synthwave",roots:[36,44,39,41,36,44,41,39],qualities:["min","maj","maj","min","min","maj","min","maj"]},
@@ -42,17 +42,17 @@
       pattern.snare.forEach(at=>add("drums",spec.groove==="bossa"?37:38,bar,at,.18,.72));
       pattern.hat.forEach(at=>add("drums",spec.groove==="jazz"?51:42,bar,at,.12,.38));
       if(spec.groove==="montuno"){
-        // A two-bar piano ostinato: syncopated octave strikes answer short
-        // chord-tone dyads against alternating 3-side / 2-side clave accents.
+        // Original two-bar arpeggiated piano figure: single chord tones travel
+        // between registers, with octave strikes on the syncopated accents.
         const even=bar%2===0;
         (even?[0,1.5,3]:[1,3]).forEach(at=>add("drums",37,bar,at,.12,.56));
         pattern.bass.forEach((at,i)=>add("bass",(i===1?chord[2]:chord[0])-12,bar,at,Math.min(.38,4-at),i===2?.83:.75));
-        const hits=even?[.5,1.5,2.5,3.5]:[0,.75,2,3.5];
-        hits.forEach((at,i)=>{
-          const octave=i%2===0,base=(even?(i===0?chord[0]:chord[2]):(i===0?chord[2]:chord[0]))+12;
-          const notes=octave?[base,base+12]:[chord[1]+12,chord[2]+12];
-          notes.forEach(pitch=>add("keyboard",pitch,bar,at,Math.min(octave?.25:.32,4-at),octave?.75:.6));
-        });
+        const piano=even?
+          [[0,[chord[0]+12]],[.5,[chord[0]+12,chord[0]+24]],[1,[chord[2]+12]],[1.5,[chord[1]+24]],
+           [2,[chord[2]+24]],[2.5,[chord[2]+12,chord[2]+24]],[3,[chord[1]+24]],[3.5,[chord[2]+12]]]:
+          [[0,[chord[2]+12]],[.5,[chord[2]+12,chord[2]+24]],[1.25,[chord[1]+24]],[1.5,[chord[0]+24]],
+           [2,[chord[1]+12]],[2.5,[chord[0]+12,chord[0]+24]],[3,[chord[2]+24]],[3.5,[chord[1]+12]]];
+        piano.forEach(([at,notes])=>notes.forEach(pitch=>add("keyboard",pitch,bar,at,Math.min(notes.length===2?.22:.19,4-at),notes.length===2?.76:.56)));
       }else{
         pattern.bass.forEach((at,i)=>add("bass",chord[(i+bar)%3]-12,bar,at,Math.min(.8,4-at),i===0?.82:.7));
         pattern.keys.forEach((at,i)=>chord.forEach(pitch=>add("keyboard",pitch+12,bar,at,spec.groove==="ambient"?3.8:Math.min(1.3,4-at),i===0?.55:.45)));
