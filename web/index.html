@@ -171,7 +171,8 @@
               <label>BPM<input id="hummingBpm" type="number" min="40" max="240" value="100" /></label>
               <label>量子化<select id="hummingQuantize"><option value="0.5">1/8音符</option><option value="0.25" selected>1/16音符</option><option value="0.125">1/32音符</option></select></label>
               <div class="humming-live custom-wide"><span class="kicker">LIVE PITCH</span><strong id="hummingLivePitch">—</strong><span id="hummingConfidence"></span></div>
-              <div class="humming-actions custom-wide"><button id="hummingStartBtn" class="primary">● 録音開始</button><button id="hummingStopBtn" disabled>■ 録音停止</button><button id="hummingPlayBtn" disabled>▶ 補正後を試聴</button><button id="hummingTransferBtn" disabled>登録フレーズへ取り込む</button><button id="hummingClearBtn" disabled>クリア</button></div>
+              <div class="humming-actions custom-wide"><button id="hummingStartBtn" class="primary">● 録音開始</button><button id="hummingStopBtn" disabled>■ 録音停止</button><button id="hummingPlayBtn" disabled>▶ 補正後を試聴</button><button id="hummingTrackBtn" disabled>選択パートへNote Clipを配置</button><button id="hummingTransferBtn" disabled>登録フレーズへ取り込む</button><button id="hummingClearBtn" disabled>クリア</button></div>
+              <p class="custom-wide humming-help">選択中のパートへ、曲の再生開始小節から配置します。録音のBPMと曲のBPMが異なる場合も、実時間の長さを保って音価を換算します。音声は保存せず補正後のノートのみProject JSONに保存されます。</p>
               <label class="custom-wide">補正済みMIDI相当データ<textarea id="hummingResult" rows="7" readonly placeholder="録音後に C4 | 0.5 | 0.82 のようなノート列を表示します。"></textarea></label>
               <div class="custom-wide score-wrap"><div class="score-title"><span class="kicker">SCORE</span><strong>鼻歌メロディー楽譜</strong></div><svg id="hummingScore" class="humming-score" viewBox="0 0 900 120" role="img" aria-label="鼻歌から生成した楽譜"></svg></div>
               <p id="hummingStatus" class="humming-status custom-wide">マイク待機中。Chrome / Edge でマイク利用を許可してから録音してください。</p>
@@ -205,6 +206,7 @@
 <script src="/frozen_audio_project.js?v=0.18.4"></script>
 <script src="/frozen_stem_mix.js?v=0.19.4"></script>
 <script src="/playback_diagnostics.js?v=0.19.5"></script>
+<script src="/humming_clip_bridge.js?v=0.20.0"></script>
 <script src="/multitrack_runtime.js?v=0.19.9"></script>
 <script src="/vst3_runtime.js?v=0.19.5"></script>
   <script src="/ui_help_runtime.js"></script>

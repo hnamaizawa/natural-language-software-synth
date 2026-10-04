@@ -312,6 +312,18 @@
     const select=document.getElementById("sampleSelect"),key=select&&select.value,perf=(typeof SAMPLE_PERFORMANCES!=="undefined"&&SAMPLE_PERFORMANCES[key])||SAMPLE_PERFORMANCES[ROLE_SAMPLE[track.role]]||SAMPLE_PERFORMANCES.melody;
     if(frozenBuffers.has(track.id)||freezingIds.has(track.id)){status("フリーズを解除してからクリップを追加してください。");return;}const clip=performanceToClip(perf,key),last=track.clips.at(-1);clip.start_beats=last?Math.min(project.length_beats-clip.length_beats,last.start_beats+last.length_beats):0;track.clips.push(clip);selectedClipId=clip.id;render();status(`「${clip.name}」を${track.name}のNote Clipとして追加しました。`);
   }
+  function addHummingClip(){
+    const track=selectedTrack(),capture=window.hummingMelodyCapture;
+    if(!track||!capture||!window.hummingClipBridge)throw new Error("鼻歌とシーケンサーの準備ができていません。");
+    if(arrangementPlaying)throw new Error("曲の再生を停止してから配置してください。");
+    if(frozenBuffers.has(track.id)||freezingIds.has(track.id))throw new Error("このパートのフリーズを解除してから配置してください。");
+    const captureBpm=Number(document.getElementById("hummingBpm")?.value);
+    const clips=window.hummingClipBridge.makeClips(capture.getSteps(),captureBpm,project.bpm,project.playhead_beats,project.length_beats);
+    if(track.clips.length+clips.length>MAX_CLIPS)throw new Error(`このパートのクリップは最大${MAX_CLIPS}個です。`);
+    const added=clips.map((clip,index)=>({...clip,id:uid("clip"),name:`鼻歌メロディー ${index+1}`}));
+    track.clips.push(...added);selectedClipId=added[0].id;selectedNoteIndex=-1;rollUndo.length=0;rollRedo.length=0;
+    render();const message=`補正済みの鼻歌を${track.name}へ${added.length}個のNote Clipとして配置しました。ピアノロールで編集し、Project JSONに保存できます。`;status(message);return message;
+  }
   function addDemoSong(){
     const demo=window.sequencerSamples?.makeSong(document.getElementById("demoSongSelect")?.value);
     if(!demo)return false;
@@ -497,5 +509,5 @@
   bind();applyTrack(selectedTrack());render();
   const projectStatus=document.getElementById("projectStatus");
   if(projectStatus){projectStatus.dataset.runtimeState="ready";projectStatus.textContent="トラックを選び、TRACK SOUNDでパートごとの音源を設定できます。全パート再生とループにも対応しています。";}
-  window.multitrackProject={trackById:byId,isFrozen:id=>frozenBuffers.has(id)||freezingIds.has(id),get snapshot(){captureSelectedPatch();return clone(project);},selectTrack,addClipFromSample,playArrangement,exportProject,stopPreview};
+  window.multitrackProject={trackById:byId,isFrozen:id=>frozenBuffers.has(id)||freezingIds.has(id),get snapshot(){captureSelectedPatch();return clone(project);},selectTrack,addClipFromSample,addHummingClip,playArrangement,exportProject,stopPreview};
 })();
