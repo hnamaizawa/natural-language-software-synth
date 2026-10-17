@@ -84,6 +84,12 @@
     currentPatch=engine.patch;
     applyingTrack=false;
   }
+  function applyTrackPatch(trackId,raw){
+    const track=byId(trackId);if(!track||frozenBuffers.has(track.id)||freezingIds.has(track.id))return false;
+    const patch=validatePatch(raw);track.patch=clone(patch);track.generated_patch=clone(patch);
+    preparedTrackPatches.delete(track.id);if(track.id===project.selected_track_id)applyTrack(track);
+    renderTrackList();renderSummary();return true;
+  }
   function selectTrack(id){
     const current=selectedTrack();if(current&&!applyingTrack){current.patch=clone(validatePatch(engine.patch||currentPatch));current.generated_patch=clone(validatePatch(generatedPatch||current.patch));}
     const next=byId(id);if(!next)return;
@@ -523,5 +529,5 @@
   bind();applyTrack(selectedTrack());render();
   const projectStatus=document.getElementById("projectStatus");
   if(projectStatus){projectStatus.dataset.runtimeState="ready";projectStatus.textContent="トラックを選び、TRACK SOUNDでパートごとの音源を設定できます。全パート再生とループにも対応しています。";}
-  window.multitrackProject={trackById:byId,isFrozen:id=>frozenBuffers.has(id)||freezingIds.has(id),get snapshot(){captureSelectedPatch();return clone(project);},selectTrack,addClipFromSample,addHummingClip,playArrangement,exportProject,stopPreview};
+  window.multitrackProject={trackById:byId,isFrozen:id=>frozenBuffers.has(id)||freezingIds.has(id),get snapshot(){captureSelectedPatch();return clone(project);},selectTrack,applyTrackPatch,addClipFromSample,addHummingClip,playArrangement,exportProject,stopPreview};
 })();

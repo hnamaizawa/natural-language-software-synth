@@ -1,5 +1,14 @@
 # CURRENT
 
+## v0.20.8 Saved sound library across workflow steps
+
+- [x] Step 1で現在の検証済みPatchを名前付きでブラウザ内保存・更新・削除（最大64件）
+- [x] 保存PatchをStep 3の単体演奏／サンプル試聴とStep 4の録音Note Event再生に使う現在音色へ適用
+- [x] 保存Patchを選択中のアレンジメントトラックへ割り当て、Project JSON保存に接続
+- [x] 追加AudioContext／Note Event経路／音声録音／ネットワーク送信を増やさず、不変条件を維持
+- [x] `python -m pytest tests/`（238 passed）／`python scripts/harness_check.py`（HARNESS PASS）
+- [ ] Windows実機で作成→保存→適用→試聴→録音再生→Project JSON往復を確認
+
 ## v0.20.7 Track mixer gain and piano-roll grid
 
 - [x] 内蔵音源をトラック別GainNode経由にし、スライダーで再生中の音量も変更できる
