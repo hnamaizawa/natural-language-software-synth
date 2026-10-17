@@ -32,3 +32,15 @@
 .roll-grid .roll-note.sounding{background:#ffe17a;box-shadow:0 0 0 2px #fff,0 0 16px #ffe17a;z-index:3}
 .roll-grid .roll-note.sounding.selected{z-index:3}
 .piano-roll-head{flex-wrap:wrap}.piano-roll-head .roll-playback-position{font-size:.8rem;font-weight:800;color:#ffe17a;font-variant-numeric:tabular-nums}
+.project-piano-roll{overflow:auto;overscroll-behavior:contain}
+.roll-ruler{position:sticky;top:0;z-index:6;display:flex;align-items:stretch;height:26px;box-sizing:border-box;background:#101b2b;border-bottom:1px solid rgba(132,170,201,.42);color:#d5e7f4;font-size:.7rem;font-variant-numeric:tabular-nums}
+.roll-ruler-key-spacer{box-sizing:border-box;flex:0 0 64px;display:flex;align-items:center;justify-content:center;background:#25364c;border-right:1px solid rgba(132,170,201,.42);color:#c9deed;font-weight:700}
+.roll-ruler-bar{box-sizing:border-box;flex:0 0 224px;display:flex;align-items:center;padding-left:7px;border-left:2px solid rgba(255,211,112,.85);border-right:1px solid rgba(132,170,201,.24);font-weight:800;color:#ffe5a3}
+.roll-grid{box-sizing:border-box;position:relative;background-image:repeating-linear-gradient(to bottom,rgba(132,170,201,.14) 0,rgba(132,170,201,.14) 1px,transparent 1px,transparent 12px);background-position:0 0;background-size:auto}
+.roll-time-line{position:absolute;top:0;bottom:0;width:1px;pointer-events:none;z-index:1;background:rgba(132,170,201,.18)}
+.roll-time-line.beat{background:rgba(132,170,201,.38)}
+.roll-time-line.bar{width:2px;background:rgba(255,211,112,.72)}
+.roll-time-line.subdivision{background:rgba(132,170,201,.1)}
+.roll-grid .roll-piano-key.white{z-index:2}.roll-grid .roll-piano-key.black{z-index:3}
+.roll-grid .roll-note{z-index:4}.roll-grid .roll-note.selected,.roll-grid .roll-note.sounding{z-index:5}
+.roll-grid .roll-playhead{z-index:6}

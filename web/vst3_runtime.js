@@ -211,6 +211,7 @@
       if(!data.ok)throw new Error(`${track.name||"Track"}: ${data.error||"VST3ロード失敗"}`);
       if(track.source.plugin_state){const restored=await api("/api/vst3/state/load",{instance_id:trackId,state:track.source.plugin_state});if(!restored.ok)throw new Error(`${track.name||"Track"}: ${restored.error||"音色の復元に失敗"}`);}
       const pan=await api("/api/vst3/pan",{instance_id:trackId,pan:clamp(track.pan??0,-1,1)});if(!pan.ok)throw new Error(pan.error||"パン設定失敗");
+      const gain=await api("/api/vst3/gain",{instance_id:trackId,gain:clamp(track.volume??.82,0,1)});if(!gain.ok)throw new Error(gain.error||"音量設定失敗");
       trackInstances.set(trackId,{pluginId,instanceId:trackId});
       return data;
     })();
@@ -320,11 +321,12 @@
     if(!clock.ok||!Number.isFinite(clock.frame_clock)||clock.frame_clock<=0||!Number.isFinite(clock.sample_rate)||clock.sample_rate<8000)return false;
     const rate=clock.sample_rate,origin=clock.frame_clock+Math.max(0,cycleStart-engine.ctx.currentTime)*rate,groups=new Map();
     for(const item of notes){const events=groups.get(item.track.id)||[],channel=channelForTrack(item.track),note_id=nextNoteId();
-      events.push({on:true,note:item.event.note,velocity:item.event.velocity*item.track.volume,channel,note_id,delay_ms:0,at_frame:Math.round(origin+item.startBeat*secondsPerBeat*rate)},
+      events.push({on:true,note:item.event.note,velocity:item.event.velocity,channel,note_id,delay_ms:0,at_frame:Math.round(origin+item.startBeat*secondsPerBeat*rate)},
         {on:false,note:item.event.note,velocity:0,channel,note_id,delay_ms:0,at_frame:Math.round(origin+item.endBeat*secondsPerBeat*rate)});groups.set(item.track.id,events);}
     await trackEventsBatch(groups,true);return true;
   }
   function clearTrackEvents(){for(const instanceId of new Set([...trackInstances.values()].map(value=>value.instanceId))){forgetNotes(instanceId);api("/api/vst3/clear-events",{instance_id:instanceId}).catch(()=>{});}}
   async function setTrackPan(track){const target=trackInstances.get(track.id);if(!target)return;if(target.instanceId!==track.id)return;const data=await api("/api/vst3/pan",{instance_id:target.instanceId,pan:clamp(track.pan??0,-1,1)});if(!data.ok)throw new Error(data.error||"パン設定失敗");}
-  window["vst3Router"]={scan,scanForTracks,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,ensurePlaybackReady,prepareErrors:()=>[...lastPrepareErrors],loadTrack,releaseTrack,setTrackPan,playbackMetrics,openTrackEditor,trackParameters,trackDiagnostics,trackSetParameter,snapshotTrack,freezeTrack,resumeTrack,isTrackLoaded:track=>trackInstances.get(track?.id)?.pluginId===track?.source?.plugin_id,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,nextNoteId,baseNoteOn,baseNoteOff,scheduleTrackCycle};
+  async function setTrackVolume(track){const target=trackInstances.get(track?.id);if(!target||target.instanceId!==track.id)return;const data=await api("/api/vst3/gain",{instance_id:target.instanceId,gain:clamp(track.volume??.82,0,1)});if(!data.ok)throw new Error(data.error||"音量設定失敗");}
+  window["vst3Router"]={scan,scanForTracks,load,unload,refreshParameters,testTone,diagnostics,openEditor,setProgramIndex,prepareTracks,ensurePlaybackReady,prepareErrors:()=>[...lastPrepareErrors],loadTrack,releaseTrack,setTrackPan,setTrackVolume,playbackMetrics,openTrackEditor,trackParameters,trackDiagnostics,trackSetParameter,snapshotTrack,freezeTrack,resumeTrack,isTrackLoaded:track=>trackInstances.get(track?.id)?.pluginId===track?.source?.plugin_id,isLoaded:()=>loaded,isRouting:()=>loaded&&route.checked,loadedPlugin:()=>({id:loadedPluginId,name:loadedPluginName}),selectedPlugin,scannedPlugins,channelForTrack,trackNoteOn,trackNoteOff,trackEvents,trackEventsBatch,clearTrackEvents,nextNoteId,baseNoteOn,baseNoteOff,scheduleTrackCycle};
 })();

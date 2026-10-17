@@ -1,5 +1,11 @@
 # Development Harness
 
+## v0.20.7 track volume and piano-roll timing
+
+- Per-track volume is applied as output gain rather than changing MIDI velocity. Internal voices share a per-track gain/pan bus; independent VST3 tracks use the Native Host instance gain. Shared VST3 aliases cannot expose independent audio gain and their volume control is disabled.
+- The piano roll uses a fixed 56 CSS-pixel beat width and a 64-pixel keyboard column. Its ruler, measure/beat/subdivision lines, note geometry, drag editing, and playhead use the same beat scale.
+- The VST3 `GAIN` command is bounded to 0–1 through the loopback-only bridge. Rebuild and verify on Windows.
+
 ## v0.20.6 Native VST3 real-time callback safety
 
 - The audio callback reads an immutable shared instance snapshot and never acquires the rack mutex. Instance removal retains old snapshots/hosts until the callback no longer references them; reclamation happens on the control thread.

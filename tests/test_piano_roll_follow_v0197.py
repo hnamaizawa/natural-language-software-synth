@@ -17,7 +17,7 @@ const position={textContent:''},lane={offsetLeft:0,clientWidth:320},timeline={st
 const ruler={children:Array.from({length:8},()=>({classList:classes()}))};
 const label={textContent:''},nodes={projectPianoRoll:root,rollPlayhead:marker,rollPlaybackPosition:label,playPosition:position,arrangementPlayhead:timeline,timelineRuler:ruler};
 const document={getElementById:id=>nodes[id],querySelector:q=>q==='#arrangementTimeline .timeline-lane'?lane:null,querySelectorAll:()=>blocks};
-const ctx={document,project:{length_beats:32},TIMELINE_BEATS:16,selectedClipId:'A',displayBeat:0,followArrangementClips:true,lastRollHighlightTick:null,lastRollPositionText:'',
+const ctx={document,project:{length_beats:32},TIMELINE_BEATS:16,ROLL_KEY_WIDTH:64,ROLL_BEAT_WIDTH:56,selectedClipId:'A',displayBeat:0,followArrangementClips:true,lastRollHighlightTick:null,lastRollPositionText:'',
   selectedTrack:()=>({clips}),selectedClip:()=>clips.find(c=>c.id===ctx.selectedClipId),renderPianoRoll:()=>{},Math};
 vm.createContext(ctx);vm.runInContext(functions,ctx);
 ctx.showPlayhead(2,true);assert.equal(marker.style.left,'176px');assert.equal(marker.style.display,'block');assert(marker.classList.contains('playing'));assert(notes[0].classList.contains('sounding'));assert(label.textContent.includes('再生中'));
@@ -51,14 +51,14 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const src=fs.readFileSync('web/multitrack_runtime.js','utf8');
 const render=src.slice(src.indexOf('  function renderPianoRoll('),src.indexOf('  function deleteRollNote('));
 const el=()=>({children:[],style:{},dataset:{},classList:{toggle(){}},clientHeight:320,scrollTop:0,
-  append(child){this.children.push(child)},replaceChildren(){this.children=[]},addEventListener(){},setAttribute(){}});
+  append(...children){this.children.push(...children)},replaceChildren(){this.children=[]},addEventListener(){},setAttribute(){}});
 const root=el(),range={value:'36'},inputs={projectPianoRoll:root,rollRange:range};
 const document={getElementById:id=>inputs[id]||null,createElement:()=>el()};
 const clip={id:'drum-clip',start_beats:0,length_beats:16,notes:[36,38,42].map((note,i)=>({note,start_beats:i,duration_beats:.5,velocity:.8}))};
 const ctx={document,selectedClip:()=>clip,selectedNoteIndex:-1,lastRollClipId:null,lastRollHighlightTick:null,displayBeat:0,arrangementPlaying:false,
-  bounded:(n,low,high)=>Math.min(high,Math.max(low,Number(n))),TIMELINE_BEATS:16,showRollPlayhead() {},Math};
+  bounded:(n,low,high)=>Math.min(high,Math.max(low,Number(n))),TIMELINE_BEATS:16,ROLL_KEY_WIDTH:64,ROLL_BEAT_WIDTH:56,ROLL_ROW_HEIGHT:12,ROLL_SUBDIVISIONS_PER_BEAT:4,showRollPlayhead() {},Math};
 vm.createContext(ctx);vm.runInContext(render,ctx);ctx.renderPianoRoll();assert.equal(range.value,'24');assert(root.scrollTop>0);
-const blocks=root.children[0].children.filter(node=>node.className?.includes('roll-note'));
+const blocks=root.children[1].children.filter(node=>node.className?.includes('roll-note'));
 assert.equal(blocks.length,3);const middleTop=Number(blocks[1].style.top.replace('px',''));
 assert(middleTop>=root.scrollTop&&middleTop<root.scrollTop+root.clientHeight);
 '''

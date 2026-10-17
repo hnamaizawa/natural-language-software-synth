@@ -315,6 +315,11 @@ class Vst3Bridge:
             return {"ok": False, "error": "Pan must be between -1 and 1."}
         return self._command(f"PAN\t{self._instance_id(instance_id)}\t{pan:.4f}")
 
+    def set_gain(self, gain: float, instance_id: str | None = None) -> dict:
+        if not math.isfinite(gain) or gain < 0 or gain > 1:
+            return {"ok": False, "error": "Gain must be between 0 and 1."}
+        return self._command(f"GAIN\t{self._instance_id(instance_id)}\t{gain:.4f}")
+
     def save_state(self, instance_id: str | None = None) -> dict:
         with tempfile.NamedTemporaryFile(suffix=".vst-state", delete=False) as file:
             path = Path(file.name)
@@ -516,6 +521,11 @@ class Vst3InstanceManager:
 
     def set_pan(self, pan: float, instance_id: str | None = None) -> dict:
         return self._call(instance_id, "set_pan", pan)
+
+    def set_gain(self, gain: float, instance_id: str | None = None) -> dict:
+        if not math.isfinite(gain) or gain < 0 or gain > 1:
+            return {"ok": False, "error": "Gain must be between 0 and 1."}
+        return self._call(instance_id, "set_gain", gain)
 
     def parameters(self, instance_id: str | None = None) -> dict:
         return self._call(instance_id, "parameters")
@@ -737,6 +747,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(VST3.load(str(payload.get("plugin_id", ""))[:64], payload.get("instance_id")))
             if parsed.path == "/api/vst3/pan":
                 return self._json(VST3.set_pan(float(payload.get("pan", 0)), payload.get("instance_id")))
+            if parsed.path == "/api/vst3/gain":
+                return self._json(VST3.set_gain(float(payload.get("gain", 1)), payload.get("instance_id")))
             if parsed.path == "/api/vst3/note-on":
                 return self._json(VST3.note_on(int(payload.get("note", 60)), float(payload.get("velocity", 0.8)), int(payload.get("channel", 0)), payload.get("instance_id"), int(payload.get("note_id", -1))))
             if parsed.path == "/api/vst3/note-off":
