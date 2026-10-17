@@ -162,6 +162,8 @@ void PluginEditorWin32::close ()
 
 void PluginEditorWin32::pumpMessages ()
 {
+    if (!window_)
+        return;
     MSG message {};
     while (PeekMessageW (&message, nullptr, 0, 0, PM_REMOVE))
     {

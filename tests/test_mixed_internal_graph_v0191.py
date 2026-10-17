@@ -37,8 +37,8 @@ engine.playFM(67,.8,0);assert.equal(delays.length,2,'a later phrase receives a f
 
 def test_frozen_host_stops_device_only_when_all_instances_are_idle():
     native = (ROOT / "native/vst3_host/src/main.cpp").read_text(encoding="utf-8")
-    assert "hasFrozen = hasFrozen || pair.second->isFrozen ()" in native
-    assert "if (!pair.second->isIdleSuspended () || pair.second->hasOpenEditor ()) return;" in native
+    assert "hasFrozen = hasFrozen || instance.host->isFrozen ()" in native
+    assert "if (!instance.host->isIdleSuspended () || instance.host->hasOpenEditor ()) return;" in native
     assert "if (hasFrozen && ma_device_stop (&device_) == MA_SUCCESS) audioRunning_ = false;" in native
     assert "if (ma_device_start (&device_) != MA_SUCCESS) return false;" in native
     assert "rack.ensureAudioRunning ()" in native

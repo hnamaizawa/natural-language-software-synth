@@ -478,7 +478,7 @@ vst3_contract:
   live_note_event_flag: kIsLive
   output_bus: active_main_output_bus
   event_input_bus: active_main_event_input_bus
-  diagnostics: [note_on_queued, note_off_queued, events_delivered, process_calls, process_failures, last_output_peak, max_output_peak]
+  diagnostics: [note_on_queued, note_off_queued, events_delivered, process_calls, process_failures, max_process_us, process_overruns, skipped_blocks, last_output_peak, max_output_peak]
   zero_output_guidance: [load_plugin_kit_or_preset, check_master_volume, try_midi_channel_1_or_10]
   native_audio_test_tone_hz: 440
   native_editor:

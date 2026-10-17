@@ -1,5 +1,14 @@
 # CURRENT
 
+## v0.20.6 Native VST3 real-time callback safety
+
+- [x] Native Hostの音声コールバックからラックmutex取得を除去し、共有ポインタの不変インスタンススナップショットを使用
+- [x] インスタンス状態／イベントキューmutexはtry-lockとし、取得できないインスタンスの出力を無音化して`skipped_blocks`へ記録
+- [x] note ID管理を固定長1024要素配列へ変更し、`process()`最大時間・締切超過・skipをインスタンス別に診断
+- [x] FTZ/DAZとminiaudio WASAPI Pro Audio/MMCSSを有効化。エディタ未表示時はWindowsメッセージをポーリングしない
+- [x] `python -m pytest tests/`（229 passed）／Harness（PASS）
+- [ ] Windows Native Host Releaseビルドと、エディタ表示中の7パート実機確認
+
 ## v0.20.5 Dark minor montuno sample
 
 - [x] Cマイナー自然短音階の8小節サンプル曲を追加（Cm–A♭–Fm–Gm）

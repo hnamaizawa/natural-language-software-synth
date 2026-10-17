@@ -1,5 +1,13 @@
 # Development Harness
 
+## v0.20.6 Native VST3 real-time callback safety
+
+- The audio callback reads an immutable shared instance snapshot and never acquires the rack mutex. Instance removal retains old snapshots/hosts until the callback no longer references them; reclamation happens on the control thread.
+- Per-instance state and event-queue locks are try-lock only on the audio callback. On contention, that instance's current output block is silent and `skipped_blocks` increments; the callback never waits for command/UI work.
+- Active VST3 note IDs use fixed-capacity storage. Audio callbacks set FTZ/DAZ once per callback thread. WASAPI uses miniaudio's Pro Audio usage so miniaudio registers its callback thread with MMCSS.
+- Host status reports aggregate and per-instance `max_process_us`, `process_overruns`, and `skipped_blocks` in `instance_metrics`; per-instance diagnostics expose the same values.
+- Native changes require the Windows Release build and testing with seven tracks while a VST3 editor is open. A Windows user must check `audio_overruns`, `cpu_load_percent`, `skipped_blocks`, and `max_process_us`.
+
 ## v0.18.0 playhead and keyed demos
 
 - Playback display follows the existing AudioContext clock via animation frames. It must not schedule notes through the piano roll or create a second audio engine.

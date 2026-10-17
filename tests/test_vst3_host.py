@@ -128,7 +128,7 @@ def test_native_host_uses_one_audio_device_for_bounded_logical_instances_and_sus
     server = (ROOT / "server.py").read_text(encoding="utf-8")
     for token in [
         "class NativeVst3Rack", "kMaxInstances = 24", "single_audio_device",
-        "std::unordered_map<std::string, std::unique_ptr<NativeVst3Host>>",
+        "std::unordered_map<std::string, std::shared_ptr<NativeVst3Host>>",
         "isIdleSuspended", "idleFramesRemaining_", "rack.startAudio ()",
         'parts[0] == "BATCH"', 'parts[0] == "CLEAR"', "delayFrames",
         "cpu_load_percent", "audio_overruns",
