@@ -26,7 +26,10 @@ def test_piano_keys_and_toolbar_have_fixed_coordinates():
     html = (ROOT / 'web/index.html').read_text(encoding='utf-8')
     assert 'pitch<lowest+48;pitch++' in js
     assert 'event.clientX-rect.left<keyWidth' in js
-    assert 'keyWidth+note.start_beats/TIMELINE_BEATS*width' in js
+    assert 'keyWidth+note.start_beats*beatWidth' in js
+    assert 'ROLL_BEAT_WIDTH=56' in js
+    assert 'cell.textContent=`${bar+1}小節`' in js
+    assert 'className=`roll-time-line${bar?" bar":beat?" beat":" subdivision"}`' in js
     assert '.roll-piano-key.black' in css and '.roll-piano-key.white' in css
     assert 'grid-template-columns:repeat(4,minmax(0,1fr))' in css
     assert html.index('id="selectedTrackSummary"') < html.index('class="sequence-toolbar"')

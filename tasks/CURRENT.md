@@ -1,5 +1,14 @@
 # CURRENT
 
+## v0.20.7 Track mixer gain and piano-roll grid
+
+- [x] 内蔵音源をトラック別GainNode経由にし、スライダーで再生中の音量も変更できる
+- [x] VST3 Native Hostにインスタンス別ゲインを追加し、Velocityとトラック音量を分離
+- [x] ピアノロールを1拍56px・4拍1小節の固定座標に統一し、小節番号・小節線・拍／16分線を表示
+- [x] `python -m pytest tests/`（235 passed）／Harness（PASS）
+- [ ] Windows Native Host Releaseビルド
+- [ ] Windows実機で各パート音量とピアノロールの表示・編集を確認
+
 ## v0.20.6 Native VST3 real-time callback safety
 
 - [x] Native Hostの音声コールバックからラックmutex取得を除去し、共有ポインタの不変インスタンススナップショットを使用

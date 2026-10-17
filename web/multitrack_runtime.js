@@ -4,6 +4,7 @@
 // the existing AudioContext, and the established noteOn/noteOff boundary are retained.
 (() => {
   const SCHEMA_VERSION=1,MAX_TRACKS=24,MAX_CLIPS=64,MAX_NOTES=512,TIMELINE_BEATS=16,MAX_SONG_BEATS=256;
+  const ROLL_KEY_WIDTH=64,ROLL_BEAT_WIDTH=56,ROLL_ROW_HEIGHT=12,ROLL_SUBDIVISIONS_PER_BEAT=4;
   const ROLE_DEFS=[
     ["drums","ドラム","#ff8b6b",{name:"ドラム",engine_type:"drum",instrument_model:"studio_drums"}],
     ["bass","ベース","#f8c85b",{name:"ベース",engine_type:"sampler",instrument_model:"fretless_bass"}],
@@ -44,7 +45,7 @@
     }).catch(error=>{if(session.id===diagnosticSerial&&node)node.textContent=`直前の再生: ${window.playbackDiagnostics.format(session.baseline,{error:`終了時の診断取得失敗: ${error.message}`},internal)}`;});
   }
   const preparedTrackPatches=new Map();
-  const frozenBuffers=new Map(),frozenSources=new Set(),freezingIds=new Set(),trackPanBuses=new Map();
+  const frozenBuffers=new Map(),frozenSources=new Set(),freezingIds=new Set(),trackPanBuses=new Map(),volumeUpdateTimers=new Map();
   let projectFileHandle=null,recordingDryTrackId=null;
   const uid=(prefix)=>`${prefix}-${Date.now().toString(36)}-${(++serial).toString(36)}`;
   const clone=(value)=>JSON.parse(JSON.stringify(value));
@@ -90,16 +91,21 @@
   }
   function toggleTrack(id,key){const track=byId(id);if(!track)return;track[key]=!track[key];renderTrackList();status(`${track.name}の${key==="mute"?"ミュート":"ソロ"}を${track[key]?"ON":"OFF"}にしました。`);}
   function setTrackVolume(track,value){
-    if(!track||freezingIds.has(track.id))return;
+    if(!track||freezingIds.has(track.id)||track.source.shared_with)return;
     if(arrangementPlaying&&frozenBuffers.has(track.id)){status("フリーズ済みパートの音量は再生を停止してから変更してください。");return;}
     track.volume=bounded(value,0,1,.82);frozenMixCache=null;
+    if(track.source.type==="vst3"){
+      clearTimeout(volumeUpdateTimers.get(track.id));
+      volumeUpdateTimers.set(track.id,setTimeout(()=>{volumeUpdateTimers.delete(track.id);Promise.resolve(window.vst3Router?.setTrackVolume?.(track)).catch(error=>status(`VST3音量の設定エラー: ${error.message}`));},45));
+    }else if(trackPanBuses.has(track.id))panBus(track);
     status(`${track.name}の音量を${Math.round(track.volume*100)}%に設定しました。Project JSONに保存できます。`);
   }
   function panBus(track){
     if(!engine.ctx||!engine.master)return engine.master;
     let bus=trackPanBuses.get(track.id);
-    if(!bus){bus=engine.ctx.createStereoPanner();bus.connect(engine.master);trackPanBuses.set(track.id,bus);}
-    bus.pan.setTargetAtTime(track.id===recordingDryTrackId?0:track.pan,engine.ctx.currentTime,.01);return bus;
+    if(!bus){const gain=engine.ctx.createGain(),panner=engine.ctx.createStereoPanner();gain.connect(panner);panner.connect(engine.master);bus={gain,panner};trackPanBuses.set(track.id,bus);}
+    bus.gain.gain.setTargetAtTime(track.volume,engine.ctx.currentTime,.02);
+    bus.panner.pan.setTargetAtTime(track.id===recordingDryTrackId?0:track.pan,engine.ctx.currentTime,.01);return bus.gain;
   }
   function setTrackPan(track,value){
     if(!track)return;
@@ -169,7 +175,7 @@
     freezingIds.add(track.id);renderTrackList();status(`${track.name}を実時間でフリーズ中… 演奏が終わるまでお待ちください。`);
     try{await engine.init();if(track.source.type!=="vst3"&&track.patch?.instrument_model==="licensed_pcm")await engine.ensureLicensedPCM?.();let buffer;
       if(track.source.type==="vst3"){
-        const events=[];for(const item of queue){const channel=vstChannel(track),note_id=window.vst3Router.nextNoteId();events.push({on:true,note:item.event.note,velocity:item.event.velocity*track.volume,channel,note_id,delay_ms:item.startBeat*secondsPerBeat*1000},{on:false,note:item.event.note,velocity:0,channel,note_id,delay_ms:item.endBeat*secondsPerBeat*1000});}
+        const events=[];for(const item of queue){const channel=vstChannel(track),note_id=window.vst3Router.nextNoteId();events.push({on:true,note:item.event.note,velocity:item.event.velocity,channel,note_id,delay_ms:item.startBeat*secondsPerBeat*1000},{on:false,note:item.event.note,velocity:0,channel,note_id,delay_ms:item.endBeat*secondsPerBeat*1000});}
         await window.vst3Router.setTrackPan?.({...track,pan:0});
         try{buffer=await window.vst3Router.freezeTrack(track,events,(project.length_beats*secondsPerBeat+2)*1000);}finally{await window.vst3Router.setTrackPan?.(track);}
       }else buffer=await recordInternalFreeze(track,queue,project.length_beats*secondsPerBeat+2);
@@ -211,7 +217,8 @@
       const volumeLabel=document.createElement("label"),volume=document.createElement("input"),volumeValue=document.createElement("output");
       volumeLabel.className="track-volume";volumeLabel.append(`${track.name}の音量`,volume,volumeValue);
       volume.type="range";volume.min="0";volume.max="100";volume.step="1";volume.value=String(Math.round(track.volume*100));volume.setAttribute("aria-label",`${track.name}の音量`);
-      volume.disabled=freezingIds.has(track.id)||arrangementPlaying&&frozenBuffers.has(track.id);
+      volume.disabled=freezingIds.has(track.id)||arrangementPlaying&&frozenBuffers.has(track.id)||Boolean(track.source.shared_with);
+      if(track.source.shared_with)volume.title="共有VST3は音声出力を共有するため、個別音量を変更できません。独立したVST3インスタンスを使用してください。";
       volumeValue.textContent=`${volume.value}%`;
       volume.addEventListener("click",event=>event.stopPropagation());volumeLabel.addEventListener("click",event=>event.stopPropagation());
       volume.addEventListener("input",()=>{setTrackVolume(track,Number(volume.value)/100);volumeValue.textContent=`${Math.round(track.volume*100)}%`;});
@@ -264,13 +271,20 @@
     const range=document.getElementById("rollRange"),newClip=lastRollClipId!==clip.id;
     if(newClip&&range&&clip.notes.length){const pitches=clip.notes.map(note=>note.note).sort((a,b)=>a-b),middle=pitches[Math.floor(pitches.length/2)];range.value=String(middle<48?24:middle>=72?48:36);}
     lastRollClipId=clip.id;lastRollHighlightTick=null;
-    const lowest=Math.round(bounded(document.getElementById("rollRange")?.value,24,48,36)),keyWidth=64,width=896,rowHeight=12;
-    const grid=document.createElement("div");grid.className="roll-grid";grid.style.height=`${48*rowHeight}px`;
+    const lowest=Math.round(bounded(document.getElementById("rollRange")?.value,24,48,36)),keyWidth=ROLL_KEY_WIDTH,beatWidth=ROLL_BEAT_WIDTH,rowHeight=ROLL_ROW_HEIGHT,gridWidth=keyWidth+TIMELINE_BEATS*beatWidth;
+    const ruler=document.createElement("div");ruler.className="roll-ruler";ruler.setAttribute("aria-label","小節と拍の時間軸");ruler.style.width=`${gridWidth}px`;
+    const keySpacer=document.createElement("span");keySpacer.className="roll-ruler-key-spacer";keySpacer.textContent="小節";ruler.append(keySpacer);
+    for(let bar=0;bar<TIMELINE_BEATS/4;bar++){const cell=document.createElement("span");cell.className="roll-ruler-bar";cell.style.flexBasis=`${beatWidth*4}px`;cell.textContent=`${bar+1}小節`;ruler.append(cell);}
+    const grid=document.createElement("div");grid.className="roll-grid";grid.style.width=`${gridWidth}px`;grid.style.minWidth=`${gridWidth}px`;grid.style.height=`${48*rowHeight}px`;
+    for(let tick=0;tick<=TIMELINE_BEATS*ROLL_SUBDIVISIONS_PER_BEAT;tick++){
+      const line=document.createElement("span"),bar=tick%(4*ROLL_SUBDIVISIONS_PER_BEAT)===0,beat=tick%ROLL_SUBDIVISIONS_PER_BEAT===0;
+      line.className=`roll-time-line${bar?" bar":beat?" beat":" subdivision"}`;line.style.left=`${keyWidth+tick/ROLL_SUBDIVISIONS_PER_BEAT*beatWidth}px`;line.setAttribute("aria-hidden","true");grid.append(line);
+    }
     for(let pitch=lowest;pitch<lowest+48;pitch++){const key=document.createElement("span"),black=[1,3,6,8,10].includes(pitch%12);key.className=`roll-piano-key ${black?"black":"white"}`;key.style.top=`${(lowest+47-pitch)*rowHeight}px`;key.textContent=pitch%12===0?`C${Math.floor(pitch/12)-1}`:"";grid.append(key);}
     grid.addEventListener("pointerdown",event=>{
       if(event.target!==grid||!rollCanEdit()||clip.notes.length>=MAX_NOTES)return;
       const rect=grid.getBoundingClientRect();if(event.clientX-rect.left<keyWidth)return;
-      const step=rollStep(),beat=Math.floor(Math.max(0,event.clientX-rect.left-keyWidth)/width*TIMELINE_BEATS/step)*step;
+      const step=rollStep(),beat=Math.floor(Math.max(0,(event.clientX-rect.left-keyWidth)/beatWidth)/step)*step;
       const pitch=lowest+47-Math.floor(Math.max(0,event.clientY-rect.top)/rowHeight);
       if(pitch<lowest||pitch>=lowest+48||beat>=rollLimit(clip))return;
       rollHistory();clip.notes.push({note:pitch,start_beats:beat,duration_beats:Math.min(1,rollLimit(clip)-beat),velocity:.82});selectedNoteIndex=clip.notes.length-1;renderPianoRoll();status(`MIDI ${pitch} のノートを追加しました。`);
@@ -278,18 +292,18 @@
     clip.notes.forEach((note,index)=>{
       if(note.note<lowest||note.note>=lowest+48)return;
       const block=document.createElement("button");block.type="button";block.className=`roll-note${index===selectedNoteIndex?" selected":""}`;block.dataset.startBeats=String(note.start_beats);block.dataset.endBeats=String(note.start_beats+note.duration_beats);
-      block.style.left=`${keyWidth+note.start_beats/TIMELINE_BEATS*width}px`;block.style.top=`${(lowest+47-note.note)*rowHeight}px`;
-      block.style.width=`${Math.max(5,note.duration_beats/TIMELINE_BEATS*width-1)}px`;block.style.opacity=String(.35+note.velocity*.65);block.title=`MIDI ${note.note} · ${note.start_beats}拍 · 長さ${note.duration_beats}拍 · 強さ${Math.round(note.velocity*100)}%`;
+      block.style.left=`${keyWidth+note.start_beats*beatWidth}px`;block.style.top=`${(lowest+47-note.note)*rowHeight}px`;
+      block.style.width=`${Math.max(5,note.duration_beats*beatWidth-1)}px`;block.style.opacity=String(.35+note.velocity*.65);block.title=`MIDI ${note.note} · ${note.start_beats}拍 · 長さ${note.duration_beats}拍 · 強さ${Math.round(note.velocity*100)}%`;
       block.setAttribute("aria-label",block.title);
       block.addEventListener("pointerdown",event=>{
         event.stopPropagation();if(!rollCanEdit())return;selectedNoteIndex=index;block.classList.add("selected");
         const startX=event.clientX,startY=event.clientY,initial=clone(note),step=rollStep(),resize=event.offsetX>=block.offsetWidth-9;
         block.setPointerCapture(event.pointerId);let changed=false;
         block.onpointermove=move=>{
-          const beats=Math.round((move.clientX-startX)/width*TIMELINE_BEATS/step)*step;
+          const beats=Math.round((move.clientX-startX)/beatWidth/step)*step;
           const pitchDelta=-Math.round((move.clientY-startY)/rowHeight);
           const next=resize?{...initial,duration_beats:bounded(initial.duration_beats+beats,step,rollLimit(clip)-initial.start_beats,step)}:{...initial,start_beats:bounded(initial.start_beats+beats,0,Math.max(0,rollLimit(clip)-initial.duration_beats),0),note:Math.round(bounded(initial.note+pitchDelta,0,127,60))};
-          if(next.start_beats!==note.start_beats||next.duration_beats!==note.duration_beats||next.note!==note.note){if(!changed){rollHistory();changed=true;}Object.assign(note,next);block.style.left=`${keyWidth+note.start_beats/TIMELINE_BEATS*width}px`;block.style.top=`${(lowest+47-note.note)*rowHeight}px`;block.style.width=`${Math.max(5,note.duration_beats/TIMELINE_BEATS*width-1)}px`;}
+          if(next.start_beats!==note.start_beats||next.duration_beats!==note.duration_beats||next.note!==note.note){if(!changed){rollHistory();changed=true;}Object.assign(note,next);block.style.left=`${keyWidth+note.start_beats*beatWidth}px`;block.style.top=`${(lowest+47-note.note)*rowHeight}px`;block.style.width=`${Math.max(5,note.duration_beats*beatWidth-1)}px`;}
         };
         block.onpointerup=()=>{block.onpointermove=null;block.onpointerup=null;renderPianoRoll();if(changed)status("ノートを更新しました。");};
       });
@@ -297,7 +311,7 @@
       grid.append(block);
     });
     const marker=document.createElement("div");marker.id="rollPlayhead";marker.className="arrangement-playhead roll-playhead";marker.style.display="none";marker.setAttribute("aria-hidden","true");grid.append(marker);
-    root.append(grid);
+    root.append(ruler,grid);
     if(newClip&&clip.notes.length){const visibleNotes=clip.notes.filter(note=>note.note>=lowest&&note.note<lowest+48).map(note=>note.note).sort((a,b)=>a-b);if(visibleNotes.length){const middle=visibleNotes[Math.floor(visibleNotes.length/2)],y=(lowest+47-middle)*rowHeight;root.scrollTop=Math.max(0,y-root.clientHeight/2);}}
     showRollPlayhead(displayBeat,arrangementPlaying);
   }
@@ -336,7 +350,7 @@
   function preparedPatchFor(track){let patch=preparedTrackPatches.get(track.id);if(!patch){patch=engine.preparePlaybackPatch(track.patch);preparedTrackPatches.set(track.id,patch);}return patch;}
   function allocateVstChannel(track){if(track.midi_channel_mode==="manual")return;const used=new Set(project.tracks.filter(other=>other.id!==track.id&&other.source.type==="vst3").map(other=>other.midi_channel));const choices=track.role==="drums"?[9,...Array.from({length:16},(_,i)=>i).filter(i=>i!==9)]:Array.from({length:16},(_,i)=>i).filter(i=>i!==9).concat(9);track.midi_channel=choices.find(channel=>!used.has(channel))??(track.role==="drums"?9:choices[0]);}
   function vstChannel(track){return window.vst3Router?.channelForTrack?.(track)??track.midi_channel;}
-  function playNote(track,event,on,whenSeconds=0,voiceId=null){const router=window.vst3Router;if(track.source.type==="vst3"&&track.source.plugin_id){const channel=vstChannel(track);return on?router?.trackNoteOn(track.id,event.note,event.velocity*track.volume,channel,whenSeconds):router?.trackNoteOff(track.id,event.note,channel,whenSeconds);}engine.usePreparedPlaybackPatch(preparedPatchFor(track));const fn=on?(router?.baseNoteOn||engine.noteOn.bind(engine)):(router?.baseNoteOff||engine.noteOff.bind(engine));engine.playbackVoiceId=voiceId;const master=engine.master;engine.master=panBus(track);try{return on?fn(event.note,event.velocity*track.volume,whenSeconds):fn(event.note,whenSeconds);}finally{engine.master=master;engine.playbackVoiceId=null;}}
+  function playNote(track,event,on,whenSeconds=0,voiceId=null){const router=window.vst3Router;if(track.source.type==="vst3"&&track.source.plugin_id){const channel=vstChannel(track);return on?router?.trackNoteOn(track.id,event.note,event.velocity,channel,whenSeconds):router?.trackNoteOff(track.id,event.note,channel,whenSeconds);}engine.usePreparedPlaybackPatch(preparedPatchFor(track));const fn=on?(router?.baseNoteOn||engine.noteOn.bind(engine)):(router?.baseNoteOff||engine.noteOff.bind(engine));engine.playbackVoiceId=voiceId;const master=engine.master;engine.master=panBus(track);try{return on?fn(event.note,event.velocity,whenSeconds):fn(event.note,whenSeconds);}finally{engine.master=master;engine.playbackVoiceId=null;}}
   function buildPlaybackQueue(tracks){const queue=[];for(const track of tracks){for(const clip of track.clips){for(const [noteIndex,event] of clip.notes.entries()){const startBeat=clip.start_beats+event.start_beats;if(startBeat>=project.length_beats||startBeat>=clip.start_beats+clip.length_beats)continue;queue.push({track,event,voiceId:`${track.id}:${clip.id}:${noteIndex}`,startBeat,endBeat:Math.min(project.length_beats,clip.start_beats+clip.length_beats,startBeat+event.duration_beats)});}}}return queue.sort((a,b)=>a.startBeat-b.startBeat);}
   function prepareInternalSamples(tracks,queue){
     for(const track of tracks){if(track.source.type==="vst3"||frozenBuffers.has(track.id))continue;
@@ -361,7 +375,7 @@
     // Keep enough lead time for a busy UI, but avoid constructing two seconds of
     // live Web Audio graphs in one burst alongside already scheduled frozen stems.
     const lookahead=.8,batchSize=8;
-    let cursor=0;const pump=()=>{if(runId!==playbackRunId)return;const horizon=engine.ctx.currentTime+lookahead,vstEvents=new Map();let processed=0;engine.suppressPerformanceVisuals=true;try{while(cursor<liveQueue.length&&cycleStart+liveQueue[cursor].startBeat*secondsPerBeat<=horizon&&processed<batchSize){const item=liveQueue[cursor++],start=cycleStart+item.startBeat*secondsPerBeat,end=cycleStart+item.endBeat*secondsPerBeat;processed++;const now=engine.ctx.currentTime;if(end<=now){schedulerStats.expired++;continue;}const late=Math.max(0,(now-start)*1000);if(late>2){schedulerStats.late++;schedulerStats.maxLateMs=Math.max(schedulerStats.maxLateMs,late);}if(item.track.source.type==="vst3"&&item.track.source.plugin_id){const events=vstEvents.get(item.track.id)||[],channel=vstChannel(item.track),note_id=window.vst3Router.nextNoteId();events.push({on:true,note:item.event.note,velocity:item.event.velocity*item.track.volume,channel,note_id,delay_ms:Math.max(0,start-now)*1000},{on:false,note:item.event.note,velocity:0,channel,note_id,delay_ms:Math.max(0,end-now)*1000});vstEvents.set(item.track.id,events);}else{playNote(item.track,item.event,true,Math.max(0,start-engine.ctx.currentTime),item.voiceId);playNote(item.track,item.event,false,Math.max(0,end-engine.ctx.currentTime),item.voiceId);}}if(vstEvents.size)window.vst3Router?.trackEventsBatch?.(vstEvents);}finally{engine.suppressPerformanceVisuals=false;}updatePlaybackTiming();if(cursor<liveQueue.length){const untilNext=(cycleStart+liveQueue[cursor].startBeat*secondsPerBeat-engine.ctx.currentTime-lookahead)*1000;playbackTimer=setTimeout(pump,processed===batchSize&&untilNext<=0?0:Math.max(25,Math.min(60,untilNext)));}};if(liveQueue.length)pump();
+    let cursor=0;const pump=()=>{if(runId!==playbackRunId)return;const horizon=engine.ctx.currentTime+lookahead,vstEvents=new Map();let processed=0;engine.suppressPerformanceVisuals=true;try{while(cursor<liveQueue.length&&cycleStart+liveQueue[cursor].startBeat*secondsPerBeat<=horizon&&processed<batchSize){const item=liveQueue[cursor++],start=cycleStart+item.startBeat*secondsPerBeat,end=cycleStart+item.endBeat*secondsPerBeat;processed++;const now=engine.ctx.currentTime;if(end<=now){schedulerStats.expired++;continue;}const late=Math.max(0,(now-start)*1000);if(late>2){schedulerStats.late++;schedulerStats.maxLateMs=Math.max(schedulerStats.maxLateMs,late);}if(item.track.source.type==="vst3"&&item.track.source.plugin_id){const events=vstEvents.get(item.track.id)||[],channel=vstChannel(item.track),note_id=window.vst3Router.nextNoteId();events.push({on:true,note:item.event.note,velocity:item.event.velocity,channel,note_id,delay_ms:Math.max(0,start-now)*1000},{on:false,note:item.event.note,velocity:0,channel,note_id,delay_ms:Math.max(0,end-now)*1000});vstEvents.set(item.track.id,events);}else{playNote(item.track,item.event,true,Math.max(0,start-engine.ctx.currentTime),item.voiceId);playNote(item.track,item.event,false,Math.max(0,end-engine.ctx.currentTime),item.voiceId);}}if(vstEvents.size)window.vst3Router?.trackEventsBatch?.(vstEvents);}finally{engine.suppressPerformanceVisuals=false;}updatePlaybackTiming();if(cursor<liveQueue.length){const untilNext=(cycleStart+liveQueue[cursor].startBeat*secondsPerBeat-engine.ctx.currentTime-lookahead)*1000;playbackTimer=setTimeout(pump,processed===batchSize&&untilNext<=0?0:Math.max(25,Math.min(60,untilNext)));}};if(liveQueue.length)pump();
     completionTimer=setTimeout(()=>{completionTimer=0;if(runId===playbackRunId)onCycleComplete(cycleStart+cycleBeats*secondsPerBeat);},Math.max(0,(cycleStart+cycleBeats*secondsPerBeat-engine.ctx.currentTime)*1000+(loopAhead?-800:30)));
     return cycleStart;
   }
@@ -375,7 +389,7 @@
     const tick=visible?Math.floor(relative*8):-1;
     if(tick!==lastRollHighlightTick){for(const note of marker.parentElement.querySelectorAll(".roll-note")){const start=Number(note.dataset.startBeats),end=Number(note.dataset.endBeats);note.classList.toggle("sounding",visible&&relative>=start&&relative<end);}lastRollHighlightTick=tick;}
     if(!visible)return;
-    const x=64+relative/TIMELINE_BEATS*896;marker.style.left=`${x}px`;
+    const x=ROLL_KEY_WIDTH+relative*ROLL_BEAT_WIDTH;marker.style.left=`${x}px`;
     if(x>root.scrollLeft+root.clientWidth-24||x<root.scrollLeft+64)root.scrollLeft=Math.max(0,x-root.clientWidth*.45);
   }
   function showPlayhead(beat,playing){

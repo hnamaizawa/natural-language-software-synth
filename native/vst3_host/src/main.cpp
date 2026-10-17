@@ -150,6 +150,7 @@ public:
 
     void setSampleRate (uint32_t value) { sampleRate_ = value ? value : kPreferredSampleRate; }
     void setPan (float value) { pan_.store (std::max (-1.0f, std::min (1.0f, value))); }
+    void setGain (float value) { gain_.store (std::max (0.0f, std::min (1.0f, value))); }
     float pan () const { return pan_.load (); }
 
     bool load (const std::string& path, std::string& error)
@@ -949,17 +950,23 @@ public:
             return;
         auto& bus = processData_.outputs[mainOutputBus_];
         float peak = 0.0f;
+        const float targetGain = gain_.load ();
+        const float gainStep = frames > 0 ? (targetGain - currentGain_) / static_cast<float> (frames) : 0.0f;
         for (int32 frame = 0; frame < frames; ++frame)
         {
+            currentGain_ += gainStep;
             float left = 0.0f;
             float right = 0.0f;
             if (bus.numChannels > 0 && bus.channelBuffers32 && bus.channelBuffers32[0]) left = bus.channelBuffers32[0][frame];
             if (bus.numChannels > 1 && bus.channelBuffers32 && bus.channelBuffers32[1]) right = bus.channelBuffers32[1][frame];
             else right = left;
+            left *= currentGain_;
+            right *= currentGain_;
             destination[static_cast<size_t> (frame) * 2] = left;
             destination[static_cast<size_t> (frame) * 2 + 1] = right;
             peak = std::max (peak, std::max (std::abs (left), std::abs (right)));
         }
+        currentGain_ = targetGain;
         lastOutputPeak_.store (peak);
         updateMaxPeak (peak);
     }
@@ -1076,6 +1083,8 @@ public:
     std::atomic<float> lastOutputPeak_ {0.0f};
     std::atomic<float> maxOutputPeak_ {0.0f};
     std::atomic<float> pan_ {0.0f};
+    std::atomic<float> gain_ {1.0f};
+    float currentGain_ {1.0f}; // Audio callback thread only.
     std::atomic<int64_t> testToneFramesRemaining_ {0};
     std::atomic<int32_t> activeNotes_ {0};
     std::atomic<int64_t> idleFramesRemaining_ {0};
@@ -1363,6 +1372,12 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
         {
             auto host = rack.find (parts[1]);
             if (host) { host->setPan (std::stof (parts[2])); std::cout << "{\"ok\":true}" << std::endl; }
+            else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
+        }
+        else if (parts[0] == "GAIN" && parts.size () >= 3)
+        {
+            auto host = rack.find (parts[1]);
+            if (host) { host->setGain (std::stof (parts[2])); std::cout << "{\"ok\":true}" << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "TEST_TONE" && parts.size () >= 2)
