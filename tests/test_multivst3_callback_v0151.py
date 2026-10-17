@@ -9,7 +9,7 @@ def test_native_callback_uses_single_block_and_reuses_event_buffers():
     assert "constexpr uint32_t kBlockSize = 1024;" in native
     assert "config.periodSizeInFrames = kBlockSize;" in native
     assert "setup.maxSamplesPerBlock = static_cast<int32> (kBlockSize);" in native
-    assert "dueNotes_.reserve (1024);" in native
+    assert "dueNotes_.reserve (8192);" in native
     assert "dueParams_.reserve (1024);" in native
     assert "pendingNotes_.erase (std::remove_if (pendingNotes_.begin (), pendingNotes_.end ()," in native
     assert "note.delayFrames -= static_cast<uint64_t> (chunkFrames);" in native

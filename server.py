@@ -413,7 +413,9 @@ class Vst3Bridge:
         }
         if running:
             native = self._command("STATUS")
-            for key in ("single_audio_device", "cpu_load_percent", "audio_overruns", "idle_suspended_count", "sample_rate", "frame_clock"):
+            for key in ("single_audio_device", "cpu_load_percent", "audio_overruns", "max_process_us",
+                        "process_overruns", "skipped_blocks", "instance_metrics", "idle_suspended_count",
+                        "sample_rate", "frame_clock"):
                 if key in native:
                     result[key] = native[key]
         return result
@@ -622,6 +624,10 @@ class Vst3InstanceManager:
             "audio_device_running": native.get("audio_device_running", False),
             "cpu_load_percent": native.get("cpu_load_percent", 0.0),
             "audio_overruns": native.get("audio_overruns", 0),
+            "max_process_us": native.get("max_process_us", 0),
+            "process_overruns": native.get("process_overruns", 0),
+            "skipped_blocks": native.get("skipped_blocks", 0),
+            "native_instance_metrics": native.get("instance_metrics", []),
             "idle_suspended_count": native.get("idle_suspended_count", 0),
             "sample_rate": native.get("sample_rate", 0),
             "frame_clock": native.get("frame_clock", 0),

@@ -17,6 +17,7 @@
 #include "miniaudio.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -34,6 +35,10 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+#if defined(_M_IX86) || defined(_M_X64)
+#include <xmmintrin.h>
+#endif
 
 namespace Steinberg {
 FUnknown* gStandardPluginContext = new Vst::HostApplication ();
@@ -116,12 +121,22 @@ struct PendingParam
     ParamValue value {0.0};
 };
 
+struct ActiveNoteId
+{
+    bool active {false};
+    int32 noteId {-1};
+    int32 pitch {0};
+    int16 channel {0};
+};
+
 class NativeVst3Host
 {
 public:
     NativeVst3Host ()
     {
-        dueNotes_.reserve (1024);
+        // The pending queue is capped at 8192, so reserve its full capacity
+        // before audio starts and avoid vector growth in the callback.
+        dueNotes_.reserve (8192);
         dueParams_.reserve (1024);
         pendingParams_.reserve (1024);
         PluginContextFactory::instance ().setPluginContext (Steinberg::gStandardPluginContext);
@@ -386,9 +401,9 @@ public:
         std::lock_guard<std::mutex> lock (queueMutex_);
         pendingNotes_.clear ();
         for (const auto& active : activeNoteIds_)
-            pendingNotes_.push_back ({false, active.second.first, 0.0f,
-                                      static_cast<int16> (active.second.second), 0, active.first});
-        activeNoteIds_.clear ();
+            if (active.active)
+                pendingNotes_.push_back ({false, active.pitch, 0.0f, active.channel, 0, active.noteId});
+        activeNoteIds_.fill ({});
         for (int channel = 0; channel < 16; ++channel)
             for (int pitch = 0; pitch < 128; ++pitch)
                 pendingNotes_.push_back ({false, pitch, 0.0f, static_cast<int16> (channel), 0});
@@ -496,6 +511,9 @@ public:
             << ",\"event_add_failures\":" << eventAddFailures_.load ()
             << ",\"process_calls\":" << processCalls_.load ()
             << ",\"process_failures\":" << processFailures_.load ()
+            << ",\"max_process_us\":" << maxProcessUs_.load ()
+            << ",\"process_overruns\":" << processOverruns_.load ()
+            << ",\"skipped_blocks\":" << skippedBlocks_.load ()
             << ",\"last_process_result\":" << lastProcessResult_.load ()
             << ",\"last_output_peak\":" << lastOutputPeak_.load ()
             << ",\"max_output_peak\":" << maxOutputPeak_.load ()
@@ -515,6 +533,10 @@ public:
 
     bool isFrozen () const { return manualSuspended_.load (); }
     bool hasOpenEditor () const { std::lock_guard<std::mutex> lock (stateMutex_); return editor_.isOpen (); }
+    uint64_t maxProcessUs () const { return maxProcessUs_.load (); }
+    uint64_t processOverruns () const { return processOverruns_.load (); }
+    uint64_t skippedBlocks () const { return skippedBlocks_.load (); }
+    void markSkippedBlock () { skippedBlocks_.fetch_add (1); }
 
     bool prepareCapture (uint32_t frames)
     {
@@ -524,7 +546,7 @@ public:
         std::lock_guard<std::mutex> queueLock (queueMutex_);
         pendingNotes_.clear ();
         pendingParams_.clear ();
-        activeNoteIds_.clear ();
+        activeNoteIds_.fill ({});
         activeNotes_.store (0);
         captureBuffer_.assign (static_cast<size_t> (frames) * kChannels, 0.0f);
         capturedFrames_.store (0);
@@ -548,7 +570,7 @@ public:
         captureActive_.store (false);
         manualSuspended_.store (false);
         pendingNotes_.clear ();
-        activeNoteIds_.clear ();
+        activeNoteIds_.fill ({});
         activeNotes_.store (0);
         captureBuffer_.clear ();
         captureTargetFrames_ = 0;
@@ -596,6 +618,14 @@ public:
     static void dataCallback (ma_device* device, void* output, const void*, ma_uint32 frameCount)
     {
         auto* self = static_cast<NativeVst3Host*> (device->pUserData);
+#if defined(_M_IX86) || defined(_M_X64)
+        thread_local bool denormalsDisabled = false;
+        if (!denormalsDisabled)
+        {
+            _mm_setcsr (_mm_getcsr () | 0x8040);
+            denormalsDisabled = true;
+        }
+#endif
         self->render (static_cast<float*> (output), frameCount, 0);
     }
 
@@ -705,7 +735,12 @@ public:
         std::fill (output, output + static_cast<size_t> (frameCount) * kChannels, 0.0f);
         if (loaded_.load () && !isIdleSuspended ())
         {
-            std::lock_guard<std::mutex> stateLock (stateMutex_);
+            std::unique_lock<std::mutex> stateLock (stateMutex_, std::try_to_lock);
+            if (!stateLock.owns_lock ())
+            {
+                skippedBlocks_.fetch_add (1);
+                return;
+            }
             if (processor_ && component_)
             {
                 ma_uint32 rendered = 0;
@@ -714,12 +749,27 @@ public:
                     const int32 chunk = static_cast<int32> (std::min<ma_uint32> (kBlockSize, frameCount - rendered));
                     events_.clear ();
                     parameterChanges_.clearQueue ();
-                    const bool queueEmpty = drainPendingChanges (chunk, startFrame + rendered);
+                    bool queueEmpty = false;
+                    if (!drainPendingChanges (chunk, startFrame + rendered, queueEmpty))
+                    {
+                        std::fill (output, output + static_cast<size_t> (frameCount) * kChannels, 0.0f);
+                        skippedBlocks_.fetch_add (1);
+                        return;
+                    }
                     clearProcessInputs (chunk);
                     clearProcessOutputs (chunk);
                     processData_.numSamples = chunk;
                     processContext_.projectTimeSamples = processedSamples_;
+                    const auto processStarted = std::chrono::steady_clock::now ();
                     const auto result = processor_->process (processData_);
+                    const auto processElapsed = std::chrono::steady_clock::now () - processStarted;
+                    const auto processUs = static_cast<uint64_t> (
+                        std::chrono::duration_cast<std::chrono::microseconds> (processElapsed).count ());
+                    auto maximum = maxProcessUs_.load ();
+                    while (processUs > maximum && !maxProcessUs_.compare_exchange_weak (maximum, processUs)) {}
+                    const auto processBudgetUs = static_cast<uint64_t> (
+                        static_cast<double> (chunk) * 1000000.0 / static_cast<double> (sampleRate_));
+                    if (processUs > processBudgetUs) processOverruns_.fetch_add (1);
                     processCalls_.fetch_add (1);
                     lastProcessResult_.store (static_cast<int32_t> (result));
                     if (result == kResultOk)
@@ -744,7 +794,13 @@ public:
         }
         if (captureActive_.load ())
         {
-            std::lock_guard<std::mutex> stateLock (stateMutex_);
+            std::unique_lock<std::mutex> stateLock (stateMutex_, std::try_to_lock);
+            if (!stateLock.owns_lock ())
+            {
+                skippedBlocks_.fetch_add (1);
+                addTestTone (output, frameCount);
+                return;
+            }
             if (captureActive_.load () && captureTargetFrames_ > capturedFrames_.load ())
             {
                 const uint32_t captured = capturedFrames_.load ();
@@ -762,13 +818,13 @@ public:
         addTestTone (output, frameCount);
     }
 
-    bool drainPendingChanges (int32 chunkFrames, uint64_t startFrame)
+    bool drainPendingChanges (int32 chunkFrames, uint64_t startFrame, bool& queueEmpty)
     {
         dueNotes_.clear ();
         dueParams_.clear ();
-        bool queueEmpty = false;
         {
-            std::lock_guard<std::mutex> lock (queueMutex_);
+            std::unique_lock<std::mutex> lock (queueMutex_, std::try_to_lock);
+            if (!lock.owns_lock ()) return false;
             pendingNotes_.erase (std::remove_if (pendingNotes_.begin (), pendingNotes_.end (),
                 [this, chunkFrames, startFrame] (PendingNote& note) {
                     if (note.absoluteFrame)
@@ -797,8 +853,21 @@ public:
             for (const auto& note : dueNotes_)
             {
                 if (note.noteId < 0) continue;
-                if (note.on) activeNoteIds_[note.noteId] = {note.pitch, note.channel};
-                else activeNoteIds_.erase (note.noteId);
+                if (note.on)
+                {
+                    ActiveNoteId* slot = nullptr;
+                    for (auto& active : activeNoteIds_)
+                    {
+                        if (active.active && active.noteId == note.noteId) { slot = &active; break; }
+                        if (!slot && !active.active) slot = &active;
+                    }
+                    if (slot) *slot = {true, note.noteId, note.pitch, note.channel};
+                }
+                else
+                {
+                    for (auto& active : activeNoteIds_)
+                        if (active.active && active.noteId == note.noteId) active.active = false;
+                }
             }
             queueEmpty = pendingNotes_.empty () && dueNotes_.empty () && dueParams_.empty ();
         }
@@ -841,7 +910,7 @@ public:
                 queue->addPoint (0, param.value, pointIndex);
             }
         }
-        return queueEmpty;
+        return true;
     }
 
     void clearProcessInputs (int32 frames)
@@ -923,6 +992,7 @@ public:
         noteOnQueued_.store (0); noteOffQueued_.store (0); eventsDelivered_.store (0); eventAddFailures_.store (0);
         lateNoteEvents_.store (0); maxNoteLatenessFrames_.store (0);
         processCalls_.store (0); processFailures_.store (0); lastProcessResult_.store (0);
+        maxProcessUs_.store (0); processOverruns_.store (0); skippedBlocks_.store (0);
         lastOutputPeak_.store (0.0f); maxOutputPeak_.store (0.0f); processedSamples_ = 0;
     }
 
@@ -941,7 +1011,7 @@ public:
             std::lock_guard<std::mutex> lock (queueMutex_);
             pendingNotes_.clear ();
             pendingParams_.clear ();
-            activeNoteIds_.clear ();
+            activeNoteIds_.fill ({});
         }
         if (processor_) processor_->setProcessing (false);
         if (component_) component_->setActive (false);
@@ -963,7 +1033,7 @@ public:
     mutable std::mutex stateMutex_;
     std::mutex queueMutex_;
     std::vector<PendingNote> pendingNotes_;
-    std::unordered_map<int32, std::pair<int32, int16>> activeNoteIds_;
+    std::array<ActiveNoteId, 1024> activeNoteIds_ {};
     std::vector<PendingParam> pendingParams_;
     // Render-only scratch; retain capacity across callbacks.
     std::vector<PendingNote> dueNotes_;
@@ -999,6 +1069,9 @@ public:
     std::atomic<uint64_t> maxNoteLatenessFrames_ {0};
     std::atomic<uint64_t> processCalls_ {0};
     std::atomic<uint64_t> processFailures_ {0};
+    std::atomic<uint64_t> maxProcessUs_ {0};
+    std::atomic<uint64_t> processOverruns_ {0};
+    std::atomic<uint64_t> skippedBlocks_ {0};
     std::atomic<int32_t> lastProcessResult_ {0};
     std::atomic<float> lastOutputPeak_ {0.0f};
     std::atomic<float> maxOutputPeak_ {0.0f};
@@ -1017,6 +1090,14 @@ class NativeVst3Rack
 public:
     static constexpr size_t kMaxInstances = 24;
 
+    struct InstanceView
+    {
+        std::string id;
+        std::shared_ptr<NativeVst3Host> host;
+    };
+    using InstanceSnapshot = std::vector<InstanceView>;
+
+    NativeVst3Rack () : instancesSnapshot_ (std::make_shared<const InstanceSnapshot> ()) {}
     ~NativeVst3Rack () { stopAudio (); }
 
     bool startAudio ()
@@ -1026,6 +1107,9 @@ public:
         config.playback.channels = kChannels;
         config.sampleRate = kPreferredSampleRate;
         config.periodSizeInFrames = kBlockSize;
+        // miniaudio dynamically calls AvSetMmThreadCharacteristicsW/A on its
+        // WASAPI audio thread when Pro Audio usage is selected.
+        config.wasapi.usage = ma_wasapi_usage_pro_audio;
         config.dataCallback = &NativeVst3Rack::dataCallback;
         config.pUserData = this;
         if (ma_device_init (nullptr, &config, &device_) != MA_SUCCESS) return false;
@@ -1054,13 +1138,11 @@ public:
     {
         if (!audioRunning_) return;
         bool hasFrozen = false;
+        const auto snapshot = currentSnapshot ();
+        for (const auto& instance : *snapshot)
         {
-            std::lock_guard<std::mutex> lock (mutex_);
-            for (const auto& pair : instances_)
-            {
-                hasFrozen = hasFrozen || pair.second->isFrozen ();
-                if (!pair.second->isIdleSuspended () || pair.second->hasOpenEditor ()) return;
-            }
+            hasFrozen = hasFrozen || instance.host->isFrozen ();
+            if (!instance.host->isIdleSuspended () || instance.host->hasOpenEditor ()) return;
         }
         // Stop only when at least one track is frozen; a normal live host
         // retains its device, avoiding a start penalty on ordinary key presses.
@@ -1075,66 +1157,109 @@ public:
         audioRunning_ = false;
     }
 
-    NativeVst3Host* find (const std::string& id)
+    std::shared_ptr<NativeVst3Host> find (const std::string& id)
     {
         std::lock_guard<std::mutex> lock (mutex_);
         const auto it = instances_.find (id);
-        return it == instances_.end () ? nullptr : it->second.get ();
+        return it == instances_.end () ? std::shared_ptr<NativeVst3Host> {} : it->second;
     }
 
     uint32_t sampleRate () const { return sampleRate_; }
     uint64_t frameClock () const { return frameClock_.load (); }
 
-    NativeVst3Host* create (const std::string& id, std::string& error)
+    std::shared_ptr<NativeVst3Host> create (const std::string& id, std::string& error)
     {
         std::lock_guard<std::mutex> lock (mutex_);
         const auto existing = instances_.find (id);
-        if (existing != instances_.end ()) return existing->second.get ();
+        if (existing != instances_.end ()) return existing->second;
         if (instances_.size () >= kMaxInstances)
         {
             error = "VST3 instance limit reached.";
             return nullptr;
         }
-        auto host = std::make_unique<NativeVst3Host> ();
+        auto host = std::make_shared<NativeVst3Host> ();
         host->setSampleRate (sampleRate_);
-        auto* result = host.get ();
-        instances_.emplace (id, std::move (host));
-        return result;
+        instances_.emplace (id, host);
+        publishSnapshotUnlocked ();
+        return host;
     }
 
     void remove (const std::string& id)
     {
         std::lock_guard<std::mutex> lock (mutex_);
-        instances_.erase (id);
+        const auto it = instances_.find (id);
+        if (it == instances_.end ()) return;
+        retiredHosts_.push_back (std::move (it->second));
+        instances_.erase (it);
+        publishSnapshotUnlocked ();
     }
 
     void pumpEditorMessages ()
     {
+        const auto snapshot = currentSnapshot ();
+        for (const auto& instance : *snapshot) instance.host->pumpEditorMessages ();
         std::lock_guard<std::mutex> lock (mutex_);
-        for (auto& pair : instances_) pair.second->pumpEditorMessages ();
+        for (auto it = retiredSnapshots_.begin (); it != retiredSnapshots_.end ();)
+        {
+            if (it->use_count () == 1) it = retiredSnapshots_.erase (it);
+            else ++it;
+        }
+        for (auto it = retiredHosts_.begin (); it != retiredHosts_.end ();)
+        {
+            if (it->use_count () == 1) it = retiredHosts_.erase (it);
+            else ++it;
+        }
     }
 
     std::string statusJson ()
     {
-        std::lock_guard<std::mutex> lock (mutex_);
+        const auto snapshot = currentSnapshot ();
         size_t suspended = 0;
-        for (const auto& pair : instances_) if (pair.second->isIdleSuspended ()) ++suspended;
+        uint64_t maxProcessUs = 0, processOverruns = 0, skippedBlocks = 0;
+        for (const auto& instance : *snapshot)
+        {
+            if (instance.host->isIdleSuspended ()) ++suspended;
+            maxProcessUs = std::max (maxProcessUs, instance.host->maxProcessUs ());
+            processOverruns += instance.host->processOverruns ();
+            skippedBlocks += instance.host->skippedBlocks ();
+        }
         std::ostringstream out;
         out << "{\"ok\":true,\"audio_started\":" << (audioStarted_ ? "true" : "false")
             << ",\"audio_device_running\":" << (audioRunning_ ? "true" : "false")
             << ",\"sample_rate\":" << sampleRate_
-            << ",\"instance_count\":" << instances_.size ()
+            << ",\"instance_count\":" << snapshot->size ()
             << ",\"idle_suspended_count\":" << suspended
             << ",\"cpu_load_percent\":" << cpuLoadPercent_.load ()
             << ",\"audio_overruns\":" << audioOverruns_.load ()
+            << ",\"max_process_us\":" << maxProcessUs
+            << ",\"process_overruns\":" << processOverruns
+            << ",\"skipped_blocks\":" << skippedBlocks
             << ",\"frame_clock\":" << frameClock_.load ()
-            << ",\"single_audio_device\":true}";
+            << ",\"single_audio_device\":true,\"instance_metrics\":[";
+        for (size_t i = 0; i < snapshot->size (); ++i)
+        {
+            if (i) out << ',';
+            const auto& instance = (*snapshot)[i];
+            out << "{\"id\":\"" << jsonEscape (instance.id) << "\",\"max_process_us\":"
+                << instance.host->maxProcessUs () << ",\"process_overruns\":"
+                << instance.host->processOverruns () << ",\"skipped_blocks\":"
+                << instance.host->skippedBlocks () << '}';
+        }
+        out << "]}";
         return out.str ();
     }
 
 private:
     static void dataCallback (ma_device* device, void* output, const void*, ma_uint32 frames)
     {
+#if defined(_M_IX86) || defined(_M_X64)
+        thread_local bool denormalsDisabled = false;
+        if (!denormalsDisabled)
+        {
+            _mm_setcsr (_mm_getcsr () | 0x8040);
+            denormalsDisabled = true;
+        }
+#endif
         auto* rack = static_cast<NativeVst3Rack*> (device->pUserData);
         const auto started = std::chrono::steady_clock::now ();
         const auto startFrame = rack->frameClock_.fetch_add (frames);
@@ -1151,20 +1276,25 @@ private:
     {
         const auto samples = static_cast<size_t> (frames) * kChannels;
         std::fill (output, output + samples, 0.0f);
-        std::lock_guard<std::mutex> lock (mutex_);
+        const auto snapshot = currentSnapshot ();
         bool hasActiveOutput = false;
-        for (auto& pair : instances_)
+        for (const auto& instance : *snapshot)
         {
-            if (pair.second->isIdleSuspended ()) continue;
-            if (!hasActiveOutput && pair.second->pan () == 0.0f)
+            const auto& host = instance.host;
+            if (host->isIdleSuspended ()) continue;
+            if (!hasActiveOutput && host->pan () == 0.0f)
             {
-                pair.second->render (output, frames, startFrame);
+                host->render (output, frames, startFrame);
                 hasActiveOutput = true;
                 continue;
             }
-            if (scratch_.size () < samples) scratch_.resize (samples);
-            pair.second->render (scratch_.data (), frames, startFrame);
-            const float pan = pair.second->pan ();
+            if (samples > scratch_.size ())
+            {
+                host->markSkippedBlock ();
+                continue;
+            }
+            host->render (scratch_.data (), frames, startFrame);
+            const float pan = host->pan ();
             const float left = std::min (1.0f, 1.0f - pan);
             const float right = std::min (1.0f, 1.0f + pan);
             for (size_t i = 0; i + 1 < samples; i += 2)
@@ -1178,8 +1308,27 @@ private:
             for (size_t i = 0; i < samples; ++i) output[i] = std::max (-1.0f, std::min (1.0f, output[i]));
     }
 
+    std::shared_ptr<const InstanceSnapshot> currentSnapshot () const
+    {
+        return std::atomic_load_explicit (&instancesSnapshot_, std::memory_order_acquire);
+    }
+
+    void publishSnapshotUnlocked ()
+    {
+        const auto previous = std::atomic_load_explicit (&instancesSnapshot_, std::memory_order_acquire);
+        if (previous) retiredSnapshots_.push_back (previous);
+        auto next = std::make_shared<InstanceSnapshot> ();
+        next->reserve (instances_.size ());
+        for (const auto& pair : instances_) next->push_back ({pair.first, pair.second});
+        std::shared_ptr<const InstanceSnapshot> published = std::move (next);
+        std::atomic_store_explicit (&instancesSnapshot_, std::move (published), std::memory_order_release);
+    }
+
     std::mutex mutex_;
-    std::unordered_map<std::string, std::unique_ptr<NativeVst3Host>> instances_;
+    std::unordered_map<std::string, std::shared_ptr<NativeVst3Host>> instances_;
+    std::vector<std::shared_ptr<const InstanceSnapshot>> retiredSnapshots_;
+    std::vector<std::shared_ptr<NativeVst3Host>> retiredHosts_;
+    std::shared_ptr<const InstanceSnapshot> instancesSnapshot_;
     std::vector<float> scratch_;
     ma_device device_ {};
     uint32_t sampleRate_ {kPreferredSampleRate};
@@ -1201,99 +1350,99 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
         else if (parts[0] == "LOAD" && parts.size () >= 3)
         {
             std::string error;
-            auto* host = rack.create (parts[1], error);
+            auto host = rack.create (parts[1], error);
             std::cout << (host && host->load (parts[2], error) ? host->pluginJson () : errorJson (error)) << std::endl;
         }
         else if (parts[0] == "STATUS") std::cout << rack.statusJson () << std::endl;
         else if (parts[0] == "DIAGNOSTICS" && parts.size () >= 2)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             std::cout << (host ? host->diagnosticsJson () : errorJson ("Unknown VST3 instance")) << std::endl;
         }
         else if (parts[0] == "PAN" && parts.size () >= 3)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             if (host) { host->setPan (std::stof (parts[2])); std::cout << "{\"ok\":true}" << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "TEST_TONE" && parts.size () >= 2)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             if (host && rack.ensureAudioRunning ()) { host->startTestTone (); std::cout << "{\"ok\":true,\"test_tone\":true}" << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "EDITOR_OPEN" && parts.size () >= 2)
         {
             std::string error;
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             if (host && rack.ensureAudioRunning () && host->openEditor (error)) std::cout << "{\"ok\":true,\"editor_open\":true}" << std::endl;
             else std::cout << errorJson (error) << std::endl;
         }
         else if (parts[0] == "EDITOR_CLOSE" && parts.size () >= 2)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             if (host) { host->closeEditor (); std::cout << "{\"ok\":true,\"editor_open\":false}" << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "PARAMS" && parts.size () >= 2)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             std::cout << (host ? host->parametersJson () : errorJson ("Unknown VST3 instance")) << std::endl;
         }
         else if (parts[0] == "PARAM" && parts.size () >= 4)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             const auto id = static_cast<uint32_t> (std::stoul (parts[2]));
             const auto value = std::stod (parts[3]);
             std::cout << (host && host->queueParameter (id, value) ? "{\"ok\":true}" : errorJson ("No controller loaded")) << std::endl;
         }
         else if (parts[0] == "STATE_SAVE" && parts.size () >= 3)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             std::cout << (host && host->saveState (parts[2]) ? "{\"ok\":true}" :
                           errorJson ("VST3 state could not be saved")) << std::endl;
         }
         else if (parts[0] == "STATE_LOAD" && parts.size () >= 3)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             std::cout << (host && host->loadState (parts[2]) ? "{\"ok\":true}" :
                           errorJson ("VST3 state could not be restored")) << std::endl;
         }
         else if (parts[0] == "FREEZE_PREPARE" && parts.size () >= 3)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             const auto frames = std::stoul (parts[2]);
             std::cout << (host && host->prepareCapture (frames) ? "{\"ok\":true}" :
                           errorJson ("Capture duration or VST3 instance is invalid")) << std::endl;
         }
         else if (parts[0] == "FREEZE_ARM" && parts.size () >= 2)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             if (host && rack.ensureAudioRunning ()) { host->armCapture (); std::cout << "{\"ok\":true}" << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "FREEZE_STATUS" && parts.size () >= 2)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             if (host) std::cout << "{\"ok\":true,\"frames\":" << host->capturedFrames ()
                                 << ",\"target_frames\":" << host->captureTargetFrames () << "}" << std::endl;
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "FREEZE_SAVE" && parts.size () >= 3)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             std::cout << (host && host->saveCapture (parts[2]) ? "{\"ok\":true}" :
                           errorJson ("Capture is incomplete or cannot be saved")) << std::endl;
         }
         else if (parts[0] == "FREEZE_RESUME" && parts.size () >= 2)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             if (host) { host->resume (); std::cout << "{\"ok\":true}" << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }
         else if (parts[0] == "NOTE_ON" && parts.size () >= 4)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             const auto channel = parts.size () >= 5 ? std::stoi (parts[4]) : 0;
             const auto noteId = parts.size () >= 6 ? std::stoi (parts[5]) : -1;
             if (host && rack.ensureAudioRunning ()) { const bool queued = host->queueNote (true, std::stoi (parts[2]), static_cast<float> (std::stod (parts[3])), channel, 0, noteId); std::cout << (queued ? "{\"ok\":true}" : errorJson ("VST3 event queue is full")) << std::endl; }
@@ -1301,7 +1450,7 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
         }
         else if (parts[0] == "NOTE_OFF" && parts.size () >= 3)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             const auto channel = parts.size () >= 4 ? std::stoi (parts[3]) : 0;
             const auto noteId = parts.size () >= 5 ? std::stoi (parts[4]) : -1;
             if (host) { const bool queued = host->queueNote (false, std::stoi (parts[2]), 0.0f, channel, 0, noteId); std::cout << (queued ? "{\"ok\":true}" : errorJson ("VST3 event queue is full")) << std::endl; }
@@ -1309,7 +1458,7 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
         }
         else if (parts[0] == "BATCH" && parts.size () >= 3)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             if (!host || !rack.ensureAudioRunning ()) std::cout << errorJson ("Unknown VST3 instance or audio device unavailable") << std::endl;
             else
             {
@@ -1341,7 +1490,7 @@ bool processCommand (NativeVst3Rack& rack, const std::string& line)
         }
         else if (parts[0] == "CLEAR" && parts.size () >= 2)
         {
-            auto* host = rack.find (parts[1]);
+            auto host = rack.find (parts[1]);
             if (host) { host->clearScheduledEvents (); std::cout << "{\"ok\":true}" << std::endl; }
             else std::cout << errorJson ("Unknown VST3 instance") << std::endl;
         }

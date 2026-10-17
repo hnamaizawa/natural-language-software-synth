@@ -2,6 +2,12 @@
 
 実用的な楽器プリセットを起点に、手元のReference Audioや自然言語で音色を調整し、その場で演奏・比較できるローカル優先のソフトウェア音源です。鍵盤／PCキーボード／Web MIDI／Sample Performance／鼻歌メロディー／Windows VST3 Instrumentに対応しています。
 
+## v0.20.6 の主な変更
+
+- Native VST3音声コールバックはラックのロックを待たず、不変なインスタンススナップショットを使って処理します。各VST3インスタンスの処理状態／イベントキューのロックを取れないブロックは無音にして、`skipped_blocks` に記録します。音声出力時のメモリ確保を避けるため、note ID追跡を固定長配列にしました。
+- Native Hostの状態／発音診断に、インスタンス別の最大 `process()` 時間（`max_process_us`）、処理締切超過回数（`process_overruns`）、スキップしたブロック数（`skipped_blocks`）を追加しました。WindowsではminiaudioのWASAPI Pro Audio/MMCSS設定とFTZ/DAZを有効にします。
+- 更新後はアプリを終了し、Windowsで `build_vst3_host.cmd` を実行してNative Hostを再ビルドしてください。アプリを再起動後、7パート再生とVST3エディタ表示中に「VST3診断」を確認します。実機での音切れ改善は利用環境で確認してください。
+
 ## v0.20.5 の主な変更
 
 - 「暗めのラテンピアノ・モントゥーノ · Cマイナー」を全パート用サンプル曲に追加しました。Cm–A♭–Fm–Gmを循環し、自然短音階の音だけを使う8小節です。既存の明るいCメジャー／Gマイナー曲は残しています。
