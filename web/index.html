@@ -89,6 +89,12 @@
         <button data-prompt="木質で短いアタックのプラック。ギターの弦らしさを少し残した有機的な音。">PCM Resynth Pluck</button>
         <button data-prompt="息の成分があるエアリーなクワイアパッド。柔らかく広がり、長い余韻。">PCM Resynth Choir</button>
       </div>
+      <section id="savedPatchLibrary" class="saved-patch-library" aria-label="保存した音色">
+        <div class="saved-patch-library-head"><div><span class="kicker">MY SOUND LIBRARY</span><strong>作成した音色を保存して、選択・試聴・録音に使う</strong></div><button id="saveCurrentPatchBtn" type="button" class="primary">現在の音色を保存</button></div>
+        <div class="saved-patch-save-row"><label>音色名<input id="savedPatchName" maxlength="80" placeholder="現在の音色名を使います" /></label><span>保存先はこのブラウザ内です。Patchは検証してから使用します。</span></div>
+        <div id="savedPatchList" class="saved-patch-list" aria-live="polite"></div>
+        <p id="savedPatchStatus" class="saved-patch-status" role="status">ここに保存した音色が表示されます。</p>
+      </section>
       <p id="status">「音源を有効化」を押すとFactory PCMバッファとPCM再合成の解析元も準備します。</p>
     </section>
 
@@ -202,6 +208,7 @@
   <script src="/humming_runtime.js"></script>
   <script src="/keyboard_performance_runtime.js"></script>
   <script src="/recording_workspace_runtime.js"></script>
+  <script src="/saved_patch_library_runtime.js?v=0.20.8"></script>
 <script src="/sequencer_samples.js?v=0.20.5"></script>
 <script src="/frozen_audio_project.js?v=0.18.4"></script>
 <script src="/frozen_stem_mix.js?v=0.19.4"></script>

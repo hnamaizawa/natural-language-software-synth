@@ -29,6 +29,19 @@ button:hover:not(:disabled),.file-btn:hover { transform: translateY(-1px); borde
 .prompt-row .primary { min-width: 140px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .chips button { font-size: .85rem; padding: 7px 10px; }
+.saved-patch-library{margin-top:18px;padding:16px;border:1px solid #39415f;border-radius:15px;background:#111521}
+.saved-patch-library-head,.saved-patch-save-row,.saved-patch-row,.saved-patch-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.saved-patch-library-head,.saved-patch-save-row{justify-content:space-between}
+.saved-patch-library-head strong,.saved-patch-row strong,.saved-patch-row small{display:block}
+.saved-patch-save-row{margin:12px 0;color:#9ca6c4;font-size:.82rem}
+.saved-patch-save-row label{display:flex;align-items:center;gap:8px;font-weight:700}
+.saved-patch-save-row input{max-width:280px}
+.saved-patch-list{display:grid;gap:8px}
+.saved-patch-row{justify-content:space-between;padding:10px 12px;border:1px solid #303650;border-radius:10px;background:#171b2a}
+.saved-patch-row small{margin-top:4px;color:#9ca6c4;font-size:.76rem}
+.saved-patch-actions button{padding:7px 9px;font-size:.78rem}
+.saved-patch-status{margin:10px 0 0;color:#9ca6c4;font-size:.85rem}
+@media(max-width:700px){.saved-patch-row,.saved-patch-library-head{align-items:stretch;flex-direction:column}.saved-patch-actions button{flex:1}}
 #status { margin: 12px 0 0; color: #9ca6c4; font-size: .9rem; }
 .workspace { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(340px,.82fr); gap: 22px; align-items: start; }
 .instrument-panel,.params-panel,.future-panel { padding: 22px; }

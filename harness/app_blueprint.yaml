@@ -87,6 +87,9 @@ required_capabilities:
 - multitrack_project_model
 - per_track_volume_control
 - piano_roll_fixed_beat_grid
+- browser_local_saved_patch_library
+- saved_patch_assignment_to_selected_track
+- saved_patch_reused_by_performance_and_recording_playback
 - independent_track_patch_assignment
 - bounded_note_clip_model
 - project_json_save_load

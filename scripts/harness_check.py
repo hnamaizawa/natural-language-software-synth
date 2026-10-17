@@ -12,7 +12,7 @@ REQUIRED = [
     "src/ai_synth/patch.py", "src/ai_synth/prompt_engine.py", "src/ai_synth/timbre_variants.py",
     "web/index.html", "web/app.js", "web/patch_editor_runtime.js", "web/guitar_runtime.js",
     "web/piano_runtime.js", "web/resynthesis_runtime.js", "web/instrument_performance_runtime.js",
-    "web/performance_library_runtime.js", "web/output_level_runtime.js", "web/humming_runtime.js",
+    "web/performance_library_runtime.js", "web/output_level_runtime.js", "web/humming_runtime.js", "web/saved_patch_library_runtime.js",
     "web/keyboard_performance_runtime.js", "web/recording_workspace_runtime.js", "web/vst3_runtime.js",
     "web/performance_editor.css", "web/keyboard_performance.css", "web/style.css",
     "native/vst3_host/CMakeLists.txt", "native/vst3_host/src/main.cpp",
@@ -131,6 +131,7 @@ def main() -> None:
     humming_js = (ROOT / "web/humming_runtime.js").read_text(encoding="utf-8")
     keyboard_recording_js = (ROOT / "web/keyboard_performance_runtime.js").read_text(encoding="utf-8")
     recording_workspace_js = (ROOT / "web/recording_workspace_runtime.js").read_text(encoding="utf-8")
+    saved_patch_js = (ROOT / "web/saved_patch_library_runtime.js").read_text(encoding="utf-8")
     vst3_js = (ROOT / "web/vst3_runtime.js").read_text(encoding="utf-8")
     server_py = (ROOT / "server.py").read_text(encoding="utf-8")
     native_cpp = (ROOT / "native/vst3_host/src/main.cpp").read_text(encoding="utf-8")
@@ -209,6 +210,16 @@ def main() -> None:
         fail("recording workspace must load after keyboard recording runtime")
     if html.index('/recording_workspace_runtime.js') > html.index('/vst3_runtime.js'):
         fail("VST3 router must remain the final note-event wrapper")
+    require_tokens(saved_patch_js, ["localStorage", "validatePatch(raw)", "MAX_PATCHES=64", "applyTrackPatch", "window.savedPatchLibrary"], "browser-local saved patch library")
+    for forbidden in ["new AudioContext", "new (window.AudioContext", "MediaRecorder", "fetch(", "eval(", "new Function(", "engine.noteOn", "engine.noteOff"]:
+        if forbidden in saved_patch_js:
+            fail(f"saved patch library must reuse existing patch and note-event paths: {forbidden}")
+    if html.index('/saved_patch_library_runtime.js') < html.index('/app.js') or html.index('/saved_patch_library_runtime.js') > html.index('/vst3_runtime.js'):
+        fail("saved patch library must load after application runtime and before final VST3 wrapper")
+    for control in ['id="saveCurrentPatchBtn"', 'id="savedPatchName"', 'id="savedPatchList"']:
+        if control not in html:
+            fail(f"saved patch library control missing: {control}")
+    ok("saved sound patches connect sound design, selected tracks, performance and recording playback")
     ok("workflow-guided UI and unified recording workspace retained without a parallel audio/network path")
 
     humming_controls = [
