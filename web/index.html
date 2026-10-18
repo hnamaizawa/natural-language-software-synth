@@ -7,7 +7,8 @@
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="/performance_editor.css" />
   <link rel="stylesheet" href="/keyboard_performance.css" />
-  <link rel="stylesheet" href="/multitrack.css?v=0.20.7" />
+  <link rel="stylesheet" href="/multitrack.css?v=0.20.9" />
+  <link rel="stylesheet" href="/track_workflow.css?v=0.20.9" />
 </head>
 <body>
   <main>
@@ -19,13 +20,6 @@
       </div>
       <button id="audioBtn" class="primary">音源を有効化</button>
     </header>
-
-    <nav class="workflow-guide" aria-label="基本操作の流れ">
-      <a href="#soundDesign"><span>1</span><strong>音色を作る</strong><small>Preset / Reference / 自然言語</small></a>
-      <a href="#soundSource"><span>2</span><strong>音源を選ぶ</strong><small>内蔵 / VST3</small></a>
-      <a href="#performance"><span>3</span><strong>演奏・試聴</strong><small>鍵盤 / MIDI / Sample</small></a>
-      <a href="#recordingStudio"><span>4</span><strong>録音する</strong><small>PCキー / 鼻歌</small></a>
-    </nav>
 
     <section id="arrangement" class="panel arrangement-panel">
       <div class="arrangement-head">
@@ -193,6 +187,7 @@
 
     <section class="panel future-panel"><span class="kicker">ENGINE CONTRACT</span><h2>Preset・Reference Audio・自然言語・VST3で安全な境界を維持</h2><p>Reference Audioはブラウザ内で特徴量だけを抽出し、音声そのものは保存・送信しません。Preset／Reference Match／自然言語のいずれも最終的に既存validatorを通したPatchとなり、既存の <code>noteOn / noteOff</code> を使用します。</p></section>
   </main>
+  <script src="/track_workflow_runtime.js?v=0.20.9"></script>
   <script src="/app.js"></script>
   <script src="/patch_editor_runtime.js"></script>
   <script src="/guitar_runtime.js"></script>
@@ -208,14 +203,14 @@
   <script src="/humming_runtime.js"></script>
   <script src="/keyboard_performance_runtime.js"></script>
   <script src="/recording_workspace_runtime.js"></script>
-  <script src="/saved_patch_library_runtime.js?v=0.20.8"></script>
+  <script src="/saved_patch_library_runtime.js?v=0.20.9"></script>
 <script src="/sequencer_samples.js?v=0.20.5"></script>
 <script src="/frozen_audio_project.js?v=0.18.4"></script>
 <script src="/frozen_stem_mix.js?v=0.19.4"></script>
 <script src="/playback_diagnostics.js?v=0.19.5"></script>
 <script src="/humming_clip_bridge.js?v=0.20.0"></script>
-<script src="/multitrack_runtime.js?v=0.20.7"></script>
-<script src="/vst3_runtime.js?v=0.20.7"></script>
+<script src="/multitrack_runtime.js?v=0.20.9"></script>
+<script src="/vst3_runtime.js?v=0.20.9"></script>
   <script src="/ui_help_runtime.js"></script>
 </body>
 </html>

@@ -1,5 +1,12 @@
 # Development Harness
 
+## v0.20.9 phrase-first per-track workflow
+
+- The arrangement / phrase manager is the primary workspace. Sound design, source selection, audition, and recording appear as submenus within the selected track's sound panel; they are not separate top-level workflow destinations.
+- The submenu set follows the selected track source. Internal and Reference Audio sources expose sound design, source selection, preview, and recording. VST3 exposes its per-track scan/load controls and clip audition; internal patch editing and the single-instrument recording workspace are hidden for that source.
+- Reference Audio import remains local feature analysis, not a raw-audio instrument or a new playback/recording path. VST3 continues through the existing scanned-ID-only native host and note-event boundary.
+- Existing feature controls are moved intact before their runtime handlers bind, retaining their IDs and single-AudioContext / Note Event contracts.
+
 ## v0.20.7 track volume and piano-roll timing
 
 - Per-track volume is applied as output gain rather than changing MIDI velocity. Internal voices share a per-track gain/pan bus; independent VST3 tracks use the Native Host instance gain. Shared VST3 aliases cannot expose independent audio gain and their volume control is disabled.
