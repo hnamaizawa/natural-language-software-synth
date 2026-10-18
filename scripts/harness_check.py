@@ -14,6 +14,7 @@ REQUIRED = [
     "web/piano_runtime.js", "web/resynthesis_runtime.js", "web/instrument_performance_runtime.js",
     "web/performance_library_runtime.js", "web/output_level_runtime.js", "web/humming_runtime.js", "web/saved_patch_library_runtime.js",
     "web/keyboard_performance_runtime.js", "web/recording_workspace_runtime.js", "web/vst3_runtime.js",
+    "web/track_workflow_runtime.js", "web/track_workflow.css",
     "web/performance_editor.css", "web/keyboard_performance.css", "web/style.css",
     "native/vst3_host/CMakeLists.txt", "native/vst3_host/src/main.cpp",
     "native/vst3_host/src/plugin_editor_win32.h", "native/vst3_host/src/plugin_editor_win32.cpp",
@@ -132,6 +133,7 @@ def main() -> None:
     keyboard_recording_js = (ROOT / "web/keyboard_performance_runtime.js").read_text(encoding="utf-8")
     recording_workspace_js = (ROOT / "web/recording_workspace_runtime.js").read_text(encoding="utf-8")
     saved_patch_js = (ROOT / "web/saved_patch_library_runtime.js").read_text(encoding="utf-8")
+    multitrack_js = (ROOT / "web/multitrack_runtime.js").read_text(encoding="utf-8")
     vst3_js = (ROOT / "web/vst3_runtime.js").read_text(encoding="utf-8")
     server_py = (ROOT / "server.py").read_text(encoding="utf-8")
     native_cpp = (ROOT / "native/vst3_host/src/main.cpp").read_text(encoding="utf-8")
@@ -190,9 +192,26 @@ def main() -> None:
             fail(f"recording workspace control missing: {control}")
     workflow_ids = ['id="soundDesign"', 'id="soundSource"', 'id="performance"', 'id="recordingStudio"']
     if not all(token in html for token in workflow_ids):
-        fail("workflow guide sections are incomplete")
+        fail("track workflow sections are incomplete")
     if not (html.index(workflow_ids[0]) < html.index(workflow_ids[1]) < html.index(workflow_ids[2]) < html.index(workflow_ids[3])):
         fail("workflow sections must remain sound design -> sound source -> performance -> recording")
+    workflow_runtime = (ROOT / "web/track_workflow_runtime.js").read_text(encoding="utf-8")
+    if html.index('/track_workflow_runtime.js') > html.index('/app.js'):
+        fail("per-track workflow panels must be assembled before feature controls bind")
+    if 'class="workflow-guide"' in html:
+        fail("standalone workflow menu must be removed from the phrase manager")
+    require_tokens(
+        workflow_runtime,
+        [
+            'soundPanel.append(nav,content)', 'pane.append(step.element)', 'sourceTabs',
+            'if(vstPicker)vstPicker.hidden=!isVst', 'if(sourceGrid)sourceGrid.hidden=isVst',
+            'sourceType!=="reference"', 'legacyVst.hidden=true', 'window.trackWorkflow={setSource,activate}',
+            'soundDesign.prepend(currentSoundHeader)', 'legacyWorkspace.hidden=true',
+        ],
+        "source-aware per-track workflow menus",
+    )
+    if 'window.trackWorkflow?.setSource?.(track.source.type)' not in multitrack_js:
+        fail("selected track source must update available workflow menus")
     require_tokens(
         recording_workspace_js,
         [
@@ -220,7 +239,7 @@ def main() -> None:
         if control not in html:
             fail(f"saved patch library control missing: {control}")
     ok("saved sound patches connect sound design, selected tracks, performance and recording playback")
-    ok("workflow-guided UI and unified recording workspace retained without a parallel audio/network path")
+    ok("phrase manager owns source-aware per-track workflow menus and unified recording workspace")
 
     humming_controls = [
         "hummingAutoKey", "hummingKeyDisplay", "hummingAutoTiming", "hummingTimingDisplay", "hummingBpm",
@@ -267,7 +286,7 @@ def main() -> None:
     for control in vst_controls:
         if f'id="{control}"' not in html:
             fail(f"VST3 UI control missing: {control}")
-    if 'src="/vst3_runtime.js?v=0.20.7"' not in html or html.index('/humming_runtime.js') > html.index('/vst3_runtime.js'):
+    if 'src="/vst3_runtime.js?v=0.20.9"' not in html or html.index('/humming_runtime.js') > html.index('/vst3_runtime.js'):
         fail("VST3 router must load after humming and all audio wrappers")
     require_tokens(
         vst3_js,

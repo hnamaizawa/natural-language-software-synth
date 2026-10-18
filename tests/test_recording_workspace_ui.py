@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_main_workflow_is_ordered_by_user_task():
     html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    workflow = (ROOT / "web" / "track_workflow_runtime.js").read_text(encoding="utf-8")
     for control_id in [
         "soundDesign",
         "soundSource",
@@ -22,6 +23,31 @@ def test_main_workflow_is_ordered_by_user_task():
     assert 'src="/recording_workspace_runtime.js"' in html
     assert html.index('/keyboard_performance_runtime.js') < html.index('/recording_workspace_runtime.js')
     assert html.index('/recording_workspace_runtime.js') < html.index('/vst3_runtime.js')
+    assert html.index('id="arrangement"') < html.index('id="soundDesign"')
+    assert 'class="workflow-guide"' not in html
+    assert 'id="trackSoundPanel"' in html
+    assert 'trackWorkflowPane-${step.id}' in workflow
+    assert 'pane.append(step.element)' in workflow
+    assert 'soundPanel.append(nav,content)' in workflow
+    assert 'soundDesign.prepend(currentSoundHeader)' in workflow
+    assert 'legacyWorkspace.hidden=true' in workflow
+
+
+def test_track_workflow_submenus_follow_the_selected_source_type():
+    runtime = (ROOT / "web" / "track_workflow_runtime.js").read_text(encoding="utf-8")
+    multitrack = (ROOT / "web" / "multitrack_runtime.js").read_text(encoding="utf-8")
+    for token in [
+        'sources:["internal","reference"]',
+        'sources:["internal","reference","vst3"]',
+        'if(vstPicker)vstPicker.hidden=!isVst',
+        'if(sourceGrid)sourceGrid.hidden=isVst',
+        'sourceType!=="reference"',
+        'legacyVst.hidden=true',
+        'window.trackWorkflow={setSource,activate}',
+    ]:
+        assert token in runtime
+    assert 'window.trackWorkflow?.setSource?.(track.source.type)' in multitrack
+    assert 'setSource?.("reference",{focusSource:true})' in multitrack
 
 
 def test_keyboard_and_humming_recorders_share_one_recording_studio():

@@ -8,8 +8,8 @@ purpose: >-
   microphone and safety contracts while supporting automatic humming key/timing correction,
   staff notation, a diagnosable Windows native VST3 instrument host, same-instance native
   VST3 editor windows, bounded expanded natural-language timbre archetypes, PCM-derived
-  spectral resynthesis, and a workflow-guided UI with one unified recording workspace for
-  computer-keyboard and humming capture.
+  spectral resynthesis, and a phrase-first per-track workflow with source-aware submenus and
+  one unified recording workspace for computer-keyboard and humming capture.
 required_capabilities:
 - natural_language_patch_generation
 - deterministic_offline_prompt_fallback
@@ -22,6 +22,8 @@ required_capabilities:
 - validated_patch_schema
 - browser_web_audio_polyphonic_engine
 - workflow_guided_ui
+- phrase_first_per_track_workflow
+- source_aware_track_workflow_menus
 - unified_recording_workspace
 - recording_mode_tabs
 - pcm_fretless_bass_engine
@@ -261,6 +263,8 @@ required_files:
 - web/humming_runtime.js
 - web/keyboard_performance_runtime.js
 - web/recording_workspace_runtime.js
+- web/track_workflow_runtime.js
+- web/track_workflow.css
 - web/multitrack_runtime.js
 - web/vst3_runtime.js
 - web/performance_editor.css
@@ -287,7 +291,9 @@ acceptance_commands:
 - start_synth.cmd
 - build_vst3_host.cmd
 ui_requirements:
-  workflow_guide_steps: [sound_design, sound_source, play_preview, recording]
+  phrase_manager_is_primary_workspace: true
+  track_workflow_submenus: [sound_design, sound_source, play_preview, recording]
+  source_specific_workflow_visibility: [internal, reference_audio, vst3]
   prompt_to_patch: true
   onscreen_keyboard: true
   onscreen_drum_pads: true

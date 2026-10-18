@@ -47,6 +47,6 @@ def test_workflow_exposes_patch_library_and_documents_local_scope():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert 'id="savedPatchLibrary"' in html
     assert 'id="saveCurrentPatchBtn"' in html
-    assert '/saved_patch_library_runtime.js?v=0.20.8' in html
+    assert '/saved_patch_library_runtime.js?v=0.20.9' in html
     assert "## v0.20.8 の主な変更" in readme
     assert "ブラウザのローカルストレージ" in readme

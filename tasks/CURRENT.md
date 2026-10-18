@@ -1,5 +1,15 @@
 # CURRENT
 
+## v0.20.9 Phrase-first, source-aware per-track workflow
+
+- [x] 「パートごとに音色とフレーズを管理」をメイン画面とし、従来の独立した1〜4案内を削除
+- [x] 各トラック設定内に音色作成・音源選択・演奏／試聴・録音のサブメニューを統合（既存DOM要素を移動し、イベント契約を維持）
+- [x] 現在Patch情報／JSON操作とグラフィカル音色編集も音色作成メニューへ統合し、旧ワークフロー枠を非表示
+- [x] 内蔵／Reference Audio／VST3選択に合わせて音源設定とサブメニューを切替。VST3では内蔵音色作成・録音を隠し、選択パートのクリップ試聴を表示
+- [x] Reference Audioはローカル解析に限定し、任意の外部ファイルを楽器音源として再生する機能とは区別
+- [ ] `python -m pytest tests/` と `python scripts/harness_check.py`
+- [ ] Windows実機でパートごとに内蔵・Reference・VST3を切替え、音色作成・試聴・録音操作を確認
+
 ## v0.20.8 Saved sound library across workflow steps
 
 - [x] Step 1で現在の検証済みPatchを名前付きでブラウザ内保存・更新・削除（最大64件）

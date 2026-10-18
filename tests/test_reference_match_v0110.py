@@ -11,7 +11,8 @@ def test_v0110_reference_runtime_is_loaded_before_final_vst3_wrapper():
     html = read("web/index.html")
     assert '/reference_match_runtime.js' in html
     assert html.index('/reference_match_runtime.js') < html.index('/vst3_runtime.js')
-    assert "Preset / Reference / 自然言語" in html
+    assert 'id="trackSoundPanel"' in html
+    assert '/track_workflow_runtime.js?v=0.20.9' in html
     assert "任意: 自然言語で音色を選択／微調整" in html
 
 
