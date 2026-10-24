@@ -24,7 +24,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/mackron/miniaudio.git
   # Includes the upstream fix for CVE-2026-32837 (WAV BEXT metadata OOB read).
   GIT_TAG 1df46ae9a0eed5aa9f58b179d2cc4af5d23f8bde
-  GIT_SHALLOW TRUE
+  GIT_SHALLOW FALSE
 )
 FetchContent_MakeAvailable(miniaudio)
 
