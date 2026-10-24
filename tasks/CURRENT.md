@@ -1,5 +1,13 @@
 # CURRENT
 
+## Security update - miniaudio CVE-2026-32837
+
+- [x] Updated the pinned miniaudio dependency to upstream fix commit `1df46ae9a0eed5aa9f58b179d2cc4af5d23f8bde`.
+- [x] Updated the harness dependency assertion and documented the fixed CVE.
+- [ ] Run `python -m pytest tests/` and `python scripts/harness_check.py`.
+- [ ] Confirm the Windows native VST3 build in GitHub Actions.
+- [ ] Rebuild `nlss_vst3_host.exe` on Windows before using the updated native host.
+
 ## v0.20.9 Phrase-first, source-aware per-track workflow
 
 - [x] 「パートごとに音色とフレーズを管理」をメイン画面とし、従来の独立した1〜4案内を削除
