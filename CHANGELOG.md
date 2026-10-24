@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased - Native dependency security
+
+- Updated the pinned miniaudio source to upstream commit `1df46ae9a0eed5aa9f58b179d2cc4af5d23f8bde`, which fixes CVE-2026-32837 in WAV BEXT metadata parsing. Rebuild the Windows native VST3 host to use the updated dependency.
+
 ## v0.20.9
 
 - 「パートごとに音色とフレーズを管理」をメイン画面にし、音色作成・音源選択・演奏／試聴・録音を選択パート内のサブメニューへ統合。

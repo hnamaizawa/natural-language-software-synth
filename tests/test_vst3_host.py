@@ -103,7 +103,8 @@ def test_vst3_audio_diagnostics_and_native_output_test_are_exposed():
 def test_native_vst3_dependencies_are_pinned():
     cmake = (ROOT / "native" / "vst3_host" / "CMakeLists.txt").read_text(encoding="utf-8")
     assert "3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96" in cmake
-    assert "9634bedb5b5a2ca38c1ee7108a9358a4e233f14d" in cmake
+    assert "1df46ae9a0eed5aa9f58b179d2cc4af5d23f8bde" in cmake
+    assert "GIT_TAG 1df46ae9a0eed5aa9f58b179d2cc4af5d23f8bde\n  GIT_SHALLOW FALSE" in cmake
     assert "sdk_hosting" in cmake
     assert "cxx_std_17" in cmake
     assert "VERSION 0.7.2" in cmake

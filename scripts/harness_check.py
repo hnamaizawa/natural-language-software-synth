@@ -325,7 +325,8 @@ def main() -> None:
         native_cmake,
         [
             "3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96",
-            "9634bedb5b5a2ca38c1ee7108a9358a4e233f14d",
+            "1df46ae9a0eed5aa9f58b179d2cc4af5d23f8bde",
+            "GIT_TAG 1df46ae9a0eed5aa9f58b179d2cc4af5d23f8bde\n  GIT_SHALLOW FALSE",
             "src/plugin_editor_win32.cpp", "sdk_hosting", "user32", "cxx_std_17", "VERSION 0.7.2",
         ],
         "pinned native dependencies",
