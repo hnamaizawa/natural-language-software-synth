@@ -79,7 +79,7 @@ This harness keeps the synth reproducible and safe to evolve through natural-lan
 - MIDI note is clamped to 0–127, velocity to 0–1, and VST parameter values to normalized 0–1 before reaching the native process.
 - VST routing wraps the final note-event boundary, so on-screen keyboard, PC keyboard, Web MIDI, sample performances, guitar strum offsets, and humming preview can all drive the loaded VST3 instrument.
 - When VST routing is disabled, the original built-in Web Audio path remains unchanged.
-- Steinberg VST3 SDK 3.8.1 and miniaudio 0.11.25 are pinned by commit SHA in CMake.
+- Steinberg VST3 SDK 3.8.1 and miniaudio are pinned by commit SHA in CMake. miniaudio uses upstream commit `1df46ae9a0eed5aa9f58b179d2cc4af5d23f8bde`, which includes the fix for CVE-2026-32837 (WAV BEXT metadata out-of-bounds read).
 - Native build outputs are ignored by Git and are produced locally/CI only.
 - GitHub Actions must successfully compile `native/vst3_host/build/Release/nlss_vst3_host.exe` on `windows-latest` before the PR is considered complete.
 
