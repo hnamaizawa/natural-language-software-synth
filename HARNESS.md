@@ -1,5 +1,10 @@
 # Development Harness
 
+## v0.20.10 piano-roll playback auto-scroll
+
+- During arrangement or clip playback, the piano-roll viewport follows the playhead using the existing AudioContext clock and requestAnimationFrame display updates. Keep the playhead around 55% of the visible width after it reaches that point; clip changes restart follow relative to the newly active clip.
+- Follow behavior may update only the piano-roll scroll position and existing display markers. It must not add note scheduling, AudioContext creation, or a per-frame piano-roll rebuild.
+
 ## v0.20.9 phrase-first per-track workflow
 
 - The arrangement / phrase manager is the primary workspace. Sound design, source selection, audition, and recording appear as submenus within the selected track's sound panel; they are not separate top-level workflow destinations.

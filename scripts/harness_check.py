@@ -213,6 +213,15 @@ def main() -> None:
     if 'window.trackWorkflow?.setSource?.(track.source.type)' not in multitrack_js:
         fail("selected track source must update available workflow menus")
     require_tokens(
+        multitrack_js,
+        [
+            'function showRollPlayhead(beat,playing)', 'const followPosition=x-root.clientWidth*.55',
+            'if(Math.abs(root.scrollLeft-targetScrollLeft)>1)root.scrollLeft=targetScrollLeft',
+            'engine.ctx.currentTime-cycleStart', 'requestAnimationFrame(update)',
+        ],
+        "audio-clock piano-roll auto-scroll",
+    )
+    require_tokens(
         recording_workspace_js,
         [
             'document.getElementById("recordingStudio")', 'document.getElementById("recordingKeyboardTab")',
