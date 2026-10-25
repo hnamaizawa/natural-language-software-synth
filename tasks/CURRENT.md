@@ -1,5 +1,14 @@
 # CURRENT
 
+## v0.20.11 Continuous piano-roll scrolling
+
+- [x] アレンジメント再生時は選択パートの全クリップを曲全体の拍位置で表示
+- [x] クリップ切替時もピアノロールの横スクロール位置を維持し、次の小節へ連続追従
+- [x] クリップ間の空白でも曲の再生位置を追従し、停止時は選択クリップ表示へ戻す
+- [x] クリップ切替後も再生位置と小節目盛が曲全体で一致する回帰テストを追加
+- [ ] `python -m pytest tests/` と `python scripts/harness_check.py`
+- [ ] Windows実機で4小節境界を越える連続スクロールを確認
+
 ## v0.20.10 Piano-roll playback auto-scroll
 
 - [x] 再生位置がロール表示幅の中央付近に来たら、既存のAudioContext時計に合わせて横スクロール

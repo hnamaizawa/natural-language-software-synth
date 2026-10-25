@@ -73,7 +73,7 @@ const el=()=>({children:[],style:{},dataset:{},classList:{toggle(){}},clientHeig
 const root=el(),range={value:'36'},inputs={projectPianoRoll:root,rollRange:range};
 const document={getElementById:id=>inputs[id]||null,createElement:()=>el()};
 const clip={id:'roll',start_beats:0,length_beats:16,notes:[0,4,8,12].map((start_beats,i)=>({note:60+i,start_beats,duration_beats:1,velocity:.8}))};
-const scope={document,selectedClip:()=>clip,selectedNoteIndex:-1,lastRollClipId:null,lastRollHighlightTick:null,displayBeat:0,arrangementPlaying:false,
+const scope={document,selectedClip:()=>clip,selectedNoteIndex:-1,lastRollClipId:null,lastRollHighlightTick:null,lastRollPositionText:'',lastRollArrangementMode:false,followArrangementClips:false,displayBeat:0,arrangementPlaying:false,
   bounded:(n,low,high,fallback)=>Math.min(high,Math.max(low,Number.isFinite(Number(n))?Number(n):fallback)),TIMELINE_BEATS:16,
   ROLL_KEY_WIDTH:64,ROLL_BEAT_WIDTH:56,ROLL_ROW_HEIGHT:12,ROLL_SUBDIVISIONS_PER_BEAT:4,showRollPlayhead(){},Math};
 vm.createContext(scope);vm.runInContext(render,scope);scope.renderPianoRoll();

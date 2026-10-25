@@ -267,23 +267,25 @@
         block.addEventListener("click",()=>{if(project.selected_track_id!==track.id)selectTrack(track.id);selectedClipId=clip.id;renderTimeline();renderPianoRoll();});lane.append(block);}row.append(label,lane);root.append(row);}
     const marker=document.createElement("div");marker.id="arrangementPlayhead";marker.className="arrangement-playhead";marker.setAttribute("aria-hidden","true");root.append(marker);showPlayhead(arrangementPlaying?displayBeat:project.playhead_beats,arrangementPlaying);
   }
-  const rollUndo=[],rollRedo=[];let selectedNoteIndex=-1,lastRollClipId=null,lastRollHighlightTick=null,lastRollPositionText="";
+  const rollUndo=[],rollRedo=[];let selectedNoteIndex=-1,lastRollClipId=null,lastRollHighlightTick=null,lastRollPositionText="",lastRollArrangementMode=false;
   function rollHistory(){const clip=selectedClip();if(!clip)return;rollUndo.push({clip:clip.id,notes:clone(clip.notes)});if(rollUndo.length>50)rollUndo.shift();rollRedo.length=0;}
   function rollCanEdit(){const track=selectedTrack();if(!selectedClip()){status("先にクリップを選択してください。");return false;}if(arrangementPlaying||freezingIds.size||frozenBuffers.has(track.id)){status("再生を停止し、このパートのフリーズを解除してから編集してください。");return false;}return true;}
   function rollStep(){return bounded(document.getElementById("rollSnap")?.value,.125,1,.25);}
   function rollLimit(clip){return Math.min(clip.length_beats,project.length_beats-clip.start_beats);}
   function renderPianoRoll(){
-    const root=document.getElementById("projectPianoRoll"),clip=selectedClip();if(!root)return;
-    root.replaceChildren();root.classList.toggle("empty",!clip);for(const [id,value] of [["clipStartBeat",clip?.start_beats],["clipLengthBeat",clip?.length_beats],["noteVelocity",clip?.notes[selectedNoteIndex]?.velocity*100]]){const input=document.getElementById(id);if(input){input.disabled=value===undefined;input.value=String(value??(id==="noteVelocity"?82:0));}}if(!clip){lastRollClipId=null;return;}
+    const root=document.getElementById("projectPianoRoll"),clip=selectedClip(),arrangementRoll=arrangementPlaying&&followArrangementClips;if(!root)return;
+    const modeChanged=lastRollArrangementMode!==arrangementRoll;
+    root.replaceChildren();root.classList.toggle("empty",!clip);root.setAttribute("aria-label",arrangementRoll?`${selectedTrack()?.name||"選択パート"}の曲全体ピアノロール` : "選択クリップのピアノロール");for(const [id,value] of [["clipStartBeat",clip?.start_beats],["clipLengthBeat",clip?.length_beats],["noteVelocity",clip?.notes[selectedNoteIndex]?.velocity*100]]){const input=document.getElementById(id);if(input){input.disabled=value===undefined;input.value=String(value??(id==="noteVelocity"?82:0));}}if(!clip){lastRollClipId=null;lastRollArrangementMode=arrangementRoll;return;}
     const range=document.getElementById("rollRange"),newClip=lastRollClipId!==clip.id;
-    if(newClip&&range&&clip.notes.length){const pitches=clip.notes.map(note=>note.note).sort((a,b)=>a-b),middle=pitches[Math.floor(pitches.length/2)];range.value=String(middle<48?24:middle>=72?48:36);}
-    lastRollClipId=clip.id;lastRollHighlightTick=null;
-    const lowest=Math.round(bounded(document.getElementById("rollRange")?.value,24,48,36)),keyWidth=ROLL_KEY_WIDTH,beatWidth=ROLL_BEAT_WIDTH,rowHeight=ROLL_ROW_HEIGHT,gridWidth=keyWidth+TIMELINE_BEATS*beatWidth;
+    if(!arrangementRoll&&newClip&&range&&clip.notes.length){const pitches=clip.notes.map(note=>note.note).sort((a,b)=>a-b),middle=pitches[Math.floor(pitches.length/2)];range.value=String(middle<48?24:middle>=72?48:36);}
+    lastRollClipId=clip.id;lastRollHighlightTick=null;lastRollArrangementMode=arrangementRoll;
+    const gridBeats=arrangementRoll?project.length_beats:TIMELINE_BEATS;
+    const lowest=Math.round(bounded(document.getElementById("rollRange")?.value,24,48,36)),keyWidth=ROLL_KEY_WIDTH,beatWidth=ROLL_BEAT_WIDTH,rowHeight=ROLL_ROW_HEIGHT,gridWidth=keyWidth+gridBeats*beatWidth;
     const ruler=document.createElement("div");ruler.className="roll-ruler";ruler.setAttribute("aria-label","小節と拍の時間軸");ruler.style.width=`${gridWidth}px`;
     const keySpacer=document.createElement("span");keySpacer.className="roll-ruler-key-spacer";keySpacer.textContent="小節";ruler.append(keySpacer);
-    for(let bar=0;bar<TIMELINE_BEATS/4;bar++){const cell=document.createElement("span");cell.className="roll-ruler-bar";cell.style.flexBasis=`${beatWidth*4}px`;cell.textContent=`${bar+1}小節`;ruler.append(cell);}
+    for(let bar=0;bar<gridBeats/4;bar++){const cell=document.createElement("span");cell.className="roll-ruler-bar";cell.style.flexBasis=`${beatWidth*4}px`;cell.textContent=`${bar+1}小節`;ruler.append(cell);}
     const grid=document.createElement("div");grid.className="roll-grid";grid.style.width=`${gridWidth}px`;grid.style.minWidth=`${gridWidth}px`;grid.style.height=`${48*rowHeight}px`;
-    for(let tick=0;tick<=TIMELINE_BEATS*ROLL_SUBDIVISIONS_PER_BEAT;tick++){
+    for(let tick=0;tick<=gridBeats*ROLL_SUBDIVISIONS_PER_BEAT;tick++){
       const line=document.createElement("span"),bar=tick%(4*ROLL_SUBDIVISIONS_PER_BEAT)===0,beat=tick%ROLL_SUBDIVISIONS_PER_BEAT===0;
       line.className=`roll-time-line${bar?" bar":beat?" beat":" subdivision"}`;line.style.left=`${keyWidth+tick/ROLL_SUBDIVISIONS_PER_BEAT*beatWidth}px`;line.setAttribute("aria-hidden","true");grid.append(line);
     }
@@ -296,11 +298,13 @@
       if(pitch<lowest||pitch>=lowest+48||beat>=rollLimit(clip))return;
       rollHistory();clip.notes.push({note:pitch,start_beats:beat,duration_beats:Math.min(1,rollLimit(clip)-beat),velocity:.82});selectedNoteIndex=clip.notes.length-1;renderPianoRoll();status(`MIDI ${pitch} のノートを追加しました。`);
     });
-    clip.notes.forEach((note,index)=>{
+    const displayClips=arrangementRoll?(selectedTrack()?.clips||[]):[clip];
+    displayClips.forEach(noteClip=>noteClip.notes.forEach((note,index)=>{
       if(note.note<lowest||note.note>=lowest+48)return;
-      const block=document.createElement("button");block.type="button";block.className=`roll-note${index===selectedNoteIndex?" selected":""}`;block.dataset.startBeats=String(note.start_beats);block.dataset.endBeats=String(note.start_beats+note.duration_beats);
-      block.style.left=`${keyWidth+note.start_beats*beatWidth}px`;block.style.top=`${(lowest+47-note.note)*rowHeight}px`;
-      block.style.width=`${Math.max(5,note.duration_beats*beatWidth-1)}px`;block.style.opacity=String(.35+note.velocity*.65);block.title=`MIDI ${note.note} · ${note.start_beats}拍 · 長さ${note.duration_beats}拍 · 強さ${Math.round(note.velocity*100)}%`;
+      const noteStart=arrangementRoll?noteClip.start_beats+note.start_beats:note.start_beats;
+      const block=document.createElement("button");block.type="button";block.className=`roll-note${!arrangementRoll&&noteClip.id===clip.id&&index===selectedNoteIndex?" selected":""}`;block.dataset.startBeats=String(noteStart);block.dataset.endBeats=String(noteStart+note.duration_beats);
+      block.style.left=`${keyWidth+noteStart*beatWidth}px`;block.style.top=`${(lowest+47-note.note)*rowHeight}px`;
+      block.style.width=`${Math.max(5,note.duration_beats*beatWidth-1)}px`;block.style.opacity=String(.35+note.velocity*.65);block.title=`MIDI ${note.note} · ${noteStart}拍 · 長さ${note.duration_beats}拍 · 強さ${Math.round(note.velocity*100)}%`;
       block.setAttribute("aria-label",block.title);
       block.addEventListener("pointerdown",event=>{
         event.stopPropagation();if(!rollCanEdit())return;selectedNoteIndex=index;block.classList.add("selected");
@@ -314,12 +318,13 @@
         };
         block.onpointerup=()=>{block.onpointermove=null;block.onpointerup=null;renderPianoRoll();if(changed)status("ノートを更新しました。");};
       });
-      block.addEventListener("click",event=>{event.stopPropagation();selectedNoteIndex=index;renderPianoRoll();});
+      block.addEventListener("click",event=>{event.stopPropagation();if(arrangementRoll)return;selectedNoteIndex=index;renderPianoRoll();});
       grid.append(block);
-    });
+    }));
     const marker=document.createElement("div");marker.id="rollPlayhead";marker.className="arrangement-playhead roll-playhead";marker.style.display="none";marker.setAttribute("aria-hidden","true");grid.append(marker);
     root.append(ruler,grid);
-    if(newClip&&clip.notes.length){const visibleNotes=clip.notes.filter(note=>note.note>=lowest&&note.note<lowest+48).map(note=>note.note).sort((a,b)=>a-b);if(visibleNotes.length){const middle=visibleNotes[Math.floor(visibleNotes.length/2)],y=(lowest+47-middle)*rowHeight;root.scrollTop=Math.max(0,y-root.clientHeight/2);}}
+    if(modeChanged)root.scrollLeft=0;
+    if(!arrangementRoll&&newClip&&clip.notes.length){const visibleNotes=clip.notes.filter(note=>note.note>=lowest&&note.note<lowest+48).map(note=>note.note).sort((a,b)=>a-b);if(visibleNotes.length){const middle=visibleNotes[Math.floor(visibleNotes.length/2)],y=(lowest+47-middle)*rowHeight;root.scrollTop=Math.max(0,y-root.clientHeight/2);}}
     showRollPlayhead(displayBeat,arrangementPlaying);
   }
   function deleteRollNote(){if(!rollCanEdit())return;const clip=selectedClip();if(selectedNoteIndex<0||selectedNoteIndex>=clip.notes.length)return;rollHistory();clip.notes.splice(selectedNoteIndex,1);selectedNoteIndex=-1;renderPianoRoll();status("ノートを削除しました。");}
@@ -387,15 +392,15 @@
     return cycleStart;
   }
   function showRollPlayhead(beat,playing){
-    const root=document.getElementById("projectPianoRoll"),marker=document.getElementById("rollPlayhead"),clip=selectedClip(),label=document.getElementById("rollPlaybackPosition");
+    const root=document.getElementById("projectPianoRoll"),marker=document.getElementById("rollPlayhead"),clip=selectedClip(),label=document.getElementById("rollPlaybackPosition"),arrangementRoll=playing&&arrangementPlaying&&followArrangementClips;
     const labelText=playing?`▶ 再生中 · ${Math.floor(beat/4)+1}小節 ${Math.floor(beat%4)+1}拍${clip?"":" · 選択クリップなし"}`:"■ 停止中";
     if(label&&labelText!==lastRollPositionText){label.textContent=labelText;lastRollPositionText=labelText;}
-    if(!root||!marker||!clip)return;
-    const relative=beat-clip.start_beats,visible=playing&&relative>=0&&relative<clip.length_beats;
+    if(!root||!marker)return;
+    const relative=arrangementRoll?beat:beat-(clip?.start_beats||0),visible=Boolean(playing&&clip&&(arrangementRoll?beat>=clip.start_beats&&beat<clip.start_beats+clip.length_beats:relative>=0&&relative<clip.length_beats));
     marker.classList.toggle("playing",visible);marker.style.display=visible?"block":"none";
     const tick=visible?Math.floor(relative*8):-1;
     if(tick!==lastRollHighlightTick){for(const note of marker.parentElement.querySelectorAll(".roll-note")){const start=Number(note.dataset.startBeats),end=Number(note.dataset.endBeats);note.classList.toggle("sounding",visible&&relative>=start&&relative<end);}lastRollHighlightTick=tick;}
-    if(!visible)return;
+    if(!arrangementRoll&&!visible)return;
     const x=ROLL_KEY_WIDTH+relative*ROLL_BEAT_WIDTH;marker.style.left=`${x}px`;
     if(root.clientWidth>0){
       const followPosition=x-root.clientWidth*.55;
@@ -406,10 +411,11 @@
   function showPlayhead(beat,playing){
     displayBeat=beat;
     if(playing&&followArrangementClips){
+      if(!lastRollArrangementMode)renderPianoRoll();
       const track=selectedTrack(),current=selectedClip(),contains=clip=>clip&&beat>=clip.start_beats&&beat<clip.start_beats+clip.length_beats;
       const active=contains(current)?current:track?.clips.find(contains);
-      if(active&&active.id!==selectedClipId){selectedClipId=active.id;renderPianoRoll();for(const block of document.querySelectorAll("#arrangementTimeline .clip-block"))block.classList.toggle("selected",block.dataset.clipId===active.id);}
-    }
+      if(active&&active.id!==selectedClipId){selectedClipId=active.id;if(!lastRollArrangementMode)renderPianoRoll();else{selectedNoteIndex=-1;const startInput=document.getElementById("clipStartBeat"),lengthInput=document.getElementById("clipLengthBeat"),velocityInput=document.getElementById("noteVelocity");if(startInput)startInput.value=String(active.start_beats);if(lengthInput)lengthInput.value=String(active.length_beats);if(velocityInput)velocityInput.value="82";}for(const block of document.querySelectorAll("#arrangementTimeline .clip-block"))block.classList.toggle("selected",block.dataset.clipId===active.id);}
+    }else if(!playing&&lastRollArrangementMode)renderPianoRoll();
     showRollPlayhead(beat,playing);
     const position=document.getElementById("playPosition");if(position)position.textContent=`${playing?"再生中":"停止"} · ${Math.floor(beat/4)+1}小節 ${Math.floor(beat%4)+1}拍`;
     const lane=document.querySelector("#arrangementTimeline .timeline-lane"),marker=document.getElementById("arrangementPlayhead");if(marker&&lane)marker.style.left=`${lane.offsetLeft+lane.clientWidth*beat/project.length_beats}px`;
