@@ -56,6 +56,14 @@ def test_roll_marker_is_display_only_and_uses_existing_animation_frame():
     assert '.roll-playhead{z-index:4}' in css
 
 
+def test_song_wide_roll_scrolls_inside_a_fixed_width_workspace():
+    css = (ROOT / "web/multitrack.css").read_text(encoding="utf-8")
+    assert ".arrangement-body{display:grid;grid-template-columns:minmax(250px,320px) minmax(0,1fr);gap:14px}" in css
+    assert ".sequence-workspace{min-width:0}" in css
+    assert ".project-piano-roll{width:100%;min-width:0;box-sizing:border-box;" in css
+    assert ".project-piano-roll{overflow:auto;overscroll-behavior:contain}" in css
+
+
 def test_arrangement_playback_keeps_one_song_wide_roll_through_clip_changes():
     script = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
