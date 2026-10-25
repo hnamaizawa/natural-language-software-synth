@@ -1,5 +1,11 @@
 # Development Harness
 
+## v0.20.11 continuous piano-roll arrangement playback
+
+- During full arrangement playback, render the selected track's clips on one song-wide beat grid with absolute note positions. Clip changes may update the active selection but must not reset the horizontal viewport or return the playhead to a clip-local origin.
+- Keep following the global AudioContext beat through clips and gaps. Stop playback to return to the existing selected-clip editing view; clip preview retains clip-relative coordinates.
+- Do not add a playback/audio path or rebuild the roll on each animation frame.
+
 ## v0.20.10 piano-roll playback auto-scroll
 
 - During arrangement or clip playback, the piano-roll viewport follows the playhead using the existing AudioContext clock and requestAnimationFrame display updates. Keep the playhead around 55% of the visible width after it reaches that point; clip changes restart follow relative to the newly active clip.

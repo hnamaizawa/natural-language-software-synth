@@ -217,6 +217,9 @@ def main() -> None:
         [
             'function showRollPlayhead(beat,playing)', 'const followPosition=x-root.clientWidth*.55',
             'if(Math.abs(root.scrollLeft-targetScrollLeft)>1)root.scrollLeft=targetScrollLeft',
+            'const gridBeats=arrangementRoll?project.length_beats:TIMELINE_BEATS',
+            'const displayClips=arrangementRoll?(selectedTrack()?.clips||[]):[clip]',
+            'const noteStart=arrangementRoll?noteClip.start_beats+note.start_beats:note.start_beats',
             'engine.ctx.currentTime-cycleStart', 'requestAnimationFrame(update)',
         ],
         "audio-clock piano-roll auto-scroll",

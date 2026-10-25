@@ -90,6 +90,8 @@ required_capabilities:
 - per_track_volume_control
 - piano_roll_fixed_beat_grid
 - piano_roll_audio_clock_autoscroll
+- piano_roll_song_wide_arrangement_view
+- piano_roll_clip_switch_preserves_scroll
 - browser_local_saved_patch_library
 - saved_patch_assignment_to_selected_track
 - saved_patch_reused_by_performance_and_recording_playback
@@ -346,6 +348,8 @@ ui_requirements:
   selected_clip_piano_roll_preview: true
   piano_roll_playback_autoscroll: true
   piano_roll_playhead_viewport_anchor: 0.55
+  piano_roll_arrangement_grid_uses_absolute_song_beats: true
+  piano_roll_clip_change_preserves_horizontal_scroll: true
   per_track_sound_source_selector: [internal, reference_adjusted_internal, vst3]
   arrangement_play_all_tracks: true
   arrangement_loop: true
