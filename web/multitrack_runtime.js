@@ -397,7 +397,11 @@
     if(tick!==lastRollHighlightTick){for(const note of marker.parentElement.querySelectorAll(".roll-note")){const start=Number(note.dataset.startBeats),end=Number(note.dataset.endBeats);note.classList.toggle("sounding",visible&&relative>=start&&relative<end);}lastRollHighlightTick=tick;}
     if(!visible)return;
     const x=ROLL_KEY_WIDTH+relative*ROLL_BEAT_WIDTH;marker.style.left=`${x}px`;
-    if(x>root.scrollLeft+root.clientWidth-24||x<root.scrollLeft+64)root.scrollLeft=Math.max(0,x-root.clientWidth*.45);
+    if(root.clientWidth>0){
+      const followPosition=x-root.clientWidth*.55;
+      const targetScrollLeft=Math.max(0,Math.round(followPosition));
+      if(Math.abs(root.scrollLeft-targetScrollLeft)>1)root.scrollLeft=targetScrollLeft;
+    }
   }
   function showPlayhead(beat,playing){
     displayBeat=beat;

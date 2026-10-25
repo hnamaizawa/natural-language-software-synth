@@ -1,5 +1,13 @@
 # CURRENT
 
+## v0.20.10 Piano-roll playback auto-scroll
+
+- [x] 再生位置がロール表示幅の中央付近に来たら、既存のAudioContext時計に合わせて横スクロール
+- [x] アクティブクリップが切り替わる際に、そのクリップ内の再生位置へ追従を再開
+- [x] 再生経路・ノート処理・AudioContextは変更せず、表示のみを更新
+- [x] `python -m pytest tests/`（239 passed）／`python scripts/harness_check.py`（HARNESS PASS）
+- [ ] Windows実機で曲全体／クリップ試聴中の追従と手動スクロール競合を確認
+
 ## Security update - miniaudio CVE-2026-32837
 
 - [x] Updated the pinned miniaudio dependency to upstream fix commit `1df46ae9a0eed5aa9f58b179d2cc4af5d23f8bde`.

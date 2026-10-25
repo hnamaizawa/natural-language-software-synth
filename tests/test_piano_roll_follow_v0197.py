@@ -21,8 +21,10 @@ const ctx={document,project:{length_beats:32},TIMELINE_BEATS:16,ROLL_KEY_WIDTH:6
   selectedTrack:()=>({clips}),selectedClip:()=>clips.find(c=>c.id===ctx.selectedClipId),renderPianoRoll:()=>{},Math};
 vm.createContext(ctx);vm.runInContext(functions,ctx);
 ctx.showPlayhead(2,true);assert.equal(marker.style.left,'176px');assert.equal(marker.style.display,'block');assert(marker.classList.contains('playing'));assert(notes[0].classList.contains('sounding'));assert(label.textContent.includes('再生中'));
-ctx.showPlayhead(3,true);assert.equal(marker.style.left,'232px');assert(!notes[0].classList.contains('sounding'));
+ctx.showPlayhead(3,true);assert.equal(marker.style.left,'232px');assert.equal(root.scrollLeft,12);assert(!notes[0].classList.contains('sounding'));
+ctx.showPlayhead(10,true);assert.equal(marker.style.left,'624px');assert.equal(root.scrollLeft,404,'the viewport follows the playhead through a long clip');
 ctx.showPlayhead(18,true);assert.equal(ctx.selectedClipId,'B');assert.equal(marker.style.left,'176px');assert(blocks[1].classList.contains('selected'));
+assert.equal(root.scrollLeft,0,'the next active clip starts from its beginning');
 ctx.showPlayhead(32,true);assert.equal(marker.style.display,'none');assert(!marker.classList.contains('playing'));
 ctx.followArrangementClips=false;ctx.selectedClipId='A';ctx.showPlayhead(18,true);
 assert.equal(ctx.selectedClipId,'A');assert(!marker.classList.contains('playing'));
@@ -40,6 +42,9 @@ def test_roll_marker_is_display_only_and_uses_existing_animation_frame():
     assert 'followArrangementClips=false;showPlayhead(project.playhead_beats,false)' in js
     assert 'marker.className="arrangement-playhead roll-playhead"' in js
     assert 'marker.style.display=visible?"block":"none"' in js
+    assert 'const followPosition=x-root.clientWidth*.55' in js
+    assert 'const targetScrollLeft=Math.max(0,Math.round(followPosition))' in js
+    assert 'if(Math.abs(root.scrollLeft-targetScrollLeft)>1)root.scrollLeft=targetScrollLeft' in js
     assert 'if(!selectedClip())selectedClipId=selectedTrack()?.clips[0]?.id||null' in js
     assert '.arrangement-playhead{position:absolute;top:0;bottom:0;width:2px' in css
     assert '.roll-playhead{z-index:4}' in css

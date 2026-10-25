@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.20.10
+
+- 曲／選択クリップの再生時にピアノロールの表示範囲を再生位置へ自動追従させる。カーソルが表示幅の中央付近に達したら表示を先へ送り、クリップ切替後は新しいクリップ位置へ追従。
+- 表示更新には既存AudioContextの再生位置を使用。ノート発音・AudioContext・VST3経路の変更なし。ブラウザ再読み込みが必要。Native Hostの再ビルドは不要。
+
 ## Unreleased - Native dependency security
 
 - Updated the pinned miniaudio source to upstream commit `1df46ae9a0eed5aa9f58b179d2cc4af5d23f8bde`, which fixes CVE-2026-32837 in WAV BEXT metadata parsing. Rebuild the Windows native VST3 host to use the updated dependency.
