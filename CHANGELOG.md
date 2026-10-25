@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 1426)
-Total output lines: 61
-
 # Changelog
 
 ## v0.20.11
@@ -27,7 +24,18 @@ Total output lines: 61
 ## v0.20.8
 
 - Step 1で作成・調整した検証済み音色Patchを、ブラウザ内の音色ライブラリへ最大64件保存・更新・削除できるようにした。
-- 保存音色を現在音色へ適用してStep 3の鍵盤／サンプル演奏とStep 4の録音Note Event再生に利用できるようにした。選択中のアレンジメントトラック…226 tokens truncated…からラックロックの取得を除去し、インスタンスの不変スナップショットを使う。インスタンス状態／イベントキューのロックを即時取得できない場合は該当ブロックを無音にしてカウントする。
+- 保存音色を現在音色へ適用してStep 3の鍵盤／サンプル演奏とStep 4の録音Note Event再生に利用できるようにした。選択中のアレンジメントトラックへもPatchを割り当て、Project JSONへ保存できる。
+- 保存データはローカルブラウザ内に限定し、音色Patchは適用時に `validatePatch()` を通す。録音データ保存、音声録音、追加AudioContext、追加ネットワーク経路は設けない。
+
+## v0.20.7
+
+- 各トラックの音量を出力ゲインとして適用し、内蔵音源と独立したVST3インスタンスの再生中音量調整を可能にした。共有VST3は音声出力を共有するため個別音量を無効化。
+- ピアノロールに小節番号・小節線・拍線・16分補助線を追加し、1拍56pxの固定スケールでノート編集と再生位置を表示。
+- Native Hostにインスタンス別ゲインコマンドを追加。反映にはWindowsで `build_vst3_host.cmd` による再ビルドが必要。
+
+## v0.20.6
+
+- Native VST3の音声コールバックからラックロックの取得を除去し、インスタンスの不変スナップショットを使う。インスタンス状態／イベントキューのロックを即時取得できない場合は該当ブロックを無音にしてカウントする。
 - `process()` の最大処理時間、処理締切超過、スキップブロックをインスタンス別診断とホスト状態へ追加。note ID追跡に固定長配列を使い、コールバックのメモリ確保を避ける。
 - miniaudio WASAPIのPro Audio/MMCSS利用とFTZ/DAZを有効化。Native Hostの変更を反映するにはWindowsで `build_vst3_host.cmd` による再ビルドが必要。
 
@@ -50,10 +58,7 @@ Total output lines: 61
 ## v0.20.1
 
 - 「全パート用サンプル曲」にラテンピアノ・モントゥーノ（Cメジャー、8小節）を追加。鍵盤に2小節で交替する短い和音の反復、ベースにシンコペーション、打楽器に3-2クラーベのアクセントを配置。
-- 7パートのノートが各小節のコードと同じ調に収まることを回帰確認。ブラウザ再読み込みで反映されWarning: truncated output (original token count: 1556)
-Total output lines: 72
-
-、Native Hostの再ビルドは不要。
+- 7パートのノートが各小節のコードと同じ調に収まることを回帰確認。ブラウザ再読み込みで反映され、Native Hostの再ビルドは不要。
 
 ## v0.20.0
 
@@ -87,7 +92,25 @@ Total output lines: 72
 ## v0.19.5
 
 - 再生開始前と停止後にVST3 Hostの音声処理締切超過、各ライブVST3の予約遅延・処理失敗・イベント失敗を採取し、増分を画面に表示。内蔵音源の予約遅延・期限切れ・長い画面処理も同じ再生単位で集計。
-- 音声の再生中は診断用の通…356 tokens truncated…ピアノ・ギター音色のディレイ／空間効果を同一音色の声で共有。設定が0の場合は効果回路を生成せず、最後の声が終われば切り離す。
+- 音声の再生中は診断用の通信をせず、計測が取れない場合やHost再起動によるカウンターリセットは区別して表示。
+- ブラウザ再読み込みが必要。Native Hostの再ビルドは不要。
+
+## v0.19.4
+
+- 全パートに独立したパン操作を追加。内蔵音源のパートバス、Native HostのVST3インスタンスごとのステレオ出力、フリーズ音声の再生ミックスで適用。既存JSONのpanを復元。
+- ファイルハンドルを保持するProject JSONの読込・上書き操作を追加。保存形式は従来のフリーズ音声とVST3音色を含むJSONと共通。
+- 8ジャンルの調性を合わせた8小節サンプル曲、ジャンル・曲調の説明を全パート用の選択画面に追加。
+- Native Host再ビルドとアプリ・ブラウザの再起動が必要。
+
+## v0.19.3
+
+- 全パートの音量スライダーを追加。ライブ音源はノートのベロシティに反映し、フリーズ音声は録音時音量との差をミックス時に反映。現在音量とフリーズ録音時音量をProject JSONに保持する。
+- 初回再生時に全ライブVST3インスタンスの検索・ロード・音色復元・入出力診断を完了するまで待機し、失敗時は開始せずにエラーを表示。
+- アプリとブラウザの再起動が必要。Native Hostの再ビルドは不要。
+
+## v0.19.2
+
+- 内蔵の減算合成・ピアノ・ギター音色のディレイ／空間効果を同一音色の声で共有。設定が0の場合は効果回路を生成せず、最後の声が終われば切り離す。
 - マルチトラックの先読み予約を0.8秒・1回8ノートに分散。フリーズ音声の開始時などに多数のWeb Audioノードをまとめて生成する集中を緩和し、予約時刻はAudioContextの絶対時刻を維持する。
 - ブラウザを再読み込みして反映。実機での音切れ解消は未確認。Native Hostの再ビルドは不要。
 
@@ -106,10 +129,7 @@ Total output lines: 72
 ## v0.18.9
 
 - 曲全体のVST3絶対時刻予約で、各プラグインが報告する出力遅延を最大0.5秒まで先行補正。トラック別発音診断に報告遅延、予約が期限後に届いた件数と最大遅延、ホスト負荷と音切れ候補を表示。
-- 8小節の3種類のサンプル曲のメロディーをコードトーンで声部進行させ、毎小節同じ分散和音を繰り返さないモチーフへWarning: truncated output (original token count: 1455)
-Total output lines: 73
-
-更新。強拍のアボイドノートを避ける。
+- 8小節の3種類のサンプル曲のメロディーをコードトーンで声部進行させ、毎小節同じ分散和音を繰り返さないモチーフへ更新。強拍のアボイドノートを避ける。
 - Native Host再ビルドとブラウザ再読み込みが必要。音色固有のアタックはプラグイン報告遅延とは別。
 
 ## v0.18.8
@@ -136,7 +156,20 @@ Total output lines: 73
 ## v0.18.4
 
 - 内蔵音源とCD/Reference調整済み内蔵音源をトラック別に共有AudioContextの音声フレームで正確に実時間フリーズし、再生時は音源演算を録音済み音声に置換。
-- Project JSONにフリーズ音声を保存・復元。内蔵音源系は音色パッチも照合し、VST3旧形式との互換性を維持…255 tokens truncated…存し、読込時にトラック設定を検証して復元。旧JSONも読込可能。サイズ上限を設ける。
+- Project JSONにフリーズ音声を保存・復元。内蔵音源系は音色パッチも照合し、VST3旧形式との互換性を維持。
+- ブラウザキャッシュを更新。Native Host変更なし。
+
+## v0.18.3
+
+- 内蔵シンセ／リシンセのゼロミックス時に不要なディレイ回路を作らず、発音終了時にディレイのフィードバック接続を切断。長時間のマルチトラック再生で不要なAudioNodeが増え続ける経路を修正。
+- ローカルの静的アセットをno-storeで配信し、更新後に古いJavaScriptが残ることを防止。
+
+## v0.18.2
+
+- VST3 ノートイベントに発音・消音が一致する有界な note ID を付与。7パート再生、フリーズ録音、通常の鍵盤演奏で同音重複を区別。
+- Python ブリッジと Windows Native Host の単発／一括イベントに note ID を伝搬し、停止時に有効な note ID を消音。古いイベント形式は ID -1 として受け付ける。
+- Native Host の再ビルドとブラウザ再読み込みが必要。
+- フリーズ録音を16-bit PCMに変換・gzip圧縮してProject JSONへ保存し、読込時にトラック設定を検証して復元。旧JSONも読込可能。サイズ上限を設ける。
 
 ## v0.18.1
 
@@ -168,10 +201,7 @@ Total output lines: 73
 - MIDI 予約イベントの処理で毎ブロックの一時ベクタ確保・stable_partition を除去し、事前確保した領域を再利用。
 - Native Host 再ビルドが必要。レイテンシとプラグイン DSP 負荷に関する限界を README に記載。
 
-## v0.Warning: truncated output (original token count: 1412)
-Total output lines: 70
-
-15.0
+## v0.15.0
 
 - VST3 のロード直後に必須だったフリーズ解除呼び出しを撤去し、フリーズ中の既存インスタンスの再接続時だけサーバーで再開。
 - パートごとの VST3 準備エラーを分離し、内蔵音源とほかの VST3 の再生を継続。エラーの理由を画面に表示。
@@ -200,7 +230,16 @@ Total output lines: 70
 ## v0.14.6
 
 - 選択トラックごとのVST3プラグイン一覧と検索ボタンをTRACK SOUNDへ追加し、複数の異なるVST3を各パートへ割り当て可能にした。
-- 再生開始時の全ノート一括生成を約0.45秒の先読…212 tokens truncated…追加。
+- 再生開始時の全ノート一括生成を約0.45秒の先読み予約へ変更し、100ms単位で負荷を分散。
+- 同じVST3を使う複数トラックのイベントをインスタンス単位で集約し、1024件以内で一括送信。
+- Runtimeキャッシュ識別子をv0.14.6に更新。Native Hostの再ビルド不要。
+
+## v0.14.5
+
+- 同一プラグインIDを割り当てたVST3トラックを1つの共有インスタンスへ集約し、重複する音声処理を削減。
+- STEP 2でロード／設定済みのメインVST3インスタンスをマルチトラックから再利用し、SSD5のキット設定を維持。
+- VST3 MIDIチャンネル「自動」でドラムトラックをChannel 10へ統一し、個別試聴とアレンジ再生の経路差を解消。
+- 音源変更時の旧共有インスタンス解放と、共有先ごとに1回だけ行うイベントクリアを追加。
 - Web Runtimeのキャッシュ識別子をv0.14.5へ更新。Native Hostの再ビルドは不要。
 
 ## v0.14.4
@@ -231,10 +270,7 @@ Total output lines: 70
 ## v0.14.1
 
 - マルチトラック再生をDOM／ピアノロールから分離した内部Audio Clockスケジューラへ変更。
-- ノート単位の大量タイマーを単一look-aheadタイマーへ集約し、UIを伴わない再生専用Warning: truncated output (original token count: 1237)
-Total output lines: 59
-
-Patch切替を追加。
+- ノート単位の大量タイマーを単一look-aheadタイマーへ集約し、UIを伴わない再生専用Patch切替を追加。
 - Mute／Solo、全パート再生、16拍ループ、既存Note Event／VST3境界を維持したままメインスレッド負荷を削減。
 
 ## v0.14.0
@@ -270,7 +306,10 @@ Patch切替を追加。
 - ドラムPatchを外部VST3へ送る際、GMドラム用MIDIチャンネル10を使用。
 - サンプル演奏、ドラムパッド、PCキーボードのVST3ドラム発音を修正。
 - UIから追加VST3検索フォルダを指定可能にし、VST2 DLL等の非対応形式を診断表示。
-- Native Hostプロト…37 tokens truncated…出典・上流コミット・原パス・SHA-256を同梱ライセンス文書へ固定。
+- Native Hostプロトコルへbounded MIDI channelを追加。
+
+## v0.12.0
+- CC0 1.0のVCSL実録音PCMを使う「スタジオ・テナーサックス」を追加し、出典・上流コミット・原パス・SHA-256を同梱ライセンス文書へ固定。
 - Pop Close Piano / Neo Soul FM EP / Pop Pocket Drumsを含む実用プリセットを追加。
 - Licensed PCM専用のbounded Patch schemaと、既存AudioContext／Note Eventを再利用する再生Runtimeを追加。
 - 全音色パラメータへ日本語ホバー／フォーカス説明を追加し、動的UIを含む未対応操作要素にも説明を補完。
@@ -289,10 +328,7 @@ Patch切替を追加。
 - 開発方針を「自然言語からゼロ生成」中心から **Preset-first + Reference Audio Match + 自然言語微調整** へ変更。
 - Step 1へ9種類のREALISTIC INSTRUMENT PRESETSを追加し、自然言語生成を介さず専用楽器Patchを直接適用可能にした。
 - 70年代ブリッジ／ウォーム系フレットレス、Concert/Close Grand、Clean Fusion/Acoustic-style Guitar、Dry/Shuffle Drums、Classic FM EPを追加。
-- 手元のMP3 / WAV / M4A / AACをブラウザ内だけで解析するReferenceWarning: truncated output (original token count: 1218)
-Total output lines: 45
-
- Audio Matchを追加。
+- 手元のMP3 / WAV / M4A / AACをブラウザ内だけで解析するReference Audio Matchを追加。
 - Reference Audioは最大80MB、解析区間3〜30秒、開始位置指定に対応。
 - FFT / RMS / Spectral Flux / Zero Crossing等から明るさ、暖かさ、Transient、Sustain、粗さ、中域、低域Body、Dynamics、空間傾向を抽出。
 - 抽出特徴量をFretless / Piano / Guitar / Drum / FM EP / Genericの既存bounded Patchパラメータへマッピング。
@@ -315,7 +351,7 @@ Total output lines: 45
 ## v0.9.2
 - PCM Spectral Resynthesis音色のSample Performanceを、Bass / Pad / Keys / Lead-Brass / Pluck-Bell / Strings-Voiceの役割別に自動切替するよう改善。
 - Bass向けにMIDI 28付近まで使う低音グルーヴ／低音オクターブ／ウォーキング／ロングトーンを追加し、低音域で音色を評価できるようにした。
-- Padはロングコード／オープン5度／スウェル、Keysはコード／アルペジオ／サステ…18 tokens truncated…ルペジオ／ベル余韻／マレット、Strings-Voiceはレガート／クワイア／ピチカートを選択可能。
+- Padはロングコード／オープン5度／スウェル、Keysはコード／アルペジオ／サステイン、Leadはメロディ／ソロ／ブラス・スタブ、Pluckはアルペジオ／ベル余韻／マレット、Strings-Voiceはレガート／クワイア／ピチカートを選択可能。
 - SOUND DESIGNの選択グループを優先し、自由入力ではPromptと生成Patchから評価カテゴリを推定。
 - Grand Piano / Electric Guitar / Fretless Bass / Drums / DX EPの既存専用Sample Performanceとユーザー登録フレーズを維持。
 - 新しい評価フレーズも既存 `noteOn()` / `noteOff()` 契約のみを使用し、追加AudioContextやネットワーク経路を作らない。
@@ -336,10 +372,7 @@ Total output lines: 45
 - 画面を「音色を作る → 音源を選ぶ → 演奏・試聴 → 録音する」の操作順へ再構成し、上部に4ステップのガイドを追加。
 - VST3設定を「音源を選ぶ」、Sample Performanceとライブ鍵盤／ドラムを「演奏・試聴」へ整理。
 - PCキーボード演奏録音と鼻歌録音を1つの **RECORDING STUDIO** に統合し、2つのタブで切り替えるUIを追加。
-- RWarning: truncated output (original token count: 1234)
-Total output lines: 37
-
-ECORDING STUDIOのタブ切替はUIのみを制御し、既存のNote Event、AudioContext、マイク解析、VST3ルーティング経路を変更しない。
+- RECORDING STUDIOのタブ切替はUIのみを制御し、既存のNote Event、AudioContext、マイク解析、VST3ルーティング経路を変更しない。
 - PCキー録音の最大120秒／512ノート、ピアノロール、再生／クリアと、鼻歌のキー補正／タイミング補正／楽譜／フレーズ転送を維持。
 - VST3本体EditorボタンをHTMLへ明示配置し、「音源を選ぶ」からアクセスできるよう整理。
 - Workflow UI / Unified Recording Studio用の回帰テストを追加。
@@ -355,7 +388,8 @@ ECORDING STUDIOのタブ切替はUIのみを制御し、既存のNote Event、Au
 - VST3 reload / Native Editor / timbre variation用の回帰テストを追加。
 - VST3ルーティングON直後やVST3パラメータ操作後でも、PCキー A/W/S/E/D… で演奏へ戻れるようフォーカス処理を改善。
 - VST3が公開する離散Program/Preset相当パラメータを検出し、専用の音色セレクターと前後ボタンから切り替えられるUIを追加。
-- オンスクリー…34 tokens truncated…ーボード演奏のノートイベント録音を追加。最大120秒／512ノートまで、録音・停止・再生・クリアが可能。
+- オンスクリーン鍵盤を立体感のある白鍵／黒鍵、ノート名、ショートカット表示、発音時のハイライトへ刷新。
+- PCキーボード演奏のノートイベント録音を追加。最大120秒／512ノートまで、録音・停止・再生・クリアが可能。
 - 録音内容をブラウザ内のピアノロールとして表示し、再生は既存 `noteOn()` / `noteOff()` 契約を使うためVST3ルーティングにも対応。
 - 録音機能はAudioContextを追加せず、音声データを録音・保存・アップロードしない。
 - Keyboard/VST3 Program/Recording用の回帰テストを追加。
@@ -414,10 +448,7 @@ ECORDING STUDIOのタブ切替はUIのみを制御し、既存のNote Event、Au
 - 既存の `master_gain <= 0.35` は変更せず、Make-up Gainも追加しないため、Master Gainの安全上限を迂回しない設計を維持。
 - FMエレピのジャズ・ボイシングを3度系の堆積から4度堆積へ変更。
 - ギターのジャズ・コンピングも4度堆積へ変更。
-- 4度堆積コードは共通 `quartalVoicing()` で生Warning: truncated output (original token count: 1289)
-Total output lines: 53
-
-成し、隣接音を常に完全4度（5半音）、4声で構成。
+- 4度堆積コードは共通 `quartalVoicing()` で生成し、隣接音を常に完全4度（5半音）、4声で構成。
 - 出力レベル補正、Master Gain上限維持、単一音源経路、4度堆積ジャズ・コードの回帰テストとHarness不変条件を追加。
 
 ## v0.4.1
@@ -438,7 +469,10 @@ Total output lines: 53
 - エレキギター要求をPCMサンプラーへ自動振り分けし、`instrument_model=electric_guitar` を追加。
 - Factory Guitar PCMを決定論的な弦モデルからローカル生成し、複数ルート音を `AudioBufferSourceNode` で再生する方式を追加。
 - Pick Attack / Release Noise / Palm Mute / Sustain / Body ToneをギターPatchパラメータとして追加。
-- Clean / Crunch / High Gain / Acoustic のアン…89 tokens truncated…ーズ」「アコースティック・アルペジオ」を追加。
+- Clean / Crunch / High Gain / Acoustic のアンプモデルを追加。
+- `WaveShaper` によるDrive、Amp Tone、Presence、Cabinet、Chorusを追加し、アンプ歪みに対応。
+- 右側のグラフィカルPatch Editorでギター／アンプパラメータをリアルタイム編集可能にした。
+- ギター用サンプル演奏として「ロック・リフ」「フュージョン・フレーズ」「アコースティック・アルペジオ」を追加。
 - ギター音源も既存の単一AudioContextと `noteOn()` / `noteOff()` 契約を共有。
 - Factory Guitar PCMに外部録音を埋め込まず、将来ライセンス済み実録音PCMへ差し替え可能な境界を維持。
 - PCMギター、アンプ歪み、3種類のギターサンプル演奏用の回帰テストとハーネス不変条件を追加。
