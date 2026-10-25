@@ -1,5 +1,13 @@
 # CURRENT
 
+## v0.20.12 Fixed piano-roll viewport while scrolling
+
+- [x] 内部の曲全体グリッドは再生追従用の横スクロール範囲として維持
+- [x] CSS Gridの最小幅を制限し、ピアノロールの表示枠とワークスペースが曲の長さで横に拡大しないよう修正
+- [x] 長い曲のスクロール領域と固定表示幅を確認する回帰テストを追加
+- [ ] `python -m pytest tests/` と `python scripts/harness_check.py`
+- [ ] Windows実機で再生中の外枠幅と自動スクロールを確認
+
 ## v0.20.11 Continuous piano-roll scrolling
 
 - [x] アレンジメント再生時は選択パートの全クリップを曲全体の拍位置で表示
